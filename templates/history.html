@@ -51,6 +51,7 @@
                     <th>Shares</th>
                     <th>Price per Share</th>
                     <th>Total Amount</th>
+                    <th>Strategy</th>
                 </tr>
             </thead>
             <tbody>
@@ -84,6 +85,13 @@
                         <span class="text-success">
                             <strong>+{{ (-transaction.shares * transaction.price) | usd }}</strong>
                         </span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if transaction.strategy %}
+                        <span class="badge bg-info">{{ transaction.strategy }}</span>
+                        {% else %}
+                        <span class="text-muted">-</span>
                         {% endif %}
                     </td>
                 </tr>

@@ -292,8 +292,12 @@ def buy():
         if cash < total_cost:
             return apology("can't afford", 400)
         
+        # Get optional strategy and notes
+        strategy = request.form.get("strategy") or None
+        notes = request.form.get("notes") or None
+        
         # Record transaction
-        db.record_transaction(user_id, symbol, shares, price, "buy")
+        db.record_transaction(user_id, symbol, shares, price, "buy", strategy, notes)
         
         # Update user's cash
         db.update_cash(user_id, cash - total_cost)
@@ -479,8 +483,12 @@ def sell():
         price = quote["price"]
         total_value = price * shares
         
+        # Get optional strategy and notes
+        strategy = request.form.get("strategy") or None
+        notes = request.form.get("notes") or None
+        
         # Record transaction
-        db.record_transaction(user_id, symbol, -shares, price, "sell")
+        db.record_transaction(user_id, symbol, -shares, price, "sell", strategy, notes)
         
         # Update user's cash
         user = db.get_user(user_id)
@@ -1236,6 +1244,31 @@ def delete_alert(alert_id):
     
     flash("Alert deleted!")
     return redirect("/alerts")
+
+
+@app.route("/strategies")
+@login_required
+def strategies():
+    """Show trading strategies performance"""
+    user_id = session["user_id"]
+    
+    # Get strategy performance
+    strategies_data = db.get_strategies_performance(user_id)
+    
+    # Get all transactions grouped by strategy
+    transactions = db.get_transactions(user_id)
+    
+    # Calculate profit/loss for each strategy
+    for strategy in strategies_data:
+        strategy_name = strategy['strategy']
+        strategy_transactions = [t for t in transactions if t.get('strategy') == strategy_name]
+        
+        # Calculate P&L (simplified - actual trades)
+        total_spent = sum(t['shares'] * t['price'] for t in strategy_transactions if t['type'] == 'buy')
+        total_received = sum(abs(t['shares']) * t['price'] for t in strategy_transactions if t['type'] == 'sell')
+        strategy['profit_loss'] = total_received - total_spent
+    
+    return render_template("strategies.html", strategies=strategies_data)
 
 
 @app.route("/analytics")

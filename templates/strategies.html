@@ -1,0 +1,170 @@
+{% extends "layout.html" %}
+
+{% block title %}Trading Strategies - StockLeague{% endblock %}
+
+{% block main %}
+<div class="container mt-4">
+    <h2 class="mb-4">
+        <i class="fas fa-chess"></i> Trading Strategies Performance
+    </h2>
+
+    {% if strategies %}
+    <!-- Strategy Cards -->
+    <div class="row mb-4">
+        {% for strategy in strategies %}
+        <div class="col-md-6 col-lg-4 mb-4">
+            <div class="card h-100">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">{{ strategy.strategy }}</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <h6 class="text-muted mb-1">Total Trades</h6>
+                        <h3 class="mb-0">{{ strategy.trade_count }}</h3>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-6">
+                            <h6 class="text-muted mb-1">Buys</h6>
+                            <p class="mb-0 text-success"><strong>{{ strategy.buy_count }}</strong></p>
+                        </div>
+                        <div class="col-6">
+                            <h6 class="text-muted mb-1">Sells</h6>
+                            <p class="mb-0 text-danger"><strong>{{ strategy.sell_count }}</strong></p>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <h6 class="text-muted mb-1">Total Volume</h6>
+                        <p class="mb-0"><strong>{{ strategy.total_volume | usd }}</strong></p>
+                    </div>
+                    <div>
+                        <h6 class="text-muted mb-1">Realized P&L</h6>
+                        <h4 class="mb-0 {% if strategy.profit_loss >= 0 %}text-success{% else %}text-danger{% endif %}">
+                            {{ strategy.profit_loss | usd }}
+                        </h4>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Strategy Performance Chart -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0"><i class="fas fa-chart-bar"></i> Strategy Comparison</h5>
+        </div>
+        <div class="card-body">
+            <canvas id="strategyChart" style="max-height: 400px;"></canvas>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        const strategyData = {{ strategies | tojson }};
+        const strategyNames = strategyData.map(s => s.strategy);
+        const tradeCounts = strategyData.map(s => s.trade_count);
+        const profitLoss = strategyData.map(s => s.profit_loss);
+
+        const ctx = document.getElementById('strategyChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: strategyNames,
+                datasets: [
+                    {
+                        label: 'Number of Trades',
+                        data: tradeCounts,
+                        backgroundColor: 'rgba(13, 110, 253, 0.5)',
+                        borderColor: 'rgb(13, 110, 253)',
+                        borderWidth: 2,
+                        yAxisID: 'y'
+                    },
+                    {
+                        label: 'Profit/Loss ($)',
+                        data: profitLoss,
+                        backgroundColor: profitLoss.map(val => 
+                            val >= 0 ? 'rgba(25, 135, 84, 0.5)' : 'rgba(220, 53, 69, 0.5)'
+                        ),
+                        borderColor: profitLoss.map(val => 
+                            val >= 0 ? 'rgb(25, 135, 84)' : 'rgb(220, 53, 69)'
+                        ),
+                        borderWidth: 2,
+                        yAxisID: 'y1'
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                interaction: {
+                    mode: 'index',
+                    intersect: false
+                },
+                scales: {
+                    y: {
+                        type: 'linear',
+                        display: true,
+                        position: 'left',
+                        title: {
+                            display: true,
+                            text: 'Number of Trades'
+                        }
+                    },
+                    y1: {
+                        type: 'linear',
+                        display: true,
+                        position: 'right',
+                        title: {
+                            display: true,
+                            text: 'Profit/Loss ($)'
+                        },
+                        grid: {
+                            drawOnChartArea: false
+                        }
+                    }
+                }
+            }
+        });
+    </script>
+    {% else %}
+    <div class="alert alert-info text-center">
+        <i class="fas fa-info-circle"></i>
+        <p class="mb-0">You haven't tagged any trades with strategies yet. Add strategies when buying or selling stocks to track performance!</p>
+    </div>
+    {% endif %}
+
+    <!-- Strategy Guide -->
+    <div class="card">
+        <div class="card-header">
+            <h5 class="mb-0"><i class="fas fa-book"></i> Trading Strategy Guide</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <h6><strong>Day Trading</strong></h6>
+                    <p class="small mb-0">Buy and sell within the same trading day to capitalize on short-term price movements.</p>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <h6><strong>Swing Trading</strong></h6>
+                    <p class="small mb-0">Hold positions for days or weeks to profit from expected upward or downward market shifts.</p>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <h6><strong>Long Term Hold</strong></h6>
+                    <p class="small mb-0">Buy and hold for extended periods, focusing on long-term growth and fundamentals.</p>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <h6><strong>Value Investing</strong></h6>
+                    <p class="small mb-0">Buy undervalued stocks trading below their intrinsic value with strong fundamentals.</p>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <h6><strong>Growth Strategy</strong></h6>
+                    <p class="small mb-0">Invest in companies expected to grow at an above-average rate compared to their industry.</p>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <h6><strong>Dividend Income</strong></h6>
+                    <p class="small mb-0">Focus on stocks that pay regular dividends for steady income generation.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

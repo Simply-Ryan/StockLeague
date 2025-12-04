@@ -47,6 +47,8 @@ class DatabaseManager:
                 shares INTEGER NOT NULL,
                 price NUMERIC NOT NULL,
                 type TEXT NOT NULL,
+                strategy TEXT,
+                notes TEXT,
                 timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (user_id) REFERENCES users(id)
             )
@@ -385,14 +387,14 @@ class DatabaseManager:
         conn.commit()
         conn.close()
     
-    def record_transaction(self, user_id, symbol, shares, price, transaction_type):
+    def record_transaction(self, user_id, symbol, shares, price, transaction_type, strategy=None, notes=None):
         """Record a stock transaction."""
         conn = self.get_connection()
         cursor = conn.cursor()
         
         cursor.execute(
-            "INSERT INTO transactions (user_id, symbol, shares, price, type) VALUES (?, ?, ?, ?, ?)",
-            (user_id, symbol, shares, price, transaction_type)
+            "INSERT INTO transactions (user_id, symbol, shares, price, type, strategy, notes) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (user_id, symbol, shares, price, transaction_type, strategy, notes)
         )
         
         conn.commit()
@@ -1263,3 +1265,28 @@ class DatabaseManager:
         
         conn.close()
         return triggered_alerts
+    
+    # ============ TRADING STRATEGY METHODS ============
+    
+    def get_strategies_performance(self, user_id):
+        """Get trading performance grouped by strategy"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            SELECT 
+                strategy,
+                COUNT(*) as trade_count,
+                SUM(CASE WHEN type = 'buy' THEN 1 ELSE 0 END) as buy_count,
+                SUM(CASE WHEN type = 'sell' THEN 1 ELSE 0 END) as sell_count,
+                SUM(ABS(shares * price)) as total_volume
+            FROM transactions
+            WHERE user_id = ? AND strategy IS NOT NULL
+            GROUP BY strategy
+            ORDER BY trade_count DESC
+        """, (user_id,))
+        
+        strategies = cursor.fetchall()
+        conn.close()
+        
+        return [dict(row) for row in strategies]
