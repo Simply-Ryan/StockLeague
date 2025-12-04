@@ -1,0 +1,140 @@
+{% extends "layout.html" %}
+
+{% block title %}Leagues - StockLeague{% endblock %}
+
+{% block main %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="fas fa-trophy"></i> Trading Leagues</h2>
+        <a href="/leagues/create" class="btn btn-primary">
+            <i class="fas fa-plus"></i> Create League
+        </a>
+    </div>
+
+    <!-- My Leagues -->
+    {% if user_leagues %}
+    <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0"><i class="fas fa-users"></i> My Leagues</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                {% for league in user_leagues %}
+                <div class="col-md-6 col-lg-4 mb-3">
+                    <div class="card h-100 {% if league.is_active %}border-success{% else %}border-secondary{% endif %}">
+                        <div class="card-body">
+                            <h6 class="card-title">
+                                {{ league.name }}
+                                {% if league.is_admin %}
+                                <span class="badge bg-warning text-dark">Admin</span>
+                                {% endif %}
+                            </h6>
+                            <p class="card-text small text-muted">{{ league.description[:100] }}{% if league.description|length > 100 %}...{% endif %}</p>
+                            <div class="mb-2">
+                                {% if league.is_active %}
+                                <span class="badge bg-success">Active</span>
+                                {% else %}
+                                <span class="badge bg-secondary">Ended</span>
+                                {% endif %}
+                                {% if league.league_type == 'private' %}
+                                <span class="badge bg-info">Private</span>
+                                {% endif %}
+                            </div>
+                            {% if league.current_rank %}
+                            <div class="mb-2">
+                                <strong>Your Rank:</strong> #{{ league.current_rank }}
+                            </div>
+                            {% endif %}
+                            <div class="mb-2">
+                                <strong>Score:</strong> {{ league.score | usd }}
+                            </div>
+                        </div>
+                        <div class="card-footer">
+                            <a href="/leagues/{{ league.id }}" class="btn btn-sm btn-outline-primary w-100">
+                                <i class="fas fa-eye"></i> View League
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Join League by Code -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0"><i class="fas fa-ticket-alt"></i> Join with Invite Code</h5>
+        </div>
+        <div class="card-body">
+            <form action="/leagues/join" method="post" class="row g-3">
+                <div class="col-md-8">
+                    <input type="text" class="form-control" name="invite_code" placeholder="Enter invite code" required>
+                </div>
+                <div class="col-md-4">
+                    <button type="submit" class="btn btn-success w-100">
+                        <i class="fas fa-sign-in-alt"></i> Join League
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Public Leagues -->
+    <div class="card">
+        <div class="card-header">
+            <h5 class="mb-0"><i class="fas fa-globe"></i> Public Leagues</h5>
+        </div>
+        <div class="card-body">
+            {% if public_leagues %}
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Creator</th>
+                            <th>Members</th>
+                            <th>Starting Cash</th>
+                            <th>Status</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for league in public_leagues %}
+                        <tr>
+                            <td>
+                                <strong>{{ league.name }}</strong>
+                                <br>
+                                <small class="text-muted">{{ league.description[:50] }}{% if league.description|length > 50 %}...{% endif %}</small>
+                            </td>
+                            <td>{{ league.creator_name }}</td>
+                            <td>{{ league.member_count }}</td>
+                            <td>{{ league.starting_cash | usd }}</td>
+                            <td>
+                                {% if league.is_active %}
+                                <span class="badge bg-success">Active</span>
+                                {% else %}
+                                <span class="badge bg-secondary">Ended</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <form action="/leagues/join" method="post" class="d-inline">
+                                    <input type="hidden" name="league_id" value="{{ league.id }}">
+                                    <button type="submit" class="btn btn-sm btn-outline-primary">
+                                        <i class="fas fa-sign-in-alt"></i> Join
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="text-muted text-center mb-0">No public leagues available</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

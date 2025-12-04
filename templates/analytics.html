@@ -1,307 +1,394 @@
 {% extends "layout.html" %}
 
-{% block title %}Analytics - StockLeague{% endblock %}
+{% block title %}
+    Portfolio Analytics
+{% endblock %}
 
 {% block main %}
-<div class="container mt-4">
-    <h2 class="mb-4">
-        <i class="fas fa-chart-pie"></i> Trading Analytics
-    </h2>
-
-    <!-- Trading Statistics Cards -->
+<div class="container-fluid px-4">
+    <h1 class="mb-4"><i class="fas fa-chart-line me-2"></i>Portfolio Analytics</h1>
+    
+    <!-- Summary Cards -->
     <div class="row mb-4">
-        <div class="col-md-3 mb-3">
-            <div class="card text-center h-100">
+        <div class="col-lg-3 col-md-6 mb-3">
+            <div class="card shadow h-100">
                 <div class="card-body">
-                    <i class="fas fa-exchange-alt fa-2x text-primary mb-2"></i>
-                    <h6 class="card-subtitle mb-2 text-muted">Total Trades</h6>
-                    <h3 class="card-title">{{ stats.total_trades }}</h3>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <p class="text-muted mb-1">Total Value</p>
+                            <h3 class="mb-0">${{ "%.2f"|format(analytics.total_value) }}</h3>
+                        </div>
+                        <i class="fas fa-wallet fa-2x text-primary"></i>
+                    </div>
                 </div>
             </div>
         </div>
-        <div class="col-md-3 mb-3">
-            <div class="card text-center h-100">
+        <!-- New: Benchmark Comparison -->
+        <div class="col-lg-3 col-md-6 mb-3">
+            <div class="card shadow h-100">
                 <div class="card-body">
-                    <i class="fas fa-arrow-up fa-2x text-success mb-2"></i>
-                    <h6 class="card-subtitle mb-2 text-muted">Buy Orders</h6>
-                    <h3 class="card-title text-success">{{ stats.buys }}</h3>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <p class="text-muted mb-1">S&P 500 Return</p>
+                            <h3 class="mb-0 text-info">{{ "%.2f"|format(analytics.benchmark.spy_total_return|default(0)) }}%</h3>
+                            <small class="text-muted">Volatility: {{ "%.2f"|format(analytics.benchmark.spy_volatility|default(0)) }}%</small>
+                        </div>
+                        <i class="fab fa-line fa-2x text-info"></i>
+                    </div>
                 </div>
             </div>
         </div>
-        <div class="col-md-3 mb-3">
-            <div class="card text-center h-100">
+        
+        <div class="col-lg-3 col-md-6 mb-3">
+            <div class="card shadow h-100">
                 <div class="card-body">
-                    <i class="fas fa-arrow-down fa-2x text-danger mb-2"></i>
-                    <h6 class="card-subtitle mb-2 text-muted">Sell Orders</h6>
-                    <h3 class="card-title text-danger">{{ stats.sells }}</h3>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <p class="text-muted mb-1">Total Return</p>
+                            <h3 class="mb-0 {% if analytics.total_return >= 0 %}text-success{% else %}text-danger{% endif %}">
+                                ${{ "%.2f"|format(analytics.total_return) }}
+                            </h3>
+                            <small class="{% if analytics.return_percentage >= 0 %}text-success{% else %}text-danger{% endif %}">
+                                {{ "%.2f"|format(analytics.return_percentage) }}%
+                            </small>
+                        </div>
+                        <i class="fas fa-{% if analytics.total_return >= 0 %}arrow-up{% else %}arrow-down{% endif %} fa-2x {% if analytics.total_return >= 0 %}text-success{% else %}text-danger{% endif %}"></i>
+                    </div>
                 </div>
             </div>
         </div>
-        <div class="col-md-3 mb-3">
-            <div class="card text-center h-100">
+        
+        <div class="col-lg-3 col-md-6 mb-3">
+            <div class="card shadow h-100">
                 <div class="card-body">
-                    <i class="fas fa-chart-bar fa-2x text-info mb-2"></i>
-                    <h6 class="card-subtitle mb-2 text-muted">Avg Trade Size</h6>
-                    <h3 class="card-title text-info">{{ "%.1f" | format(stats.avg_trade_size) }}</h3>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <p class="text-muted mb-1">Sharpe Ratio</p>
+                            <h3 class="mb-0">{{ "%.2f"|format(analytics.risk_metrics.sharpe_ratio|default(0)) }}</h3>
+                            <small class="text-muted">Risk-adjusted return</small>
+                        </div>
+                        <i class="fas fa-chart-bar fa-2x text-info"></i>
+                    </div>
                 </div>
             </div>
         </div>
-    </div>
-
-    <div class="row mb-4">
-        <div class="col-md-6 mb-3">
-            <div class="card text-center h-100">
+        <!-- New: Sortino Ratio -->
+        <div class="col-lg-3 col-md-6 mb-3">
+            <div class="card shadow h-100">
                 <div class="card-body">
-                    <i class="fas fa-star fa-2x text-warning mb-2"></i>
-                    <h6 class="card-subtitle mb-2 text-muted">Most Traded Stock</h6>
-                    <h3 class="card-title">
-                        {% if stats.most_traded_symbol %}
-                            <a href="/quote?symbol={{ stats.most_traded_symbol }}" class="text-decoration-none">
-                                {{ stats.most_traded_symbol }}
-                            </a>
-                            <small class="d-block text-muted">({{ stats.most_traded_count }} trades)</small>
-                        {% else %}
-                            N/A
-                        {% endif %}
-                    </h3>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <p class="text-muted mb-1">Sortino Ratio</p>
+                            <h3 class="mb-0">{{ "%.2f"|format(analytics.risk_metrics.sortino_ratio|default(0)) }}</h3>
+                            <small class="text-muted">Downside risk-adjusted</small>
+                        </div>
+                        <i class="fas fa-arrow-down fa-2x text-danger"></i>
+                    </div>
                 </div>
             </div>
         </div>
-        <div class="col-md-6 mb-3">
-            <div class="card text-center h-100">
+        
+        <div class="col-lg-3 col-md-6 mb-3">
+            <div class="card shadow h-100">
                 <div class="card-body">
-                    <i class="fas fa-calendar fa-2x text-secondary mb-2"></i>
-                    <h6 class="card-subtitle mb-2 text-muted">Trading Since</h6>
-                    <h3 class="card-title">{{ stats.first_trade_date or "N/A" }}</h3>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Portfolio Allocation -->
-    {% if portfolio_breakdown %}
-    <div class="row mb-4">
-        <div class="col-lg-6 mb-3">
-            <div class="card h-100">
-                <div class="card-header">
-                    <h5 class="mb-0"><i class="fas fa-pie-chart"></i> Portfolio Allocation</h5>
-                </div>
-                <div class="card-body">
-                    <canvas id="portfolioChart" style="max-height: 300px;"></canvas>
-                </div>
-            </div>
-        </div>
-        <div class="col-lg-6 mb-3">
-            <div class="card h-100">
-                <div class="card-header">
-                    <h5 class="mb-0"><i class="fas fa-list"></i> Holdings Breakdown</h5>
-                </div>
-                <div class="card-body">
-                    <div class="table-responsive">
-                        <table class="table table-sm">
-                            <thead>
-                                <tr>
-                                    <th>Symbol</th>
-                                    <th>Shares</th>
-                                    <th>Value</th>
-                                    <th>%</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for item in portfolio_breakdown %}
-                                <tr>
-                                    <td><a href="/quote?symbol={{ item.symbol }}">{{ item.symbol }}</a></td>
-                                    <td>{{ item.shares }}</td>
-                                    <td>{{ item.value | usd }}</td>
-                                    <td>{{ "%.1f" | format(item.percentage) }}%</td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <p class="text-muted mb-1">Win Rate</p>
+                            <h3 class="mb-0">{{ "%.1f"|format(analytics.performance_metrics.win_rate|default(0)) }}%</h3>
+                            <small class="text-muted">{{ analytics.performance_metrics.winning_trades|default(0) }}/{{ analytics.performance_metrics.total_trades|default(0) }} trades</small>
+                        </div>
+                        <i class="fas fa-trophy fa-2x text-warning"></i>
                     </div>
                 </div>
             </div>
         </div>
     </div>
-    {% endif %}
-
-    <!-- Performance Charts -->
-    {% if portfolio_history and portfolio_history|length > 1 %}
-    <div class="card mb-4">
-        <div class="card-header">
-            <h5 class="mb-0"><i class="fas fa-chart-line"></i> Portfolio Performance (90 Days)</h5>
+    
+    <!-- Portfolio Performance Chart -->
+    <div class="card shadow mb-4">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0"><i class="fas fa-chart-area me-2"></i>Portfolio Performance</h5>
         </div>
         <div class="card-body">
-            <canvas id="performanceChart" style="max-height: 300px;"></canvas>
+            <canvas id="performanceChart" height="80"></canvas>
         </div>
     </div>
-    {% endif %}
-
-    <!-- Best and Worst Trades -->
+    
     <div class="row mb-4">
-        <div class="col-lg-6 mb-3">
-            <div class="card h-100">
-                <div class="card-header bg-success text-white">
-                    <h5 class="mb-0"><i class="fas fa-thumbs-up"></i> Best Trades</h5>
+        <!-- Sector Allocation -->
+        <div class="col-lg-6 mb-4">
+            <div class="card shadow h-100">
+                <div class="card-header bg-secondary text-white">
+                    <h5 class="mb-0"><i class="fas fa-pie-chart me-2"></i>Sector Allocation</h5>
                 </div>
-                <div class="card-body p-0">
-                    {% if best_trades %}
-                    <div class="table-responsive">
-                        <table class="table table-sm mb-0">
-                            <thead>
-                                <tr>
-                                    <th>Symbol</th>
-                                    <th>Shares</th>
-                                    <th>Gain</th>
-                                    <th>%</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for trade in best_trades %}
-                                <tr>
-                                    <td><a href="/quote?symbol={{ trade.symbol }}">{{ trade.symbol }}</a></td>
-                                    <td>{{ trade.shares }}</td>
-                                    <td class="text-success">{{ trade.gain_loss | usd }}</td>
-                                    <td class="text-success">+{{ "%.2f" | format(trade.gain_loss_percent) }}%</td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
+                <div class="card-body">
+                    {% if analytics.sector_allocation %}
+                    <canvas id="sectorChart" height="250"></canvas>
                     {% else %}
-                    <p class="text-center py-3 mb-0">No trades yet</p>
+                    <div class="text-center py-5">
+                        <i class="fas fa-chart-pie fa-3x text-muted mb-3"></i>
+                        <p class="text-muted">No holdings yet</p>
+                    </div>
                     {% endif %}
                 </div>
             </div>
         </div>
-        <div class="col-lg-6 mb-3">
-            <div class="card h-100">
+        
+        <!-- Risk Metrics -->
+        <div class="col-lg-6 mb-4">
+            <div class="card shadow h-100">
                 <div class="card-header bg-danger text-white">
-                    <h5 class="mb-0"><i class="fas fa-thumbs-down"></i> Worst Trades</h5>
+                    <h5 class="mb-0"><i class="fas fa-exclamation-triangle me-2"></i>Risk Metrics</h5>
                 </div>
-                <div class="card-body p-0">
-                    {% if worst_trades %}
-                    <div class="table-responsive">
-                        <table class="table table-sm mb-0">
-                            <thead>
-                                <tr>
-                                    <th>Symbol</th>
-                                    <th>Shares</th>
-                                    <th>Loss</th>
-                                    <th>%</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for trade in worst_trades %}
-                                <tr>
-                                    <td><a href="/quote?symbol={{ trade.symbol }}">{{ trade.symbol }}</a></td>
-                                    <td>{{ trade.shares }}</td>
-                                    <td class="text-danger">{{ trade.gain_loss | usd }}</td>
-                                    <td class="text-danger">{{ "%.2f" | format(trade.gain_loss_percent) }}%</td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
+                <div class="card-body">
+                    <div class="mb-4">
+                        <div class="d-flex justify-content-between mb-2">
+                            <span>Volatility (Annualized)</span>
+                            <strong>{{ "%.2f"|format(analytics.risk_metrics.volatility|default(0)) }}%</strong>
+                        </div>
+                        <div class="progress" style="height: 20px;">
+                            <div class="progress-bar bg-warning" role="progressbar" 
+                                 style="width: {{ min(100, analytics.risk_metrics.volatility|default(0)) }}%">
+                            </div>
+                        </div>
+                        <small class="text-muted">Lower is less risky</small>
                     </div>
-                    {% else %}
-                    <p class="text-center py-3 mb-0">No trades yet</p>
-                    {% endif %}
+                    
+                    <div class="mb-4">
+                        <div class="d-flex justify-content-between mb-2">
+                            <span>Maximum Drawdown</span>
+                            <strong class="text-danger">{{ "%.2f"|format(analytics.risk_metrics.max_drawdown|default(0)) }}%</strong>
+                        </div>
+                        <div class="progress" style="height: 20px;">
+                            <div class="progress-bar bg-danger" role="progressbar" 
+                                 style="width: {{ min(100, analytics.risk_metrics.max_drawdown|default(0)) }}%">
+                            </div>
+                        </div>
+                        <small class="text-muted">Peak to trough decline</small>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <div class="d-flex justify-content-between mb-2">
+                            <span>Beta (vs Market)</span>
+                            <strong>{{ "%.2f"|format(analytics.risk_metrics.beta|default(1.0)) }}</strong>
+                        </div>
+                        <small class="text-muted">1.0 = market volatility, >1.0 = more volatile</small>
+                    </div>
+                    
+                    <div>
+                        <div class="d-flex justify-content-between mb-2">
+                            <span>Value at Risk (95%)</span>
+                            <strong class="text-danger">{{ "%.2f"|format(analytics.risk_metrics.var_95|default(0)) }}%</strong>
+                        </div>
+                        <small class="text-muted">Expected max daily loss (95% confidence)</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Holdings Table -->
+    <div class="card shadow mb-4">
+        <div class="card-header bg-success text-white">
+            <h5 class="mb-0"><i class="fas fa-briefcase me-2"></i>Current Holdings</h5>
+            <!-- New: Export Buttons -->
+            <div class="float-end">
+                <button class="btn btn-outline-light btn-sm" onclick="window.print()"><i class="fas fa-file-pdf"></i> Export PDF</button>
+                <button class="btn btn-outline-light btn-sm" onclick="exportCSV()"><i class="fas fa-file-csv"></i> Export CSV</button>
+            </div>
+        </div>
+        <div class="card-body p-0">
+            {% if analytics.holdings %}
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th>Symbol</th>
+                            <th class="text-end">Shares</th>
+                            <th class="text-end">Avg Cost</th>
+                            <th class="text-end">Current Price</th>
+                            <th class="text-end">Value</th>
+                            <th class="text-end">Gain/Loss</th>
+                            <th class="text-end">% Weight</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for holding in analytics.holdings %}
+                        <tr>
+                            <td><strong>{{ holding.symbol }}</strong></td>
+                            <td class="text-end">{{ holding.shares }}</td>
+                            <td class="text-end">${{ "%.2f"|format(holding.avg_price) }}</td>
+                            <td class="text-end">${{ "%.2f"|format(holding.current_price) }}</td>
+                            <td class="text-end"><strong>${{ "%.2f"|format(holding.current_value) }}</strong></td>
+                            <td class="text-end {% if holding.gain_loss >= 0 %}text-success{% else %}text-danger{% endif %}">
+                                ${{ "%.2f"|format(holding.gain_loss) }}
+                                ({{ "%.2f"|format(holding.gain_loss_pct) }}%)
+                            </td>
+                            <td class="text-end">{{ "%.1f"|format(holding.portfolio_weight) }}%</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="text-center py-5">
+                <i class="fas fa-briefcase fa-3x text-muted mb-3"></i>
+                <p class="text-muted">No holdings yet. Start investing!</p>
+                <a href="/quote" class="btn btn-primary">Browse Stocks</a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    
+    <!-- Diversification Metrics -->
+    <div class="card shadow mb-4">
+        <div class="card-header bg-info text-white">
+            <h5 class="mb-0"><i class="fas fa-balance-scale me-2"></i>Diversification Analysis</h5>
+            <!-- New: Top/Bottom Performers -->
+            <div class="float-end">
+                <span class="badge bg-success">Top: {{ analytics.holdings[0].symbol if analytics.holdings else 'N/A' }}</span>
+                <span class="badge bg-danger">Bottom: {{ analytics.holdings[-1].symbol if analytics.holdings else 'N/A' }}</span>
+            </div>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-3">
+                    <div class="text-center p-3 bg-light rounded">
+                        <i class="fas fa-boxes fa-2x text-primary mb-2"></i>
+                        <h4 class="mb-0">{{ analytics.diversification.num_holdings|default(0) }}</h4>
+                        <small class="text-muted">Holdings</small>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="text-center p-3 bg-light rounded">
+                        <i class="fas fa-industry fa-2x text-success mb-2"></i>
+                        <h4 class="mb-0">{{ analytics.diversification.num_sectors|default(0) }}</h4>
+                        <small class="text-muted">Sectors</small>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="text-center p-3 bg-light rounded">
+                        <i class="fas fa-percentage fa-2x text-warning mb-2"></i>
+                        <h4 class="mb-0">{{ "%.1f"|format(analytics.diversification.concentration|default(0)) }}%</h4>
+                        <small class="text-muted">Top Holding</small>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="text-center p-3 bg-light rounded">
+                        <i class="fas fa-chart-bar fa-2x text-info mb-2"></i>
+                        <h4 class="mb-0">{{ "%.3f"|format(analytics.diversification.herfindahl_index|default(0)) }}</h4>
+                        <small class="text-muted">HHI (Lower = Better)</small>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
-{% if portfolio_breakdown %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
-    // Portfolio Allocation Pie Chart
-    const allocationCtx = document.getElementById('portfolioChart').getContext('2d');
-    const symbols = {{ portfolio_breakdown | map(attribute='symbol') | list | tojson }};
-    const percentages = {{ portfolio_breakdown | map(attribute='percentage') | list | tojson }};
-    
-    const colors = [
-        'rgb(13, 110, 253)', 'rgb(25, 135, 84)', 'rgb(220, 53, 69)',
-        'rgb(255, 193, 7)', 'rgb(13, 202, 240)', 'rgb(108, 117, 125)',
-        'rgb(214, 51, 132)', 'rgb(111, 66, 193)'
-    ];
-    
-    new Chart(allocationCtx, {
-        type: 'doughnut',
-        data: {
-            labels: symbols,
-            datasets: [{
-                data: percentages,
-                backgroundColor: colors,
-                borderWidth: 2,
-                borderColor: '#fff'
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: true,
-            plugins: {
-                legend: {
-                    position: 'right'
-                },
-                tooltip: {
-                    callbacks: {
-                        label: function(context) {
-                            return context.label + ': ' + context.parsed.toFixed(1) + '%';
-                        }
-                    }
-                }
-            }
-        }
-    });
-</script>
-{% endif %}
+// Export CSV function
+function exportCSV() {
+    let csv = 'Symbol,Shares,Avg Cost,Current Price,Value,Gain/Loss,% Weight\n';
+    {% for holding in analytics.holdings %}
+    csv += '{{ holding.symbol }},{{ holding.shares }},{{ holding.avg_price }},{{ holding.current_price }},{{ holding.current_value }},{{ holding.gain_loss }},{{ holding.portfolio_weight }}\n';
+    {% endfor %}
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = 'portfolio_analytics.csv';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+// Performance Chart
+{% if performance_history %}
+const performanceCtx = document.getElementById('performanceChart').getContext('2d');
+const performanceData = {{ performance_history|tojson }};
 
-{% if portfolio_history and portfolio_history|length > 1 %}
-<script>
-    // Performance Line Chart
-    const portfolioData = {{ portfolio_history | tojson }};
-    const dates = portfolioData.map(item => {
-        const date = new Date(item.timestamp);
-        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    });
-    const values = portfolioData.map(item => item.total_value);
-    
-    const performanceCtx = document.getElementById('performanceChart').getContext('2d');
-    new Chart(performanceCtx, {
-        type: 'line',
-        data: {
-            labels: dates,
-            datasets: [{
-                label: 'Portfolio Value',
-                data: values,
-                borderColor: 'rgb(13, 110, 253)',
-                backgroundColor: 'rgba(13, 110, 253, 0.1)',
-                borderWidth: 2,
-                fill: true,
-                tension: 0.4
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: true,
-            plugins: {
-                legend: {
-                    display: false
-                }
+new Chart(performanceCtx, {
+    type: 'line',
+    data: {
+        labels: performanceData.map(d => d.date),
+        datasets: [{
+            label: 'Portfolio Value',
+            data: performanceData.map(d => d.value),
+            borderColor: 'rgb(99, 102, 241)',
+            backgroundColor: 'rgba(99, 102, 241, 0.1)',
+            fill: true,
+            tension: 0.4
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: {
+                display: false
             },
-            scales: {
-                y: {
-                    ticks: {
-                        callback: function(value) {
-                            return '$' + value.toFixed(0);
-                        }
+            tooltip: {
+                callbacks: {
+                    label: function(context) {
+                        return '$' + context.parsed.y.toFixed(2);
+                    }
+                }
+            }
+        },
+        scales: {
+            y: {
+                beginAtZero: false,
+                ticks: {
+                    callback: function(value) {
+                        return '$' + value.toFixed(0);
                     }
                 }
             }
         }
-    });
-</script>
+    }
+});
 {% endif %}
+
+// Sector Allocation Chart
+{% if analytics.sector_allocation %}
+const sectorCtx = document.getElementById('sectorChart').getContext('2d');
+const sectorData = {{ analytics.sector_allocation|tojson }};
+const sectors = Object.keys(sectorData);
+const values = Object.values(sectorData);
+
+new Chart(sectorCtx, {
+    type: 'doughnut',
+    data: {
+        labels: sectors,
+        datasets: [{
+            data: values,
+            backgroundColor: [
+                'rgb(99, 102, 241)',
+                'rgb(16, 185, 129)',
+                'rgb(245, 158, 11)',
+                'rgb(239, 68, 68)',
+                'rgb(168, 85, 247)',
+                'rgb(59, 130, 246)',
+                'rgb(236, 72, 153)'
+            ]
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: {
+                position: 'right'
+            },
+            tooltip: {
+                callbacks: {
+                    label: function(context) {
+                        return context.label + ': ' + context.parsed.toFixed(1) + '%';
+                    }
+                }
+            }
+        }
+    }
+});
+{% endif %}
+</script>
 {% endblock %}

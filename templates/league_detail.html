@@ -1,0 +1,218 @@
+{% extends "layout.html" %}
+
+{% block title %}{{ league.name }} - StockLeague{% endblock %}
+
+{% block main %}
+<div class="container mt-4">
+    <!-- League Header -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-start">
+                <div>
+                    <h2 class="mb-1">
+                        <i class="fas fa-trophy text-warning"></i> {{ league.name }}
+                        {% if league.is_active %}
+                        <span class="badge bg-success">Active</span>
+                        {% else %}
+                        <span class="badge bg-secondary">Ended</span>
+                        {% endif %}
+                        {% if league.league_type == 'private' %}
+                        <span class="badge bg-info">Private</span>
+                        {% endif %}
+                    </h2>
+                    <p class="text-muted mb-2">{{ league.description }}</p>
+                    <div class="mb-2">
+                        <strong>Invite Code:</strong> 
+                        <code id="invite-code" class="bg-light px-2 py-1 rounded">{{ league.invite_code }}</code>
+                        <button class="btn btn-sm btn-outline-secondary ms-2" onclick="copyInviteCode()">
+                            <i class="fas fa-copy"></i> Copy
+                        </button>
+                    </div>
+                    <div class="row">
+                        <div class="col-auto">
+                            <strong>Members:</strong> {{ members|length }}
+                        </div>
+                        <div class="col-auto">
+                            <strong>Starting Cash:</strong> {{ league.starting_cash | usd }}
+                        </div>
+                        {% if league.season_start %}
+                        <div class="col-auto">
+                            <strong>Started:</strong> {{ league.season_start.split('.')[0] }}
+                        </div>
+                        {% endif %}
+                        {% if league.season_end %}
+                        <div class="col-auto">
+                            <strong>Ends:</strong> {{ league.season_end.split('.')[0] }}
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                <div>
+                    {% if not is_member %}
+                    <form action="/leagues/join" method="post">
+                        <input type="hidden" name="league_id" value="{{ league.id }}">
+                        <button type="submit" class="btn btn-success">
+                            <i class="fas fa-sign-in-alt"></i> Join League
+                        </button>
+                    </form>
+                    {% else %}
+                    <form action="/leagues/{{ league.id }}/leave" method="post" onsubmit="return confirm('Are you sure you want to leave this league?');">
+                        <button type="submit" class="btn btn-outline-danger">
+                            <i class="fas fa-sign-out-alt"></i> Leave
+                        </button>
+                    </form>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Admin Controls -->
+    {% if is_admin %}
+    <div class="card mb-4 border-warning">
+        <div class="card-header bg-warning text-dark">
+            <h5 class="mb-0"><i class="fas fa-crown"></i> Admin Controls</h5>
+        </div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-auto">
+                    <form action="/leagues/{{ league.id }}/end" method="post" onsubmit="return confirm('End the current season? This will notify winners and archive results.');">
+                        <button type="submit" class="btn btn-warning" {% if not league.is_active %}disabled{% endif %}>
+                            <i class="fas fa-stop"></i> End Season
+                        </button>
+                    </form>
+                </div>
+                <div class="col-auto">
+                    <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#restartModal" {% if league.is_active %}disabled{% endif %}>
+                        <i class="fas fa-play"></i> Start New Season
+                    </button>
+                </div>
+                <div class="col-auto">
+                    <button class="btn btn-info" onclick="window.location.reload()">
+                        <i class="fas fa-sync"></i> Update Rankings
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Leaderboard -->
+    <div class="card">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0"><i class="fas fa-medal"></i> Leaderboard</h5>
+        </div>
+        <div class="card-body">
+            {% if leaderboard %}
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th style="width: 80px;">Rank</th>
+                            <th>Trader</th>
+                            <th>Portfolio Value</th>
+                            <th>Return</th>
+                            <th>Performance</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for member in leaderboard %}
+                        <tr {% if member.id == session.user_id %}class="table-primary"{% endif %}>
+                            <td class="text-center">
+                                {% if member.current_rank == 1 %}
+                                <i class="fas fa-trophy text-warning fa-2x"></i>
+                                {% elif member.current_rank == 2 %}
+                                <i class="fas fa-medal medal-silver fa-2x"></i>
+                                {% elif member.current_rank == 3 %}
+                                <i class="fas fa-medal medal-bronze fa-2x"></i>
+                                {% else %}
+                                <strong>#{{ member.current_rank or '-' }}</strong>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <div class="d-flex align-items-center">
+                                    {% if member.avatar_url %}
+                                    <img src="{{ member.avatar_url }}" class="rounded-circle me-2" width="40" height="40">
+                                    {% else %}
+                                    <div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center me-2" style="width: 40px; height: 40px;">
+                                        {{ member.username[0].upper() }}
+                                    </div>
+                                    {% endif %}
+                                    <strong>{{ member.username }}</strong>
+                                    {% if member.id == session.user_id %}
+                                    <span class="badge bg-primary ms-2">You</span>
+                                    {% endif %}
+                                </div>
+                            </td>
+                            <td><strong>{{ member.score | usd }}</strong></td>
+                            <td>
+                                {% set return_val = member.score - league.starting_cash %}
+                                <span class="{% if return_val >= 0 %}text-success{% else %}text-danger{% endif %}">
+                                    {% if return_val >= 0 %}+{% endif %}{{ return_val | usd }}
+                                </span>
+                            </td>
+                            <td>
+                                {% set return_pct = ((member.score - league.starting_cash) / league.starting_cash * 100) %}
+                                <div class="progress" style="height: 20px;">
+                                    <div class="progress-bar {% if return_pct >= 0 %}bg-success{% else %}bg-danger{% endif %}" 
+                                         role="progressbar" 
+                                         style="width: {{ [abs(return_pct), 100] | min }}%"
+                                         aria-valuenow="{{ return_pct }}" 
+                                         aria-valuemin="-100" 
+                                         aria-valuemax="100">
+                                        {% if return_pct >= 0 %}+{% endif %}{{ "%.2f" | format(return_pct) }}%
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="text-muted text-center mb-0">No rankings yet. Trade to get on the leaderboard!</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Restart Season Modal -->
+<div class="modal fade" id="restartModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form action="/leagues/{{ league.id }}/restart" method="post">
+                <div class="modal-header">
+                    <h5 class="modal-title">Start New Season</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="duration_days" class="form-label">Season Duration</label>
+                        <select class="form-select" id="duration_days" name="duration_days">
+                            <option value="7">1 Week</option>
+                            <option value="14">2 Weeks</option>
+                            <option value="30" selected>1 Month</option>
+                            <option value="60">2 Months</option>
+                            <option value="90">3 Months</option>
+                        </select>
+                    </div>
+                    <p class="text-muted">This will reset all scores and start fresh rankings.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-success">Start Season</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+function copyInviteCode() {
+    const code = document.getElementById('invite-code').textContent;
+    navigator.clipboard.writeText(code).then(() => {
+        alert('Invite code copied to clipboard!');
+    });
+}
+</script>
+{% endblock %}

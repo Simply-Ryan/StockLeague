@@ -1,11 +1,18 @@
 import os
-from flask import Flask, flash, redirect, render_template, request, session
+import random
+import uuid
+from flask import Flask, flash, redirect, render_template, request, session, jsonify, send_file
 from flask_session import Session
+from flask_socketio import SocketIO, emit, join_room, leave_room
 from werkzeug.security import check_password_hash, generate_password_hash
 from functools import wraps
-from helpers import apology, lookup, usd, get_chart_data, get_popular_stocks, get_market_movers, get_stock_news
+from helpers import apology, lookup, usd, get_chart_data, get_popular_stocks, get_market_movers, get_stock_news, get_option_price_and_greeks, analyze_sentiment, fetch_news_finnhub, get_cached_or_fetch_news
 from database.db_manager import DatabaseManager
 from dotenv import load_dotenv
+import threading
+import time
+from datetime import datetime
+from collections import defaultdict
 
 # Load environment variables
 load_dotenv()
@@ -24,11 +31,107 @@ app.config["SESSION_PERMANENT"] = False
 app.config["SESSION_TYPE"] = "filesystem"
 Session(app)
 
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode='eventlet')
+# --- Real-Time Chat System ---
+# In-memory chat storage (replace with DB for production)
+chat_rooms = defaultdict(list)  # room -> list of messages
+chat_users = defaultdict(set)   # room -> set of usernames
+user_typing = defaultdict(set)  # room -> set of typing usernames
+
+@app.route("/chat")
+@login_required
+def chat():
+    return render_template("chat.html")
+
+# SocketIO events
+@socketio.on('join_room')
+def handle_join_room(data):
+    room = data.get('room', 'General')
+    username = data.get('username', 'User')
+    join_room(room)
+    chat_users[room].add(username)
+    emit('user_presence', list(chat_users[room]), room=room)
+    # Send chat history
+    emit('chat_history', chat_rooms[room], room=request.sid)
+
+@socketio.on('chat_message')
+def handle_chat_message(data):
+    room = data.get('room', 'General')
+    username = data.get('username', 'User')
+    message = data.get('message', '')
+    msg_id = str(uuid.uuid4())
+    msg = {
+        'id': msg_id,
+        'username': username,
+        'message': message,
+        'time': datetime.now().strftime('%H:%M'),
+        'reactions': {}
+    }
+    chat_rooms[room].append(msg)
+    emit('chat_message', msg, room=room)
+
+@socketio.on('chat_file')
+def handle_chat_file(data):
+    room = data.get('room', 'General')
+    username = data.get('username', 'User')
+    filename = data.get('filename', 'file')
+    filedata = data.get('data', '')
+    msg_id = str(uuid.uuid4())
+    msg = {
+        'id': msg_id,
+        'username': username,
+        'filename': filename,
+        'data': filedata,
+        'time': datetime.now().strftime('%H:%M'),
+        'type': 'file'
+    }
+    chat_rooms[room].append(msg)
+    emit('chat_file', msg, room=room)
+
+@socketio.on('typing')
+def handle_typing(data):
+    room = data.get('room', 'General')
+    username = data.get('username', 'User')
+    user_typing[room].add(username)
+    emit('show_typing', {'username': username}, room=room)
+    # Remove after short delay
+    def remove_typing():
+        time.sleep(2)
+        user_typing[room].discard(username)
+    threading.Thread(target=remove_typing).start()
+
+@socketio.on('add_reaction')
+def handle_add_reaction(data):
+    room = data.get('room', 'General')
+    msg_id = data.get('msgId')
+    emoji = data.get('emoji')
+    # Find message and add reaction
+    for msg in chat_rooms[room]:
+        if msg.get('id') == msg_id:
+            msg.setdefault('reactions', {})
+            msg['reactions'][emoji] = msg['reactions'].get(emoji, 0) + 1
+            emit('add_reaction', {'msgId': msg_id, 'emoji': emoji}, room=room)
+            break
+
+@socketio.on('disconnect')
+def handle_disconnect():
+    # Remove user from all rooms
+    username = session.get('username', 'User')
+    for room in chat_users:
+        if username in chat_users[room]:
+            chat_users[room].discard(username)
+            emit('user_presence', list(chat_users[room]), room=room)
+
+# --- End Real-Time Chat System ---
+
 # Initialize database manager
 db = DatabaseManager()
 
 # Ensure templates are auto-reloaded
 app.config["TEMPLATES_AUTO_RELOAD"] = True
+
+# Store active stock subscriptions (symbol -> set of session_ids)
+stock_subscriptions = {}
 
 
 def login_required(f):
@@ -224,22 +327,19 @@ def index():
     total_return = grand_total - starting_cash
     total_return_percent = (total_return / starting_cash) * 100 if starting_cash > 0 else 0
     
-    # Get popular stocks for market overview
-    popular_stocks = get_popular_stocks()
-    
-    # Get watchlist preview (top 4 items)
-    watchlist = db.get_watchlist(user_id)
-    for item in watchlist[:4]:
-        quote = lookup(item["symbol"])
+    # Get popular stocks for market overview (limited to 4 for speed)
+    popular_symbols = ['AAPL', 'MSFT', 'GOOGL', 'AMZN']
+    popular_stocks = []
+    for symbol in popular_symbols:
+        quote = lookup(symbol)
         if quote:
-            item["price"] = quote["price"]
-            item["change_percent"] = quote.get("change_percent", 0)
+            popular_stocks.append(quote)
+    
+    # Get watchlist count only (don't fetch prices for speed)
+    watchlist = db.get_watchlist(user_id)
     
     # Get portfolio history for chart
     portfolio_history = db.get_portfolio_history(user_id, days=30)
-    
-    # Get market movers
-    market_movers = get_market_movers()
     
     return render_template("index.html", 
                          stocks=stocks, 
@@ -250,9 +350,8 @@ def index():
                          total_return=total_return,
                          total_return_percent=total_return_percent,
                          popular_stocks=popular_stocks,
-                         watchlist=watchlist[:4],
-                         portfolio_history=portfolio_history,
-                         market_movers=market_movers)
+                         watchlist_count=len(watchlist),
+                         portfolio_history=portfolio_history)
 
 
 @app.route("/buy", methods=["GET", "POST"])
@@ -297,16 +396,25 @@ def buy():
         notes = request.form.get("notes") or None
         
         # Record transaction
-        db.record_transaction(user_id, symbol, shares, price, "buy", strategy, notes)
+        txn_id = db.record_transaction(user_id, symbol, shares, price, "buy", strategy, notes)
         
         # Update user's cash
         db.update_cash(user_id, cash - total_cost)
+        
+        # Execute copy trades for any followers
+        _execute_copy_trades(user_id, symbol, shares, price, 'buy', txn_id)
         
         # Create portfolio snapshot
         create_portfolio_snapshot(user_id)
         
         # Check for achievements
         achievements = check_achievements(user_id)
+        
+        # Update challenge progress
+        _update_user_challenge_progress(user_id)
+        
+        # Update trader stats
+        db.update_trader_stats(user_id)
         
         flash(f"Bought {shares} shares of {symbol} for {usd(total_cost)}!")
         if achievements:
@@ -329,6 +437,39 @@ def history():
     transactions = db.get_transactions(user_id)
     
     return render_template("history.html", transactions=transactions)
+
+
+@app.route("/analytics")
+@login_required
+def analytics():
+    """Show advanced portfolio analytics"""
+    from helpers import calculate_portfolio_analytics, calculate_portfolio_performance_history
+    
+    user_id = session["user_id"]
+    
+    # Calculate analytics
+    analytics_data = calculate_portfolio_analytics(user_id, db)
+    
+    # Get performance history for chart
+    performance_history = calculate_portfolio_performance_history(user_id, db, days=90)
+    
+    return render_template("analytics.html", 
+                         analytics=analytics_data,
+                         performance_history=performance_history)
+
+
+@app.route("/api/analytics/<int:user_id>")
+@login_required
+def get_analytics_api(user_id):
+    """Get analytics data as JSON"""
+    from helpers import calculate_portfolio_analytics
+    
+    # Check if requesting own data or is admin
+    if session["user_id"] != user_id:
+        return jsonify({'error': 'Unauthorized'}), 403
+    
+    analytics_data = calculate_portfolio_analytics(user_id, db)
+    return jsonify(analytics_data)
 
 
 @app.route("/login", methods=["GET", "POST"])
@@ -488,17 +629,26 @@ def sell():
         notes = request.form.get("notes") or None
         
         # Record transaction
-        db.record_transaction(user_id, symbol, -shares, price, "sell", strategy, notes)
+        txn_id = db.record_transaction(user_id, symbol, -shares, price, "sell", strategy, notes)
         
         # Update user's cash
         user = db.get_user(user_id)
         db.update_cash(user_id, user["cash"] + total_value)
+        
+        # Execute copy trades for any followers
+        _execute_copy_trades(user_id, symbol, shares, price, 'sell', txn_id)
         
         # Create portfolio snapshot
         create_portfolio_snapshot(user_id)
         
         # Check for achievements
         achievements = check_achievements(user_id)
+        
+        # Update challenge progress
+        _update_user_challenge_progress(user_id)
+        
+        # Update trader stats
+        db.update_trader_stats(user_id)
         
         flash(f"Sold {shares} shares of {symbol} for {usd(total_value)}!")
         if achievements:
@@ -591,6 +741,341 @@ def leaderboard():
     return render_template("leaderboard.html", 
                          leaderboard=leaderboard_data,
                          current_user=current_username)
+
+
+@app.route("/leagues")
+@login_required
+def leagues():
+    """Show all leagues"""
+    user_id = session["user_id"]
+    
+    # Get user's leagues
+    user_leagues = db.get_user_leagues(user_id)
+    
+    # Get active public leagues
+    public_leagues = db.get_active_leagues(limit=20)
+    
+    return render_template("leagues.html",
+                         user_leagues=user_leagues,
+                         public_leagues=public_leagues)
+
+
+@app.route("/leagues/create", methods=["GET", "POST"])
+@login_required
+def create_league():
+    """Create a new league"""
+    if request.method == "POST":
+        name = request.form.get("name")
+        description = request.form.get("description", "")
+        league_type = request.form.get("league_type", "public")
+        starting_cash = float(request.form.get("starting_cash", 10000))
+        duration_days = int(request.form.get("duration_days", 30))
+        
+        if not name:
+            return apology("must provide league name", 400)
+        
+        user_id = session["user_id"]
+        
+        # Create league
+        import json
+        settings = {
+            'duration_days': duration_days,
+            'auto_reset': request.form.get("auto_reset") == "on"
+        }
+        
+        league_id, invite_code = db.create_league(
+            name=name,
+            description=description,
+            creator_id=user_id,
+            league_type=league_type,
+            starting_cash=starting_cash,
+            settings_json=json.dumps(settings)
+        )
+        
+        # Start the season
+        db.start_league_season(league_id, duration_days)
+        
+        flash(f"League created! Invite code: {invite_code}", "success")
+        return redirect(f"/leagues/{league_id}")
+    
+    return render_template("create_league.html")
+
+
+@app.route("/leagues/<int:league_id>")
+@login_required
+def league_detail(league_id):
+    """Show league details and leaderboard"""
+    user_id = session["user_id"]
+    
+    league = db.get_league(league_id)
+    if not league:
+        return apology("league not found", 404)
+    
+    # Check if user is a member
+    members = db.get_league_members(league_id)
+    is_member = any(m['id'] == user_id for m in members)
+    is_admin = any(m['id'] == user_id and m['is_admin'] for m in members)
+    
+    # Update scores if active
+    if league['is_active']:
+        db.update_league_scores(league_id)
+    
+    # Get leaderboard
+    leaderboard = db.get_league_leaderboard(league_id)
+    
+    return render_template("league_detail.html",
+                         league=league,
+                         members=members,
+                         leaderboard=leaderboard,
+                         is_member=is_member,
+                         is_admin=is_admin)
+
+
+@app.route("/leagues/join", methods=["POST"])
+@login_required
+def join_league():
+    """Join a league by ID or invite code"""
+    user_id = session["user_id"]
+    
+    league_id = request.form.get("league_id")
+    invite_code = request.form.get("invite_code")
+    
+    if invite_code:
+        league = db.get_league_by_invite_code(invite_code)
+        if not league:
+            return apology("invalid invite code", 404)
+        league_id = league['id']
+    elif not league_id:
+        return apology("must provide league ID or invite code", 400)
+    
+    success = db.join_league(int(league_id), user_id)
+    
+    if success:
+        flash("Successfully joined league!", "success")
+        return redirect(f"/leagues/{league_id}")
+    else:
+        return apology("already a member or error joining", 400)
+
+
+@app.route("/leagues/<int:league_id>/leave", methods=["POST"])
+@login_required
+def leave_league(league_id):
+    """Leave a league"""
+    user_id = session["user_id"]
+    
+    db.leave_league(league_id, user_id)
+    flash("You have left the league", "info")
+    
+    return redirect("/leagues")
+
+
+@app.route("/leagues/<int:league_id>/end", methods=["POST"])
+@login_required
+def end_league_season(league_id):
+    """End the current season (admin only)"""
+    user_id = session["user_id"]
+    
+    # Check if user is admin
+    members = db.get_league_members(league_id)
+    is_admin = any(m['id'] == user_id and m['is_admin'] for m in members)
+    
+    if not is_admin:
+        return apology("only league admins can end seasons", 403)
+    
+    winners = db.end_league_season(league_id)
+    
+    flash("Season ended! Winners have been notified.", "success")
+    return redirect(f"/leagues/{league_id}")
+
+
+@app.route("/leagues/<int:league_id>/restart", methods=["POST"])
+@login_required
+def restart_league_season(league_id):
+    """Start a new season (admin only)"""
+    user_id = session["user_id"]
+    
+    # Check if user is admin
+    members = db.get_league_members(league_id)
+    is_admin = any(m['id'] == user_id and m['is_admin'] for m in members)
+    
+    if not is_admin:
+        return apology("only league admins can restart seasons", 403)
+    
+    duration_days = int(request.form.get("duration_days", 30))
+    db.start_league_season(league_id, duration_days)
+    
+    flash(f"New season started! Duration: {duration_days} days", "success")
+    return redirect(f"/leagues/{league_id}")
+
+
+@app.route("/challenges")
+@login_required
+def challenges():
+    """Show all challenges"""
+    user_id = session["user_id"]
+    
+    # Get user's active challenges
+    user_challenges = db.get_user_challenges(user_id)
+    
+    # Get all active challenges
+    all_challenges = db.get_active_challenges(limit=50)
+    
+    # Separate challenges user is participating in vs available
+    participating_ids = {c['id'] for c in user_challenges}
+    available_challenges = [c for c in all_challenges if c['id'] not in participating_ids]
+    
+    return render_template("challenges.html",
+                         user_challenges=user_challenges,
+                         available_challenges=available_challenges)
+
+
+@app.route("/challenges/create", methods=["GET", "POST"])
+@login_required
+def create_challenge():
+    """Create a new challenge"""
+    if request.method == "POST":
+        name = request.form.get("name")
+        description = request.form.get("description", "")
+        challenge_type = request.form.get("challenge_type")
+        duration_days = int(request.form.get("duration_days", 7))
+        
+        if not name or not challenge_type:
+            return apology("must provide challenge name and type", 400)
+        
+        # Build rules based on challenge type
+        rules = {}
+        if challenge_type == "profit_target":
+            rules['target_profit'] = float(request.form.get("target_profit", 1000))
+        elif challenge_type == "trade_volume":
+            rules['target_trades'] = int(request.form.get("target_trades", 10))
+        elif challenge_type == "portfolio_value":
+            rules['target_value'] = float(request.form.get("target_value", 15000))
+        elif challenge_type == "sector_focus":
+            rules['target_sector'] = request.form.get("target_sector", "Technology")
+            rules['min_trades'] = int(request.form.get("min_trades", 5))
+        
+        # Build reward
+        reward = {
+            'cash': float(request.form.get("reward_cash", 0)),
+            'achievement': request.form.get("reward_achievement", ""),
+            'badge': request.form.get("reward_badge", "")
+        }
+        
+        user_id = session["user_id"]
+        
+        # Create challenge
+        challenge_id = db.create_challenge(
+            name=name,
+            description=description,
+            challenge_type=challenge_type,
+            rules=rules,
+            creator_id=user_id,
+            duration_days=duration_days,
+            reward=reward
+        )
+        
+        flash(f'Challenge "{name}" created successfully!', "success")
+        return redirect(f"/challenges/{challenge_id}")
+    
+    return render_template("create_challenge.html")
+
+
+@app.route("/challenges/<int:challenge_id>")
+@login_required
+def challenge_detail(challenge_id):
+    """Show challenge details"""
+    user_id = session["user_id"]
+    
+    # Get challenge details
+    challenge = db.get_challenge(challenge_id)
+    if not challenge:
+        return apology("challenge not found", 404)
+    
+    # Get leaderboard
+    leaderboard = db.get_challenge_leaderboard(challenge_id, limit=100)
+    
+    # Check if user is participating
+    is_participating = any(entry['user_id'] == user_id for entry in leaderboard)
+    user_entry = next((entry for entry in leaderboard if entry['user_id'] == user_id), None)
+    
+    # Calculate time remaining
+    from datetime import datetime
+    end_time = datetime.strptime(challenge['end_time'], '%Y-%m-%d %H:%M:%S')
+    now = datetime.now()
+    time_remaining = end_time - now
+    days_remaining = max(0, time_remaining.days)
+    hours_remaining = max(0, time_remaining.seconds // 3600)
+    
+    return render_template("challenge_detail.html",
+                         challenge=challenge,
+                         leaderboard=leaderboard,
+                         is_participating=is_participating,
+                         user_entry=user_entry,
+                         days_remaining=days_remaining,
+                         hours_remaining=hours_remaining)
+
+
+@app.route("/challenges/<int:challenge_id>/join", methods=["POST"])
+@login_required
+def join_challenge(challenge_id):
+    """Join a challenge"""
+    user_id = session["user_id"]
+    
+    # Check if challenge exists and is active
+    challenge = db.get_challenge(challenge_id)
+    if not challenge:
+        return apology("challenge not found", 404)
+    
+    if not challenge['is_active']:
+        return apology("challenge is no longer active", 400)
+    
+    # Join challenge
+    success = db.join_challenge(challenge_id, user_id)
+    
+    if success:
+        flash(f'You joined "{challenge["name"]}"! Good luck!', "success")
+    else:
+        flash("You are already participating in this challenge", "warning")
+    
+    return redirect(f"/challenges/{challenge_id}")
+
+
+@app.route("/challenges/<int:challenge_id>/leave", methods=["POST"])
+@login_required
+def leave_challenge(challenge_id):
+    """Leave a challenge"""
+    user_id = session["user_id"]
+    
+    conn = db.get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        DELETE FROM challenge_participants
+        WHERE challenge_id = ? AND user_id = ?
+    """, (challenge_id, user_id))
+    conn.commit()
+    conn.close()
+    
+    flash("You left the challenge", "info")
+    return redirect("/challenges")
+
+
+@app.route("/challenges/<int:challenge_id>/update", methods=["POST"])
+@login_required
+def update_challenge_score(challenge_id):
+    """Manually update challenge score (admin only)"""
+    user_id = session["user_id"]
+    
+    # Check if user is challenge creator
+    challenge = db.get_challenge(challenge_id)
+    if not challenge or challenge['creator_id'] != user_id:
+        return apology("unauthorized", 403)
+    
+    # Recalculate all participant scores
+    from datetime import datetime
+    _update_all_challenge_scores(challenge_id)
+    
+    flash("Challenge scores updated!", "success")
+    return redirect(f"/challenges/{challenge_id}")
 
 
 @app.route("/about")
@@ -794,8 +1279,8 @@ def friends():
             conn = db.get_connection()
             cursor = conn.cursor()
             pending = cursor.execute("""
-                SELECT id FROM friend_requests 
-                WHERE sender_id = ? AND receiver_id = ? AND status = 'pending'
+                SELECT id FROM friends 
+                WHERE user_id = ? AND friend_id = ? AND status = 'pending'
             """, (user_id, user["id"])).fetchone()
             user["request_pending"] = pending is not None
             conn.close()
@@ -988,6 +1473,83 @@ def notifications_count():
     notifications_list = db.get_notifications(user_id)
     unread_count = sum(1 for n in notifications_list if not n["is_read"])
     return {"count": unread_count}
+
+
+@app.route("/api/notifications/recent")
+@login_required
+def notifications_recent():
+    """Get recent notifications for dropdown"""
+    from datetime import datetime
+    user_id = session["user_id"]
+    notifications_list = db.get_notifications(user_id, limit=5)
+    
+    # Format notifications for JSON response
+    formatted_notifications = []
+    for notif in notifications_list:
+        # Format timestamp
+        created_at = notif.get("created_at", "")
+        if created_at:
+            try:
+                dt = datetime.strptime(created_at.split('.')[0], '%Y-%m-%d %H:%M:%S')
+                # Calculate time ago
+                now = datetime.now()
+                diff = now - dt
+                if diff.days > 0:
+                    time_ago = f"{diff.days}d ago"
+                elif diff.seconds >= 3600:
+                    time_ago = f"{diff.seconds // 3600}h ago"
+                elif diff.seconds >= 60:
+                    time_ago = f"{diff.seconds // 60}m ago"
+                else:
+                    time_ago = "Just now"
+            except:
+                time_ago = created_at
+        else:
+            time_ago = ""
+        
+        formatted_notifications.append({
+            "id": notif.get("id"),
+            "type": notif.get("type", ""),
+            "title": notif.get("title", ""),
+            "message": notif.get("message", ""),
+            "created_at": time_ago,
+            "is_read": notif.get("is_read", 0),
+            "action_url": notif.get("action_url", "")
+        })
+    
+    return {"notifications": formatted_notifications}
+
+
+@app.route("/api/theme", methods=["POST"])
+@login_required
+def save_theme():
+    """Save user theme preference"""
+    user_id = session["user_id"]
+    theme = request.json.get("theme", "dark")
+    
+    conn = db.get_connection()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE users SET theme = ? WHERE id = ?", (theme, user_id))
+    conn.commit()
+    conn.close()
+    
+    return {"success": True}
+
+
+@app.route("/api/chart/<symbol>")
+def get_chart_api(symbol):
+    """Get candlestick data with technical indicators for charting"""
+    from helpers import get_technical_indicators
+    
+    timeframe = request.args.get('timeframe', 'D')
+    days = int(request.args.get('days', 90))
+    
+    data = get_technical_indicators(symbol, timeframe, days)
+    
+    if not data:
+        return jsonify({'error': 'Unable to fetch chart data'}), 404
+    
+    return jsonify(data)
 
 
 @app.route("/achievements")
@@ -1271,76 +1833,880 @@ def strategies():
     return render_template("strategies.html", strategies=strategies_data)
 
 
-@app.route("/analytics")
+# ============================================================================
+# NEWS & SENTIMENT ROUTES
+# ============================================================================
+
+@app.route("/news")
 @login_required
-def analytics():
-    """Show comprehensive analytics dashboard"""
+def news_feed():
+    """Show news feed with sentiment analysis"""
+    from helpers import get_cached_or_fetch_news
+    
     user_id = session["user_id"]
     
-    # Get trading statistics
-    stats = db.get_trading_stats(user_id)
+    # Get user's portfolio symbols for personalized news
+    portfolio = db.get_portfolio_breakdown(user_id)
+    portfolio_symbols = [item['symbol'] for item in portfolio] if portfolio else []
     
-    # Get portfolio breakdown
-    portfolio_breakdown = db.get_portfolio_breakdown(user_id)
+    # Get user's news preferences
+    pref_symbols = db.get_user_news_preferences(user_id)
+    all_symbols = list(set(portfolio_symbols + pref_symbols))
     
-    # Enrich with current prices and calculate values
-    total_portfolio_value = 0
-    for item in portfolio_breakdown:
-        quote = lookup(item['symbol'])
+    # Fetch news for user's symbols
+    stock_news = []
+    for symbol in all_symbols[:10]:  # Limit to 10 symbols to avoid rate limits
+        symbol_news = get_cached_or_fetch_news(symbol, db)
+        stock_news.extend(symbol_news[:3])  # Top 3 per symbol
+    
+    # Get general market news
+    general_news = get_cached_or_fetch_news(None, db)
+    
+    # Combine and sort by date
+    all_news = stock_news + general_news
+    all_news.sort(key=lambda x: x.get('published_at', ''), reverse=True)
+    
+    # Limit total articles
+    all_news = all_news[:50]
+    
+    # Get sentiment summary
+    sentiment_summary = db.get_sentiment_summary()
+    
+    return render_template("news.html",
+                         news=all_news,
+                         sentiment_summary=sentiment_summary,
+                         tracked_symbols=all_symbols)
+
+
+@app.route("/news/<symbol>")
+@login_required
+def stock_news(symbol):
+    """Show news for a specific stock with sentiment"""
+    from helpers import get_cached_or_fetch_news
+    
+    symbol = symbol.upper()
+    
+    # Get stock quote
+    quote = lookup(symbol)
+    if not quote:
+        return apology("Invalid symbol", 400)
+    
+    # Fetch news
+    news = get_cached_or_fetch_news(symbol, db, force_refresh=True)
+    
+    # Get sentiment summary for this stock
+    sentiment_summary = db.get_sentiment_summary(symbol)
+    
+    return render_template("stock_news.html",
+                         symbol=symbol,
+                         quote=quote,
+                         news=news,
+                         sentiment_summary=sentiment_summary)
+
+
+@app.route("/news/preferences/add", methods=["POST"])
+@login_required
+def add_news_preference():
+    """Add a symbol to news feed"""
+    user_id = session["user_id"]
+    symbol = request.form.get("symbol", "").upper()
+    
+    if not symbol:
+        return apology("Symbol required", 400)
+    
+    # Validate symbol
+    quote = lookup(symbol)
+    if not quote:
+        return apology("Invalid symbol", 400)
+    
+    db.add_news_preference(user_id, symbol)
+    flash(f"Added {symbol} to your news feed", "success")
+    
+    return redirect("/news")
+
+
+@app.route("/news/preferences/remove/<symbol>", methods=["POST"])
+@login_required
+def remove_news_preference(symbol):
+    """Remove a symbol from news feed"""
+    user_id = session["user_id"]
+    symbol = symbol.upper()
+    
+    db.remove_news_preference(user_id, symbol)
+    flash(f"Removed {symbol} from your news feed", "success")
+    
+    return redirect("/news")
+
+
+@app.route("/api/news/<symbol>")
+@login_required
+def api_stock_news(symbol):
+    """Get news for a symbol as JSON"""
+    from helpers import get_cached_or_fetch_news
+    
+    symbol = symbol.upper()
+    news = get_cached_or_fetch_news(symbol, db)
+    sentiment = db.get_sentiment_summary(symbol)
+    
+    return jsonify({
+        'symbol': symbol,
+        'news': news,
+        'sentiment': sentiment
+    })
+
+
+@app.route("/api/sentiment/overall")
+@login_required
+def api_overall_sentiment():
+    """Get overall market sentiment as JSON"""
+    sentiment = db.get_sentiment_summary()
+    return jsonify(sentiment)
+
+
+# ============================================================================
+# SOCIAL TRADING ROUTES
+# ============================================================================
+
+@app.route("/traders")
+@login_required
+def traders():
+    """Show top traders leaderboard"""
+    user_id = session["user_id"]
+    
+    # Get sorting parameter
+    sort_by = request.args.get('sort', 'total_return')
+    
+    # Get top traders
+    top_traders = db.get_top_traders(limit=50, order_by=sort_by)
+    
+    # Check who user is following
+    following = db.get_following(user_id)
+    following_ids = [f['id'] for f in following]
+    
+    # Check who user is copying
+    copying = db.get_copying(user_id)
+    copying_ids = [c['trader_id'] for c in copying]
+    
+    return render_template("traders.html",
+                         traders=top_traders,
+                         following_ids=following_ids,
+                         copying_ids=copying_ids,
+                         sort_by=sort_by)
+
+
+@app.route("/trader/<int:trader_id>")
+@login_required
+def trader_profile(trader_id):
+    """Show detailed trader profile"""
+    user_id = session["user_id"]
+    
+    # Get trader info
+    trader = db.get_user(trader_id)
+    if not trader:
+        return apology("Trader not found", 404)
+    
+    # Get trader stats
+    stats = db.get_trader_stats(trader_id)
+    if not stats:
+        # Calculate stats if not cached
+        db.update_trader_stats(trader_id)
+        stats = db.get_trader_stats(trader_id)
+    
+    # Get recent transactions
+    transactions = db.get_transactions(trader_id, limit=20)
+    
+    # Get portfolio
+    portfolio = db.get_portfolio_breakdown(trader_id)
+    
+    # Enrich with current prices
+    for holding in portfolio:
+        quote = lookup(holding['symbol'])
         if quote:
-            item['price'] = quote['price']
-            item['value'] = item['shares'] * quote['price']
-            total_portfolio_value += item['value']
+            holding['current_price'] = quote['price']
+            holding['current_value'] = holding['shares'] * quote['price']
     
-    # Calculate percentages
-    for item in portfolio_breakdown:
-        if total_portfolio_value > 0:
-            item['percentage'] = (item['value'] / total_portfolio_value) * 100
-        else:
-            item['percentage'] = 0
+    # Check if current user is following
+    is_following = db.is_following(user_id, trader_id)
     
-    # Sort by value
-    portfolio_breakdown.sort(key=lambda x: x.get('value', 0), reverse=True)
+    # Check if current user is copying
+    copy_settings = db.get_copy_trading_settings(user_id, trader_id)
+    is_copying = copy_settings is not None
     
-    # Get user's transactions for best/worst trades
-    transactions = db.get_transactions(user_id)
+    # Get followers and copiers
+    followers = db.get_followers(trader_id)
+    copiers = db.get_active_copiers(trader_id)
     
-    # Calculate best and worst trades (buys only, compare to current price)
-    trade_performance = []
-    for trans in transactions:
-        if trans['type'] == 'buy':
-            quote = lookup(trans['symbol'])
-            if quote:
-                buy_value = trans['shares'] * trans['price']
-                current_value = trans['shares'] * quote['price']
-                gain_loss = current_value - buy_value
-                gain_loss_percent = (gain_loss / buy_value * 100) if buy_value > 0 else 0
-                
-                trade_performance.append({
-                    'symbol': trans['symbol'],
-                    'shares': trans['shares'],
-                    'buy_price': trans['price'],
-                    'current_price': quote['price'],
-                    'gain_loss': gain_loss,
-                    'gain_loss_percent': gain_loss_percent,
-                    'timestamp': trans['timestamp']
-                })
-    
-    # Sort for best and worst
-    best_trades = sorted(trade_performance, key=lambda x: x['gain_loss_percent'], reverse=True)[:5]
-    worst_trades = sorted(trade_performance, key=lambda x: x['gain_loss_percent'])[:5]
-    
-    # Get portfolio history for performance chart
-    portfolio_history = db.get_portfolio_history(user_id, days=90)
-    
-    return render_template("analytics.html",
+    return render_template("trader_profile.html",
+                         trader=trader,
                          stats=stats,
-                         portfolio_breakdown=portfolio_breakdown,
-                         total_portfolio_value=total_portfolio_value,
-                         best_trades=best_trades,
-                         worst_trades=worst_trades,
-                         portfolio_history=portfolio_history)
+                         transactions=transactions,
+                         portfolio=portfolio,
+                         is_following=is_following,
+                         is_copying=is_copying,
+                         copy_settings=copy_settings,
+                         followers=followers,
+                         copiers=copiers,
+                         is_own_profile=(user_id == trader_id))
+
+
+@app.route("/copy_trading")
+@login_required
+def copy_trading():
+    """View and manage copy trading settings"""
+    user_id = session["user_id"]
+    top_traders = db.get_top_traders()
+    active_copiers = db.get_active_copiers(user_id)
+    return render_template("copy_trading.html", top_traders=top_traders, active_copiers=active_copiers)
+
+
+@app.route("/follow_trader", methods=["POST"])
+@login_required
+def follow_trader():
+    user_id = session["user_id"]
+    trader_id = request.form.get("trader_id")
+    db.follow_trader(user_id, trader_id)
+    return redirect("/copy_trading")
+
+
+@app.route("/unfollow_trader", methods=["POST"])
+@login_required
+def unfollow_trader():
+    user_id = session["user_id"]
+    trader_id = request.form.get("trader_id")
+    db.unfollow_trader(user_id, trader_id)
+    return redirect("/copy_trading")
+
+
+@app.route("/start_copy_trading", methods=["POST"])
+@login_required
+def start_copy_trading():
+    user_id = session["user_id"]
+    trader_id = request.form.get("trader_id")
+    allocation_pct = request.form.get("allocation_pct", 10)  # Default 10%
+    max_trade = request.form.get("max_trade", 1000)  # Default $1000
+    copy_buys = True
+    copy_sells = True
+    db.start_copy_trading(user_id, trader_id, allocation_pct, max_trade, copy_buys, copy_sells)
+    return redirect("/copy_trading")
+
+
+@app.route("/stop_copy_trading", methods=["POST"])
+@login_required
+def stop_copy_trading():
+    user_id = session["user_id"]
+    copier_id = request.form.get("copier_id")
+    db.stop_copy_trading(user_id, copier_id)
+    return redirect("/copy_trading")
+
+
+# ============================================================================
+# OPTIONS TRADING ROUTES
+# ============================================================================
+
+@app.route("/options")
+@login_required
+def options():
+    """Show options trading interface"""
+    user_id = session["user_id"]
+    
+    # Get user's open options positions
+    positions = db.get_user_options_positions(user_id, status='open')
+    
+    # Enrich positions with current prices and Greeks
+    for position in positions:
+        option_data = get_option_price_and_greeks(
+            position['symbol'],
+            position['strike_price'],
+            position['expiration_date'],
+            position['option_type']
+        )
+        
+        if option_data:
+            position['current_premium'] = option_data['price']
+            position['greeks'] = option_data['greeks']
+            position['days_to_expiration'] = option_data['days_to_expiration']
+            position['intrinsic_value'] = option_data['intrinsic_value']
+            position['extrinsic_value'] = option_data['extrinsic_value']
+            
+            # Calculate P&L
+            position['total_cost'] = position['contracts'] * position['avg_premium'] * 100
+            position['current_value'] = position['contracts'] * position['current_premium'] * 100
+            position['unrealized_pl'] = position['current_value'] - position['total_cost']
+            position['unrealized_pl_pct'] = (position['unrealized_pl'] / position['total_cost'] * 100) if position['total_cost'] > 0 else 0
+    
+    # Get recent options transactions
+    transactions = db.get_options_transactions(user_id, limit=20)
+    
+    return render_template("options.html", positions=positions, transactions=transactions)
+
+
+@app.route("/options/chain/<symbol>")
+@login_required
+def options_chain(symbol):
+    """Get options chain for a symbol"""
+    symbol = symbol.upper()
+    
+    # Get current stock price
+    quote = lookup(symbol)
+    if not quote:
+        return apology("Invalid symbol", 400)
+    
+    current_price = quote['price']
+    
+    # Get or generate available expiration dates (weekly + monthly)
+    from datetime import datetime, timedelta
+    
+    expiration_dates = []
+    current_date = datetime.now()
+    
+    # Generate next 8 weekly expirations (Fridays)
+    days_until_friday = (4 - current_date.weekday()) % 7
+    if days_until_friday == 0:
+        days_until_friday = 7
+    
+    for i in range(8):
+        exp_date = current_date + timedelta(days=days_until_friday + (i * 7))
+        expiration_dates.append(exp_date.strftime('%Y-%m-%d'))
+    
+    # Generate next 4 monthly expirations (3rd Friday)
+    for i in range(1, 5):
+        target_month = current_date.month + i
+        target_year = current_date.year + (target_month - 1) // 12
+        target_month = ((target_month - 1) % 12) + 1
+        
+        # Find 3rd Friday
+        first_day = datetime(target_year, target_month, 1)
+        first_friday = 4 - first_day.weekday()
+        if first_friday <= 0:
+            first_friday += 7
+        third_friday = first_day + timedelta(days=first_friday + 14)
+        
+        exp_date_str = third_friday.strftime('%Y-%m-%d')
+        if exp_date_str not in expiration_dates:
+            expiration_dates.append(exp_date_str)
+    
+    # Get selected expiration date (default to first one)
+    selected_expiration = request.args.get('expiration', expiration_dates[0])
+    
+    # Generate strike prices around current price
+    strikes = []
+    strike_step = 5 if current_price > 100 else (2.5 if current_price > 50 else 1)
+    
+    for i in range(-5, 6):  # 5 strikes OTM, ATM, 5 strikes ITM
+        strike = round((current_price + (i * strike_step)) / strike_step) * strike_step
+        strikes.append(strike)
+    
+    # Get or create options contracts and calculate prices
+    chain = {'calls': [], 'puts': []}
+    
+    for strike in strikes:
+        # Calls
+        call_contract_id = db.create_options_contract(symbol, strike, selected_expiration, 'call')
+        call_data = get_option_price_and_greeks(symbol, strike, selected_expiration, 'call', current_price)
+        
+        if call_data:
+            chain['calls'].append({
+                'contract_id': call_contract_id,
+                'strike': strike,
+                'bid': round(call_data['price'] * 0.98, 2),  # Simulate bid-ask spread
+                'ask': round(call_data['price'] * 1.02, 2),
+                'last': call_data['price'],
+                'delta': call_data['greeks']['delta'],
+                'gamma': call_data['greeks']['gamma'],
+                'theta': call_data['greeks']['theta'],
+                'vega': call_data['greeks']['vega'],
+                'volume': random.randint(10, 500),  # Simulated volume
+                'open_interest': random.randint(100, 5000),
+                'in_the_money': call_data['in_the_money']
+            })
+        
+        # Puts
+        put_contract_id = db.create_options_contract(symbol, strike, selected_expiration, 'put')
+        put_data = get_option_price_and_greeks(symbol, strike, selected_expiration, 'put', current_price)
+        
+        if put_data:
+            chain['puts'].append({
+                'contract_id': put_contract_id,
+                'strike': strike,
+                'bid': round(put_data['price'] * 0.98, 2),
+                'ask': round(put_data['price'] * 1.02, 2),
+                'last': put_data['price'],
+                'delta': put_data['greeks']['delta'],
+                'gamma': put_data['greeks']['gamma'],
+                'theta': put_data['greeks']['theta'],
+                'vega': put_data['greeks']['vega'],
+                'volume': random.randint(10, 500),
+                'open_interest': random.randint(100, 5000),
+                'in_the_money': put_data['in_the_money']
+            })
+    
+    return render_template("options_chain.html",
+                          symbol=symbol,
+                          current_price=current_price,
+                          expiration_dates=expiration_dates,
+                          selected_expiration=selected_expiration,
+                          chain=chain,
+                          quote=quote)
+
+
+@app.route("/options/buy", methods=["POST"])
+@login_required
+def buy_option():
+    """Buy options contracts"""
+    user_id = session["user_id"]
+    
+    contract_id = request.form.get("contract_id")
+    contracts = request.form.get("contracts")
+    premium = request.form.get("premium")
+    
+    # Validate inputs
+    if not contract_id or not contracts or not premium:
+        return apology("Missing required fields", 400)
+    
+    try:
+        contract_id = int(contract_id)
+        contracts = int(contracts)
+        premium = float(premium)
+    except ValueError:
+        return apology("Invalid input", 400)
+    
+    if contracts <= 0:
+        return apology("Must buy at least 1 contract", 400)
+    
+    # Execute buy
+    success, message = db.buy_option(user_id, contract_id, contracts, premium)
+    
+    if not success:
+        return apology(message, 400)
+    
+    flash(message, "success")
+    return redirect("/options")
+
+
+@app.route("/options/sell", methods=["POST"])
+@login_required
+def sell_option():
+    """Sell options contracts"""
+    user_id = session["user_id"]
+    
+    position_id = request.form.get("position_id")
+    contracts = request.form.get("contracts")
+    premium = request.form.get("premium")
+    
+    # Validate inputs
+    if not position_id or not contracts or not premium:
+        return apology("Missing required fields", 400)
+    
+    try:
+        position_id = int(position_id)
+        contracts = int(contracts)
+        premium = float(premium)
+    except ValueError:
+        return apology("Invalid input", 400)
+    
+    if contracts <= 0:
+        return apology("Must sell at least 1 contract", 400)
+    
+    # Execute sell
+    success, message = db.sell_option(user_id, position_id, contracts, premium)
+    
+    if not success:
+        return apology(message, 400)
+    
+    flash(message, "success")
+    return redirect("/options")
+
+
+# ============================================================================
+# WebSocket Events for Real-time Stock Updates
+# ============================================================================
+
+@socketio.on('connect')
+def handle_connect():
+    """Handle client connection"""
+    print(f"Client connected: {request.sid}")
+    emit('connection_response', {'status': 'connected'})
+
+
+@socketio.on('disconnect')
+def handle_disconnect():
+    """Handle client disconnection and cleanup subscriptions"""
+    print(f"Client disconnected: {request.sid}")
+    # Remove client from all stock subscriptions
+    for symbol in list(stock_subscriptions.keys()):
+        if request.sid in stock_subscriptions[symbol]:
+            stock_subscriptions[symbol].remove(request.sid)
+            if not stock_subscriptions[symbol]:
+                del stock_subscriptions[symbol]
+
+
+@socketio.on('subscribe_stock')
+def handle_subscribe(data):
+    """Subscribe to real-time updates for a stock"""
+    symbol = data.get('symbol', '').upper()
+    if not symbol:
+        return
+    
+    # Add client to subscription list for this stock
+    if symbol not in stock_subscriptions:
+        stock_subscriptions[symbol] = set()
+    stock_subscriptions[symbol].add(request.sid)
+    
+    # Join room for this stock
+    join_room(symbol)
+    
+    # Send immediate price update
+    quote = lookup(symbol, force_refresh=True)
+    if quote:
+        emit('stock_update', {
+            'symbol': symbol,
+            'price': quote['price'],
+            'change': quote['change'],
+            'change_percent': quote['change_percent']
+        })
+    
+    print(f"Client {request.sid} subscribed to {symbol}")
+
+
+@socketio.on('unsubscribe_stock')
+def handle_unsubscribe(data):
+    """Unsubscribe from real-time updates for a stock"""
+    symbol = data.get('symbol', '').upper()
+    if not symbol:
+        return
+    
+    # Remove client from subscription
+    if symbol in stock_subscriptions and request.sid in stock_subscriptions[symbol]:
+        stock_subscriptions[symbol].remove(request.sid)
+        if not stock_subscriptions[symbol]:
+            del stock_subscriptions[symbol]
+    
+    # Leave room
+    leave_room(symbol)
+    print(f"Client {request.sid} unsubscribed from {symbol}")
+
+
+def _update_user_challenge_progress(user_id):
+    """Update user's progress in all active challenges after a trade"""
+    user_challenges = db.get_user_challenges(user_id)
+    
+    for challenge in user_challenges:
+        if not challenge['completed']:
+            score = _calculate_challenge_score(challenge, user_id)
+            db.update_challenge_progress(challenge['id'], user_id, score)
+            
+            # Check if challenge is completed
+            if db.check_challenge_completion(challenge['id'], user_id):
+                reward = db.complete_challenge(challenge['id'], user_id)
+                
+                # Award reward
+                if reward and reward.get('cash', 0) > 0:
+                    conn = db.get_connection()
+                    cursor = conn.cursor()
+                    cursor.execute("""
+                        UPDATE users SET cash = cash + ? WHERE id = ?
+                    """, (reward['cash'], user_id))
+                    conn.commit()
+                    conn.close()
+                
+                # Send notification
+                db.add_notification(
+                    user_id,
+                    'challenge_complete',
+                    'Challenge Completed!',
+                    f'You completed "{challenge["name"]}"! Reward: ${reward.get("cash", 0):.2f}',
+                    f'/challenges/{challenge["id"]}'
+                )
+
+
+def _execute_copy_trades(trader_id, symbol, shares, price, trade_type, txn_id):
+    """Execute copy trades for all active copiers of a trader"""
+    copiers = db.get_active_copiers(trader_id)
+    
+    for copier in copiers:
+        try:
+            follower_id = copier['follower_id']
+            
+            # Check if they want to copy this type of trade
+            if (trade_type == 'buy' and not copier['copy_buys']) or \
+               (trade_type == 'sell' and not copier['copy_sells']):
+                continue
+            
+            # Get follower's cash
+            follower = db.get_user(follower_id)
+            follower_cash = follower['cash']
+            
+            # Calculate proportional shares based on allocation percentage
+            allocation_pct = copier['allocation_percentage'] / 100
+            max_trade = copier['max_trade_amount']
+            
+            # Calculate copy shares (proportional to allocation)
+            copy_shares = max(1, int(shares * allocation_pct))
+            copy_cost = copy_shares * price
+            
+            # Apply max trade limit
+            if copy_cost > max_trade:
+                copy_shares = int(max_trade / price)
+                copy_cost = copy_shares * price
+            
+            if copy_shares <= 0:
+                continue
+            
+            # Execute the copy trade
+            if trade_type == 'buy':
+                if follower_cash >= copy_cost:
+                    # Record transaction
+                    copied_txn_id = db.record_transaction(
+                        follower_id, symbol, copy_shares, price, 'buy',
+                        strategy='copy_trade', notes=f'Copied from {db.get_user(trader_id)["username"]}'
+                    )
+                    
+                    # Update cash
+                    db.update_cash(follower_id, follower_cash - copy_cost)
+                    
+                    # Record copied trade
+                    db.record_copied_trade(follower_id, trader_id, txn_id, copied_txn_id,
+                                          symbol, copy_shares, price, 'buy')
+                    
+                    # Notify follower
+                    db.add_notification(
+                        follower_id,
+                        'copy_trade',
+                        'Copy Trade Executed',
+                        f'Copied trade: Bought {copy_shares} shares of {symbol} for {usd(copy_cost)}',
+                        f'/history'
+                    )
+            
+            elif trade_type == 'sell':
+                # Check if follower owns the stock
+                portfolio = db.get_portfolio_breakdown(follower_id)
+                holding = next((h for h in portfolio if h['symbol'] == symbol), None)
+                
+                if holding and holding['shares'] >= copy_shares:
+                    # Record transaction
+                    copied_txn_id = db.record_transaction(
+                        follower_id, symbol, copy_shares, price, 'sell',
+                        strategy='copy_trade', notes=f'Copied from {db.get_user(trader_id)["username"]}'
+                    )
+                    
+                    # Update cash
+                    proceeds = copy_shares * price
+                    db.update_cash(follower_id, follower_cash + proceeds)
+                    
+                    # Record copied trade
+                    db.record_copied_trade(follower_id, trader_id, txn_id, copied_txn_id,
+                                          symbol, copy_shares, price, 'sell')
+                    
+                    # Notify follower
+                    db.add_notification(
+                        follower_id,
+                        'copy_trade',
+                        'Copy Trade Executed',
+                        f'Copied trade: Sold {copy_shares} shares of {symbol} for {usd(proceeds)}',
+                        f'/history'
+                    )
+        
+        except Exception as e:
+            print(f"Error executing copy trade for follower {copier['follower_id']}: {e}")
+            continue
+
+
+def _update_all_challenge_scores(challenge_id):
+    """Update scores for all participants in a challenge"""
+    challenge = db.get_challenge(challenge_id)
+    if not challenge:
+        return
+    
+    leaderboard = db.get_challenge_leaderboard(challenge_id)
+    
+    for entry in leaderboard:
+        user_id = entry['user_id']
+        score = _calculate_challenge_score(challenge, user_id)
+        db.update_challenge_progress(challenge_id, user_id, score)
+        
+        # Check if challenge is completed
+        if not entry['completed'] and db.check_challenge_completion(challenge_id, user_id):
+            reward = db.complete_challenge(challenge_id, user_id)
+            
+            # Award reward
+            if reward and reward.get('cash', 0) > 0:
+                conn = db.get_connection()
+                cursor = conn.cursor()
+                cursor.execute("""
+                    UPDATE users SET cash = cash + ? WHERE id = ?
+                """, (reward['cash'], user_id))
+                conn.commit()
+                conn.close()
+            
+            # Send notification
+            db.add_notification(
+                user_id,
+                'challenge_complete',
+                'Challenge Completed!',
+                f'You completed "{challenge["name"]}"! Score: {score:.2f}',
+                f'/challenges/{challenge_id}'
+            )
+
+
+def _calculate_challenge_score(challenge, user_id):
+    """Calculate user's score for a challenge"""
+    challenge_type = challenge['challenge_type']
+    rules = challenge['rules']
+    
+    conn = db.get_connection()
+    cursor = conn.cursor()
+    
+    # Get user's join time
+    cursor.execute("""
+        SELECT joined_at FROM challenge_participants
+        WHERE challenge_id = ? AND user_id = ?
+    """, (challenge['id'], user_id))
+    result = cursor.fetchone()
+    
+    if not result:
+        conn.close()
+        return 0
+    
+    joined_at = result['joined_at']
+    
+    if challenge_type == 'profit_target':
+        # Calculate profit since joining
+        cursor.execute("""
+            SELECT 
+                SUM(CASE WHEN type = 'sell' THEN shares * price ELSE -shares * price END) as net_profit
+            FROM transactions
+            WHERE user_id = ? AND timestamp >= ?
+        """, (user_id, joined_at))
+        result = cursor.fetchone()
+        score = result['net_profit'] if result and result['net_profit'] else 0
+    
+    elif challenge_type == 'trade_volume':
+        # Count trades since joining
+        cursor.execute("""
+            SELECT COUNT(*) as trade_count
+            FROM transactions
+            WHERE user_id = ? AND timestamp >= ?
+        """, (user_id, joined_at))
+        result = cursor.fetchone()
+        score = result['trade_count'] if result else 0
+    
+    elif challenge_type == 'portfolio_value':
+        # Get current portfolio value
+        user = db.get_user(user_id)
+        stocks = db.get_user_stocks(user_id)
+        
+        total_value = user['cash']
+        for stock in stocks:
+            quote = lookup(stock['symbol'])
+            if quote:
+                total_value += stock['shares'] * quote['price']
+        
+        score = total_value
+    
+    elif challenge_type == 'sector_focus':
+        # Count trades in target sector
+        target_sector = rules.get('target_sector', 'Technology')
+        # Simplified - just count all trades (real implementation would check sectors)
+        cursor.execute("""
+            SELECT COUNT(*) as trade_count
+            FROM transactions
+            WHERE user_id = ? AND timestamp >= ?
+        """, (user_id, joined_at))
+        result = cursor.fetchone()
+        score = result['trade_count'] if result else 0
+    
+    else:
+        score = 0
+    
+    conn.close()
+    return score
+
+
+def background_price_updater():
+    """Background thread to update stock prices periodically"""
+    while True:
+        try:
+            time.sleep(30)  # Update every 30 seconds
+            
+            # Get all subscribed symbols
+            symbols = list(stock_subscriptions.keys())
+            
+            if not symbols:
+                continue
+            
+            print(f"Updating prices for {len(symbols)} symbols...")
+            
+            # Fetch updated prices
+            for symbol in symbols:
+                quote = lookup(symbol, force_refresh=True)
+                if quote and symbol in stock_subscriptions:
+                    # Emit to all clients in this stock's room
+                    socketio.emit('stock_update', {
+                        'symbol': symbol,
+                        'price': quote['price'],
+                        'change': quote['change'],
+                        'change_percent': quote['change_percent']
+                    }, room=symbol)
+        
+        except Exception as e:
+            print(f"Error in background price updater: {e}")
+
+
+# Start background thread for price updates
+price_update_thread = threading.Thread(target=background_price_updater, daemon=True)
+price_update_thread.start()
+
+
+def background_options_expiration_checker():
+    """Background thread to check and process expired options"""
+    from datetime import datetime
+    
+    while True:
+        try:
+            time.sleep(3600)  # Check every hour
+            
+            current_date = datetime.now().strftime('%Y-%m-%d')
+            current_hour = datetime.now().hour
+            
+            # Process expirations at market close (4 PM ET, adjust for your timezone)
+            if current_hour == 16:  # 4 PM
+                print(f"Checking for options expiring on {current_date}...")
+                
+                # Get current prices for all stocks with expiring options
+                conn = db.get_connection()
+                cursor = conn.cursor()
+                
+                cursor.execute("""
+                    SELECT DISTINCT symbol
+                    FROM options_contracts
+                    WHERE expiration_date = ?
+                """, (current_date,))
+                
+                symbols = [row['symbol'] for row in cursor.fetchall()]
+                conn.close()
+                
+                if symbols:
+                    print(f"Processing expirations for {len(symbols)} symbols...")
+                    
+                    # Get current prices
+                    current_prices = {}
+                    for symbol in symbols:
+                        quote = lookup(symbol, force_refresh=True)
+                        if quote:
+                            current_prices[symbol] = quote['price']
+                    
+                    # Process expirations
+                    processed = db.expire_options(current_date, current_prices)
+                    print(f"Processed {processed} options positions")
+        
+        except Exception as e:
+            print(f"Error in options expiration checker: {e}")
+
+
+# Start background thread for options expiration
+expiration_thread = threading.Thread(target=background_options_expiration_checker, daemon=True)
+expiration_thread.start()
 
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    socketio.run(app, debug=True, host='0.0.0.0', port=5000)

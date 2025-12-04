@@ -1,0 +1,156 @@
+{% extends "layout.html" %}
+
+{% block title %}
+    Create Challenge
+{% endblock %}
+
+{% block main %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h3 class="mb-0"><i class="fas fa-plus-circle me-2"></i>Create New Challenge</h3>
+                </div>
+                <div class="card-body">
+                    <form action="/challenges/create" method="post">
+                        <!-- Challenge Name -->
+                        <div class="mb-3">
+                            <label for="name" class="form-label">Challenge Name *</label>
+                            <input type="text" class="form-control" id="name" name="name" 
+                                   placeholder="e.g., Weekly Profit Master" required>
+                        </div>
+                        
+                        <!-- Description -->
+                        <div class="mb-3">
+                            <label for="description" class="form-label">Description</label>
+                            <textarea class="form-control" id="description" name="description" rows="3"
+                                      placeholder="Describe the challenge goals and rules..."></textarea>
+                        </div>
+                        
+                        <!-- Challenge Type -->
+                        <div class="mb-3">
+                            <label for="challenge_type" class="form-label">Challenge Type *</label>
+                            <select class="form-select" id="challenge_type" name="challenge_type" required onchange="updateChallengeFields()">
+                                <option value="">-- Select Type --</option>
+                                <option value="profit_target">Profit Target - Reach specific profit amount</option>
+                                <option value="trade_volume">Trade Volume - Complete specific number of trades</option>
+                                <option value="portfolio_value">Portfolio Value - Reach specific portfolio value</option>
+                                <option value="sector_focus">Sector Focus - Trade in specific sector</option>
+                            </select>
+                        </div>
+                        
+                        <!-- Dynamic Fields Based on Challenge Type -->
+                        <div id="profit_target_fields" class="challenge-fields" style="display: none;">
+                            <div class="mb-3">
+                                <label for="target_profit" class="form-label">Target Profit ($)</label>
+                                <input type="number" class="form-control" id="target_profit" name="target_profit" 
+                                       step="0.01" value="1000" min="0">
+                                <small class="text-muted">Users must earn this much profit to complete the challenge</small>
+                            </div>
+                        </div>
+                        
+                        <div id="trade_volume_fields" class="challenge-fields" style="display: none;">
+                            <div class="mb-3">
+                                <label for="target_trades" class="form-label">Target Number of Trades</label>
+                                <input type="number" class="form-control" id="target_trades" name="target_trades" 
+                                       value="10" min="1">
+                                <small class="text-muted">Users must complete this many trades</small>
+                            </div>
+                        </div>
+                        
+                        <div id="portfolio_value_fields" class="challenge-fields" style="display: none;">
+                            <div class="mb-3">
+                                <label for="target_value" class="form-label">Target Portfolio Value ($)</label>
+                                <input type="number" class="form-control" id="target_value" name="target_value" 
+                                       step="0.01" value="15000" min="0">
+                                <small class="text-muted">Users must reach this portfolio value</small>
+                            </div>
+                        </div>
+                        
+                        <div id="sector_focus_fields" class="challenge-fields" style="display: none;">
+                            <div class="mb-3">
+                                <label for="target_sector" class="form-label">Target Sector</label>
+                                <select class="form-select" id="target_sector" name="target_sector">
+                                    <option value="Technology">Technology</option>
+                                    <option value="Healthcare">Healthcare</option>
+                                    <option value="Finance">Finance</option>
+                                    <option value="Energy">Energy</option>
+                                    <option value="Consumer">Consumer Goods</option>
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label for="min_trades" class="form-label">Minimum Trades in Sector</label>
+                                <input type="number" class="form-control" id="min_trades" name="min_trades" 
+                                       value="5" min="1">
+                            </div>
+                        </div>
+                        
+                        <!-- Duration -->
+                        <div class="mb-3">
+                            <label for="duration_days" class="form-label">Duration (Days) *</label>
+                            <select class="form-select" id="duration_days" name="duration_days" required>
+                                <option value="1">1 Day</option>
+                                <option value="3">3 Days</option>
+                                <option value="7" selected>1 Week</option>
+                                <option value="14">2 Weeks</option>
+                                <option value="30">1 Month</option>
+                                <option value="90">3 Months</option>
+                            </select>
+                        </div>
+                        
+                        <!-- Rewards -->
+                        <div class="card bg-light mb-3">
+                            <div class="card-body">
+                                <h5 class="card-title"><i class="fas fa-gift me-2"></i>Rewards</h5>
+                                
+                                <div class="mb-3">
+                                    <label for="reward_cash" class="form-label">Cash Reward ($)</label>
+                                    <input type="number" class="form-control" id="reward_cash" name="reward_cash" 
+                                           step="0.01" value="0" min="0">
+                                    <small class="text-muted">Amount awarded to winners (0 for no cash reward)</small>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label for="reward_achievement" class="form-label">Achievement Name</label>
+                                    <input type="text" class="form-control" id="reward_achievement" name="reward_achievement"
+                                           placeholder="e.g., Profit Master">
+                                    <small class="text-muted">Optional achievement badge</small>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Buttons -->
+                        <div class="d-flex justify-content-between">
+                            <a href="/challenges" class="btn btn-outline-secondary">
+                                <i class="fas fa-times me-2"></i>Cancel
+                            </a>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-check me-2"></i>Create Challenge
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function updateChallengeFields() {
+    // Hide all challenge-specific fields
+    document.querySelectorAll('.challenge-fields').forEach(el => {
+        el.style.display = 'none';
+    });
+    
+    // Show relevant fields
+    const challengeType = document.getElementById('challenge_type').value;
+    if (challengeType) {
+        const fields = document.getElementById(challengeType + '_fields');
+        if (fields) {
+            fields.style.display = 'block';
+        }
+    }
+}
+</script>
+{% endblock %}

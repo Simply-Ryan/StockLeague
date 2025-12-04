@@ -17,13 +17,14 @@
                 <div class="row mb-4">
                     <div class="col-md-6 text-center">
                         <h6 class="text-muted">Current Price</h6>
-                        <div class="display-4 text-success">
+                        <div class="display-4 text-success stock-price" data-symbol="{{ quote.symbol }}">
                             {{ quote.price | usd }}
                         </div>
+                        <small class="text-muted"><i class="fas fa-circle text-success"></i> Live</small>
                     </div>
                     <div class="col-md-6 text-center">
                         <h6 class="text-muted">Change</h6>
-                        <div class="display-6 {% if quote.change >= 0 %}text-success{% else %}text-danger{% endif %}">
+                        <div class="display-6 stock-change {% if quote.change >= 0 %}text-success{% else %}text-danger{% endif %}" data-symbol="{{ quote.symbol }}">
                             {% if quote.change >= 0 %}+{% endif %}{{ quote.change | usd }}
                             <small>({% if quote.change_percent >= 0 %}+{% endif %}{{ "%.2f" | format(quote.change_percent) }}%)</small>
                         </div>
@@ -66,13 +67,58 @@
                     </div>
                 </div>
 
-                <!-- Price Chart -->
-                {% if chart_data and chart_data.dates %}
+                <!-- Advanced Price Chart -->
                 <div class="mb-4">
-                    <h5 class="text-center mb-3">30-Day Price History</h5>
-                    <canvas id="priceChart" style="max-height: 400px;"></canvas>
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h5 class="mb-0"><i class="fas fa-chart-line"></i> Price Chart</h5>
+                        <div class="btn-group btn-group-sm" role="group">
+                            <button type="button" class="btn btn-outline-primary active" data-timeframe="D" data-days="30">1M</button>
+                            <button type="button" class="btn btn-outline-primary" data-timeframe="D" data-days="90">3M</button>
+                            <button type="button" class="btn btn-outline-primary" data-timeframe="D" data-days="180">6M</button>
+                            <button type="button" class="btn btn-outline-primary" data-timeframe="D" data-days="365">1Y</button>
+                        </div>
+                    </div>
+                    
+                    <!-- Indicator Toggles -->
+                    <div class="mb-3">
+                        <div class="btn-group btn-group-sm flex-wrap" role="group">
+                            <input type="checkbox" class="btn-check" id="indicator-sma20" autocomplete="off">
+                            <label class="btn btn-outline-secondary" for="indicator-sma20">SMA 20</label>
+                            
+                            <input type="checkbox" class="btn-check" id="indicator-sma50" autocomplete="off">
+                            <label class="btn btn-outline-secondary" for="indicator-sma50">SMA 50</label>
+                            
+                            <input type="checkbox" class="btn-check" id="indicator-ema20" autocomplete="off">
+                            <label class="btn btn-outline-secondary" for="indicator-ema20">EMA 20</label>
+                            
+                            <input type="checkbox" class="btn-check" id="indicator-bb" autocomplete="off">
+                            <label class="btn btn-outline-secondary" for="indicator-bb">Bollinger Bands</label>
+                            
+                            <input type="checkbox" class="btn-check" id="indicator-rsi" autocomplete="off">
+                            <label class="btn btn-outline-secondary" for="indicator-rsi">RSI</label>
+                            
+                            <input type="checkbox" class="btn-check" id="indicator-macd" autocomplete="off">
+                            <label class="btn btn-outline-secondary" for="indicator-macd">MACD</label>
+                        </div>
+                    </div>
+                    
+                    <!-- Main Chart Container -->
+                    <div id="mainChart" style="height: 500px; background-color: var(--card-bg); border-radius: 8px; position: relative;">
+                        <div class="text-center" style="padding-top: 200px;">
+                            <i class="fas fa-spinner fa-spin fa-3x text-primary"></i>
+                            <p class="mt-3">Loading chart data...</p>
+                        </div>
+                    </div>
+                    
+                    <!-- Volume Chart -->
+                    <div id="volumeChart" style="height: 100px; background-color: var(--card-bg); border-radius: 8px; margin-top: 10px;"></div>
+                    
+                    <!-- RSI Chart (hidden by default) -->
+                    <div id="rsiChart" style="height: 150px; background-color: var(--card-bg); border-radius: 8px; margin-top: 10px; display: none;"></div>
+                    
+                    <!-- MACD Chart (hidden by default) -->
+                    <div id="macdChart" style="height: 150px; background-color: var(--card-bg); border-radius: 8px; margin-top: 10px; display: none;"></div>
                 </div>
-                {% endif %}
 
                 <!-- Action Buttons -->
                 <hr>
@@ -130,92 +176,349 @@
     {% endif %}
 </div>
 
-<!-- Chart.js -->
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<!-- TradingView Lightweight Charts -->
+<script src="https://unpkg.com/lightweight-charts@4.1.0/dist/lightweight-charts.standalone.production.js"></script>
 
-{% if chart_data and chart_data.dates %}
 <script>
-    // Prepare chart data
-    const dates = {{ chart_data.dates | tojson }};
-    const prices = {{ chart_data.prices | tojson }};
-    const highs = {{ chart_data.highs | tojson }};
-    const lows = {{ chart_data.lows | tojson }};
-
-    // Create the chart
-    const ctx = document.getElementById('priceChart').getContext('2d');
-    const priceChart = new Chart(ctx, {
-        type: 'line',
-        data: {
-            labels: dates,
-            datasets: [{
-                label: 'Closing Price',
-                data: prices,
-                borderColor: 'rgb(75, 192, 192)',
-                backgroundColor: 'rgba(75, 192, 192, 0.1)',
-                borderWidth: 2,
-                tension: 0.1,
-                fill: true
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: true,
-            interaction: {
-                intersect: false,
-                mode: 'index'
+    // Chart configuration
+    let mainChart, candlestickSeries, volumeSeries, rsiSeries, macdSeries;
+    let sma20Series, sma50Series, ema20Series, bbUpperSeries, bbMiddleSeries, bbLowerSeries;
+    let macdLineSeries, macdSignalSeries, macdHistogramSeries;
+    let currentTimeframe = 'D';
+    let currentDays = 30;
+    let chartData = null;
+    
+    // Initialize charts
+    function initCharts() {
+        const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+        const chartOptions = {
+            layout: {
+                background: { color: 'transparent' },
+                textColor: isDark ? '#e2e8f0' : '#334155',
             },
-            plugins: {
-                legend: {
-                    display: true,
-                    position: 'top'
-                },
-                tooltip: {
-                    callbacks: {
-                        label: function(context) {
-                            let label = context.dataset.label || '';
-                            if (label) {
-                                label += ': ';
-                            }
-                            label += '$' + context.parsed.y.toFixed(2);
-                            
-                            // Add high/low info
-                            const index = context.dataIndex;
-                            if (highs[index] && lows[index]) {
-                                label += ' (H: $' + highs[index].toFixed(2) + ', L: $' + lows[index].toFixed(2) + ')';
-                            }
-                            return label;
-                        }
-                    }
-                }
+            grid: {
+                vertLines: { color: isDark ? 'rgba(148, 163, 184, 0.1)' : 'rgba(148, 163, 184, 0.2)' },
+                horzLines: { color: isDark ? 'rgba(148, 163, 184, 0.1)' : 'rgba(148, 163, 184, 0.2)' },
             },
-            scales: {
-                x: {
-                    display: true,
-                    title: {
-                        display: true,
-                        text: 'Date'
-                    },
-                    ticks: {
-                        maxTicksLimit: 10
-                    }
-                },
-                y: {
-                    display: true,
-                    title: {
-                        display: true,
-                        text: 'Price (USD)'
-                    },
-                    ticks: {
-                        callback: function(value) {
-                            return '$' + value.toFixed(2);
-                        }
-                    }
-                }
+            crosshair: {
+                mode: LightweightCharts.CrosshairMode.Normal,
+            },
+            rightPriceScale: {
+                borderColor: isDark ? 'rgba(148, 163, 184, 0.3)' : 'rgba(148, 163, 184, 0.5)',
+            },
+            timeScale: {
+                borderColor: isDark ? 'rgba(148, 163, 184, 0.3)' : 'rgba(148, 163, 184, 0.5)',
+                timeVisible: true,
+                secondsVisible: false,
+            },
+        };
+        
+        // Main chart (candlesticks)
+        mainChart = LightweightCharts.createChart(document.getElementById('mainChart'), {
+            ...chartOptions,
+            height: 500,
+        });
+        
+        candlestickSeries = mainChart.addCandlestickSeries({
+            upColor: '#10b981',
+            downColor: '#ef4444',
+            borderUpColor: '#10b981',
+            borderDownColor: '#ef4444',
+            wickUpColor: '#10b981',
+            wickDownColor: '#ef4444',
+        });
+        
+        // Volume chart
+        const volumeChart = LightweightCharts.createChart(document.getElementById('volumeChart'), {
+            ...chartOptions,
+            height: 100,
+        });
+        
+        volumeSeries = volumeChart.addHistogramSeries({
+            color: '#6366f1',
+            priceFormat: {
+                type: 'volume',
+            },
+        });
+        
+        // Sync crosshair between charts
+        mainChart.timeScale().subscribeVisibleTimeRangeChange(() => {
+            const timeRange = mainChart.timeScale().getVisibleRange();
+            if (timeRange) {
+                volumeChart.timeScale().setVisibleRange(timeRange);
             }
+        });
+    }
+    
+    // Load chart data
+    async function loadChartData() {
+        try {
+            const response = await fetch(`/api/chart/{{ quote.symbol }}?timeframe=${currentTimeframe}&days=${currentDays}`);
+            const data = await response.json();
+            
+            if (data.error) {
+                console.error('Error loading chart:', data.error);
+                return;
+            }
+            
+            chartData = data;
+            updateChartData();
+        } catch (error) {
+            console.error('Error fetching chart data:', error);
         }
+    }
+    
+    // Update chart with data
+    function updateChartData() {
+        if (!chartData || !candlestickSeries) return;
+        
+        // Set candlestick data
+        candlestickSeries.setData(chartData.candles);
+        
+        // Set volume data
+        const volumeData = chartData.candles.map(c => ({
+            time: c.time,
+            value: c.volume,
+            color: c.close >= c.open ? 'rgba(16, 185, 129, 0.5)' : 'rgba(239, 68, 68, 0.5)'
+        }));
+        volumeSeries.setData(volumeData);
+        
+        // Auto-fit charts
+        mainChart.timeScale().fitContent();
+    }
+    
+    // Toggle indicators
+    function toggleIndicator(indicator) {
+        const checkbox = document.getElementById(`indicator-${indicator}`);
+        
+        switch(indicator) {
+            case 'sma20':
+                if (checkbox.checked) {
+                    if (!sma20Series) {
+                        sma20Series = mainChart.addLineSeries({
+                            color: '#f59e0b',
+                            lineWidth: 2,
+                            title: 'SMA 20',
+                        });
+                    }
+                    sma20Series.setData(chartData.sma_20);
+                } else if (sma20Series) {
+                    mainChart.removeSeries(sma20Series);
+                    sma20Series = null;
+                }
+                break;
+                
+            case 'sma50':
+                if (checkbox.checked) {
+                    if (!sma50Series) {
+                        sma50Series = mainChart.addLineSeries({
+                            color: '#8b5cf6',
+                            lineWidth: 2,
+                            title: 'SMA 50',
+                        });
+                    }
+                    sma50Series.setData(chartData.sma_50);
+                } else if (sma50Series) {
+                    mainChart.removeSeries(sma50Series);
+                    sma50Series = null;
+                }
+                break;
+                
+            case 'ema20':
+                if (checkbox.checked) {
+                    if (!ema20Series) {
+                        ema20Series = mainChart.addLineSeries({
+                            color: '#06b6d4',
+                            lineWidth: 2,
+                            title: 'EMA 20',
+                            lineStyle: 2, // Dashed
+                        });
+                    }
+                    ema20Series.setData(chartData.ema_20);
+                } else if (ema20Series) {
+                    mainChart.removeSeries(ema20Series);
+                    ema20Series = null;
+                }
+                break;
+                
+            case 'bb':
+                if (checkbox.checked) {
+                    if (!bbUpperSeries) {
+                        bbUpperSeries = mainChart.addLineSeries({
+                            color: '#ec4899',
+                            lineWidth: 1,
+                            title: 'BB Upper',
+                        });
+                        bbMiddleSeries = mainChart.addLineSeries({
+                            color: '#ec4899',
+                            lineWidth: 1,
+                            title: 'BB Middle',
+                            lineStyle: 2,
+                        });
+                        bbLowerSeries = mainChart.addLineSeries({
+                            color: '#ec4899',
+                            lineWidth: 1,
+                            title: 'BB Lower',
+                        });
+                    }
+                    bbUpperSeries.setData(chartData.bollinger.upper);
+                    bbMiddleSeries.setData(chartData.bollinger.middle);
+                    bbLowerSeries.setData(chartData.bollinger.lower);
+                } else {
+                    if (bbUpperSeries) {
+                        mainChart.removeSeries(bbUpperSeries);
+                        mainChart.removeSeries(bbMiddleSeries);
+                        mainChart.removeSeries(bbLowerSeries);
+                        bbUpperSeries = null;
+                        bbMiddleSeries = null;
+                        bbLowerSeries = null;
+                    }
+                }
+                break;
+                
+            case 'rsi':
+                const rsiDiv = document.getElementById('rsiChart');
+                if (checkbox.checked) {
+                    rsiDiv.style.display = 'block';
+                    if (!rsiSeries) {
+                        const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+                        const rsiChart = LightweightCharts.createChart(rsiDiv, {
+                            height: 150,
+                            layout: {
+                                background: { color: 'transparent' },
+                                textColor: isDark ? '#e2e8f0' : '#334155',
+                            },
+                            grid: {
+                                vertLines: { color: isDark ? 'rgba(148, 163, 184, 0.1)' : 'rgba(148, 163, 184, 0.2)' },
+                                horzLines: { color: isDark ? 'rgba(148, 163, 184, 0.1)' : 'rgba(148, 163, 184, 0.2)' },
+                            },
+                            rightPriceScale: {
+                                scaleMargins: { top: 0.1, bottom: 0.1 },
+                            },
+                        });
+                        rsiSeries = rsiChart.addLineSeries({
+                            color: '#f59e0b',
+                            lineWidth: 2,
+                        });
+                        rsiSeries.setData(chartData.rsi);
+                        
+                        // Sync with main chart
+                        mainChart.timeScale().subscribeVisibleTimeRangeChange(() => {
+                            const timeRange = mainChart.timeScale().getVisibleRange();
+                            if (timeRange) rsiChart.timeScale().setVisibleRange(timeRange);
+                        });
+                    }
+                } else {
+                    rsiDiv.style.display = 'none';
+                    rsiSeries = null;
+                }
+                break;
+                
+            case 'macd':
+                const macdDiv = document.getElementById('macdChart');
+                if (checkbox.checked) {
+                    macdDiv.style.display = 'block';
+                    if (!macdSeries) {
+                        const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+                        const macdChart = LightweightCharts.createChart(macdDiv, {
+                            height: 150,
+                            layout: {
+                                background: { color: 'transparent' },
+                                textColor: isDark ? '#e2e8f0' : '#334155',
+                            },
+                            grid: {
+                                vertLines: { color: isDark ? 'rgba(148, 163, 184, 0.1)' : 'rgba(148, 163, 184, 0.2)' },
+                                horzLines: { color: isDark ? 'rgba(148, 163, 184, 0.1)' : 'rgba(148, 163, 184, 0.2)' },
+                            },
+                        });
+                        
+                        macdHistogramSeries = macdChart.addHistogramSeries({
+                            color: '#6366f1',
+                        });
+                        macdLineSeries = macdChart.addLineSeries({
+                            color: '#10b981',
+                            lineWidth: 2,
+                        });
+                        macdSignalSeries = macdChart.addLineSeries({
+                            color: '#ef4444',
+                            lineWidth: 2,
+                        });
+                        
+                        macdHistogramSeries.setData(chartData.macd.histogram);
+                        macdLineSeries.setData(chartData.macd.macd);
+                        macdSignalSeries.setData(chartData.macd.signal);
+                        
+                        // Sync with main chart
+                        mainChart.timeScale().subscribeVisibleTimeRangeChange(() => {
+                            const timeRange = mainChart.timeScale().getVisibleRange();
+                            if (timeRange) macdChart.timeScale().setVisibleRange(timeRange);
+                        });
+                    }
+                } else {
+                    macdDiv.style.display = 'none';
+                    macdSeries = null;
+                }
+                break;
+        }
+    }
+    
+    // Initialize on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        initCharts();
+        loadChartData();
+        
+        // Timeframe buttons
+        document.querySelectorAll('[data-timeframe]').forEach(btn => {
+            btn.addEventListener('click', function() {
+                document.querySelectorAll('[data-timeframe]').forEach(b => b.classList.remove('active'));
+                this.classList.add('active');
+                currentTimeframe = this.dataset.timeframe;
+                currentDays = parseInt(this.dataset.days);
+                loadChartData();
+            });
+        });
+        
+        // Indicator toggles
+        document.querySelectorAll('[id^="indicator-"]').forEach(checkbox => {
+            checkbox.addEventListener('change', function() {
+                const indicator = this.id.replace('indicator-', '');
+                toggleIndicator(indicator);
+            });
+        });
     });
 </script>
-{% endif %}
+
+<script>
+    // Override stock price update for quoted page to handle display-4 formatting
+    const originalUpdateStockPrice = window.updateStockPrice;
+    window.updateStockPrice = function(data) {
+        if (data.symbol === '{{ quote.symbol }}') {
+            // Update price with $ sign
+            const priceEl = document.querySelector('.stock-price[data-symbol="{{ quote.symbol }}"]');
+            if (priceEl) {
+                priceEl.textContent = '$' + data.price.toFixed(2);
+                priceEl.classList.add('price-updated');
+                setTimeout(() => priceEl.classList.remove('price-updated'), 500);
+            }
+            
+            // Update change with proper formatting
+            const changeEl = document.querySelector('.stock-change[data-symbol="{{ quote.symbol }}"]');
+            if (changeEl) {
+                const changeText = (data.change >= 0 ? '+$' : '-$') + Math.abs(data.change).toFixed(2);
+                const changePercent = (data.change_percent >= 0 ? '+' : '') + data.change_percent.toFixed(2) + '%';
+                changeEl.innerHTML = changeText + ' <small>(' + changePercent + ')</small>';
+                
+                changeEl.classList.remove('text-success', 'text-danger');
+                changeEl.classList.add(data.change >= 0 ? 'text-success' : 'text-danger');
+            }
+        }
+        
+        // Call original function for other elements
+        if (originalUpdateStockPrice) {
+            originalUpdateStockPrice(data);
+        }
+    };
+</script>
 
 <!-- Add to Watchlist Modal -->
 <div class="modal fade" id="addWatchlistModal" tabindex="-1" aria-labelledby="addWatchlistModalLabel" aria-hidden="true">

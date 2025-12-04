@@ -1,0 +1,92 @@
+{% extends "layout.html" %}
+
+{% block title %}Copy Trading - StockLeague{% endblock %}
+
+{% block main %}
+<div class="container">
+    <h1 class="mb-4"><i class="fas fa-user-friends"></i> Copy Trading</h1>
+    <div class="row">
+        <div class="col-lg-8 mx-auto">
+            <div class="card shadow mb-4">
+                <div class="card-body">
+                    <h4 class="mb-3">Top Traders</h4>
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Username</th>
+                                <th>Return</th>
+                                <th>Followers</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for trader in top_traders %}
+                            <tr>
+                                <td><a href="/profile/{{ trader.username }}">{{ trader.username }}</a></td>
+                                <td>{{ trader.total_return }}%</td>
+                                <td>{{ trader.follower_count }}</td>
+                                <td>
+                                    {% if trader.is_following %}
+                                    <form action="/unfollow_trader" method="post" style="display:inline;">
+                                        <input type="hidden" name="trader_id" value="{{ trader.id }}">
+                                        <button type="submit" class="btn btn-sm btn-danger">Unfollow</button>
+                                    </form>
+                                    {% else %}
+                                    <form action="/follow_trader" method="post" style="display:inline;">
+                                        <input type="hidden" name="trader_id" value="{{ trader.id }}">
+                                        <button type="submit" class="btn btn-sm btn-primary">Follow</button>
+                                    </form>
+                                    {% endif %}
+                                    <form action="/start_copy_trading" method="post" style="display:inline;">
+                                        <input type="hidden" name="trader_id" value="{{ trader.id }}">
+                                        <button type="submit" class="btn btn-sm btn-success">Copy Trade</button>
+                                    </form>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="card shadow">
+                <div class="card-body">
+                    <h4 class="mb-3">Your Copy Trading Settings</h4>
+                    {% if active_copiers %}
+                    <table class="table table-bordered">
+                        <thead>
+                            <tr>
+                                <th>Trader</th>
+                                <th>Allocation %</th>
+                                <th>Max Trade</th>
+                                <th>Copy Buys</th>
+                                <th>Copy Sells</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for copier in active_copiers %}
+                            <tr>
+                                <td><a href="/profile/{{ copier.trader_username }}">{{ copier.trader_username }}</a></td>
+                                <td>{{ copier.allocation_percentage }}%</td>
+                                <td>{{ copier.max_trade_amount | usd }}</td>
+                                <td>{{ 'Yes' if copier.copy_buys else 'No' }}</td>
+                                <td>{{ 'Yes' if copier.copy_sells else 'No' }}</td>
+                                <td>
+                                    <form action="/stop_copy_trading" method="post">
+                                        <input type="hidden" name="copier_id" value="{{ copier.id }}">
+                                        <button type="submit" class="btn btn-sm btn-warning">Stop</button>
+                                    </form>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    {% else %}
+                    <div class="alert alert-info">You are not currently copying any traders.</div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

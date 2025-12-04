@@ -1,0 +1,258 @@
+{% extends "layout.html" %}
+
+{% block title %}
+    Options Trading
+{% endblock %}
+
+{% block main %}
+    <div class="container-fluid mt-4">
+        <div class="row mb-4">
+            <div class="col-md-12">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h2><i class="bi bi-graph-up-arrow me-2"></i>Options Trading</h2>
+                    <div>
+                        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#searchOptionsModal">
+                            <i class="bi bi-search me-2"></i>Search Options Chain
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Info Alert -->
+        <div class="alert alert-info alert-dismissible fade show" role="alert">
+            <i class="bi bi-info-circle me-2"></i>
+            <strong>Options Trading Simulator</strong> - Practice trading calls and puts with real-time Black-Scholes pricing and Greeks calculations. Options are auto-exercised at expiration if in-the-money.
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+
+        <!-- Open Positions -->
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="bi bi-briefcase me-2"></i>Open Options Positions</h5>
+            </div>
+            <div class="card-body p-0">
+                {% if positions %}
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Symbol</th>
+                                    <th>Type</th>
+                                    <th>Strike</th>
+                                    <th>Expiration</th>
+                                    <th>Contracts</th>
+                                    <th>Avg Premium</th>
+                                    <th>Current Premium</th>
+                                    <th>P&L</th>
+                                    <th>Delta</th>
+                                    <th>Theta</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for position in positions %}
+                                    <tr class="{% if position.get('unrealized_pl', 0) > 0 %}table-success{% elif position.get('unrealized_pl', 0) < 0 %}table-danger{% endif %}">
+                                        <td><strong>{{ position.symbol }}</strong></td>
+                                        <td>
+                                            <span class="badge {% if position.option_type == 'call' %}bg-success{% else %}bg-danger{% endif %}">
+                                                {{ position.option_type|upper }}
+                                            </span>
+                                        </td>
+                                        <td>${{ "%.2f"|format(position.strike_price) }}</td>
+                                        <td>
+                                            {{ position.expiration_date }}
+                                            <br><small class="text-muted">{{ position.get('days_to_expiration', 0) }} days</small>
+                                        </td>
+                                        <td>{{ position.contracts }}</td>
+                                        <td>${{ "%.2f"|format(position.avg_premium) }}</td>
+                                        <td>${{ "%.2f"|format(position.get('current_premium', 0)) }}</td>
+                                        <td>
+                                            <strong class="{% if position.get('unrealized_pl', 0) > 0 %}text-success{% elif position.get('unrealized_pl', 0) < 0 %}text-danger{% endif %}">
+                                                ${{ "%.2f"|format(position.get('unrealized_pl', 0)) }}
+                                                <br><small>({{ "%.2f"|format(position.get('unrealized_pl_pct', 0)) }}%)</small>
+                                            </strong>
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-secondary">
+                                                {{ "%.3f"|format(position.greeks.delta if position.get('greeks') else 0) }}
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-warning text-dark">
+                                                {{ "%.3f"|format(position.greeks.theta if position.get('greeks') else 0) }}
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <button class="btn btn-sm btn-danger" 
+                                                    onclick="showSellModal({{ position.id }}, '{{ position.symbol }}', '{{ position.option_type }}', {{ position.strike_price }}, '{{ position.expiration_date }}', {{ position.contracts }}, {{ position.get('current_premium', 0) }})">
+                                                <i class="bi bi-cash-stack"></i> Sell
+                                            </button>
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <div class="text-center py-5 text-muted">
+                        <i class="bi bi-inbox" style="font-size: 3rem;"></i>
+                        <p class="mt-3">No open options positions</p>
+                        <p>Search for an options chain to start trading</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Recent Transactions -->
+        <div class="card">
+            <div class="card-header bg-secondary text-white">
+                <h5 class="mb-0"><i class="bi bi-clock-history me-2"></i>Recent Options Transactions</h5>
+            </div>
+            <div class="card-body p-0">
+                {% if transactions %}
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Symbol</th>
+                                    <th>Type</th>
+                                    <th>Strike</th>
+                                    <th>Expiration</th>
+                                    <th>Contracts</th>
+                                    <th>Premium</th>
+                                    <th>Transaction</th>
+                                    <th>Total</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for txn in transactions %}
+                                    <tr>
+                                        <td>{{ txn.timestamp }}</td>
+                                        <td><strong>{{ txn.symbol }}</strong></td>
+                                        <td>
+                                            <span class="badge {% if txn.option_type == 'call' %}bg-success{% else %}bg-danger{% endif %}">
+                                                {{ txn.option_type|upper }}
+                                            </span>
+                                        </td>
+                                        <td>${{ "%.2f"|format(txn.strike_price) }}</td>
+                                        <td>{{ txn.expiration_date }}</td>
+                                        <td>{{ txn.contracts }}</td>
+                                        <td>${{ "%.2f"|format(txn.premium) }}</td>
+                                        <td>
+                                            <span class="badge {% if txn.transaction_type == 'buy' %}bg-primary{% elif txn.transaction_type == 'sell' %}bg-warning text-dark{% elif txn.transaction_type == 'exercise' %}bg-success{% else %}bg-secondary{% endif %}">
+                                                {{ txn.transaction_type|upper }}
+                                            </span>
+                                        </td>
+                                        <td class="{% if txn.total_cost < 0 %}text-success{% else %}text-danger{% endif %}">
+                                            ${{ "%.2f"|format(txn.total_cost|abs) }}
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <div class="text-center py-4 text-muted">
+                        <p>No transaction history</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Search Options Modal -->
+    <div class="modal fade" id="searchOptionsModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Search Options Chain</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form action="/options/chain" method="get">
+                        <div class="mb-3">
+                            <label for="symbol" class="form-label">Stock Symbol</label>
+                            <input type="text" class="form-control text-uppercase" id="symbol" name="symbol" 
+                                   placeholder="AAPL" required autofocus>
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="bi bi-search me-2"></i>View Options Chain
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sell Option Modal -->
+    <div class="modal fade" id="sellOptionModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Sell Option</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form action="/options/sell" method="post">
+                    <div class="modal-body">
+                        <input type="hidden" name="position_id" id="sell_position_id">
+                        <input type="hidden" name="premium" id="sell_premium">
+                        
+                        <div class="alert alert-info" id="sell_option_info"></div>
+                        
+                        <div class="mb-3">
+                            <label for="sell_contracts" class="form-label">Number of Contracts</label>
+                            <input type="number" class="form-control" id="sell_contracts" name="contracts" 
+                                   min="1" required>
+                            <small class="text-muted">Max: <span id="max_contracts"></span> contracts</small>
+                        </div>
+                        
+                        <div class="alert alert-warning">
+                            <strong>Estimated Proceeds:</strong> $<span id="estimated_proceeds">0.00</span>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-danger">
+                            <i class="bi bi-cash-stack me-2"></i>Sell Options
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function showSellModal(positionId, symbol, optionType, strike, expiration, maxContracts, currentPremium) {
+            document.getElementById('sell_position_id').value = positionId;
+            document.getElementById('sell_premium').value = currentPremium;
+            document.getElementById('sell_contracts').max = maxContracts;
+            document.getElementById('sell_contracts').value = maxContracts;
+            document.getElementById('max_contracts').textContent = maxContracts;
+            
+            document.getElementById('sell_option_info').innerHTML = 
+                `<strong>${symbol}</strong> ${optionType.toUpperCase()} $${strike.toFixed(2)} exp ${expiration}<br>` +
+                `Current Premium: $${currentPremium.toFixed(2)}`;
+            
+            updateEstimatedProceeds();
+            
+            // Update proceeds on contract change
+            document.getElementById('sell_contracts').oninput = updateEstimatedProceeds;
+            
+            new bootstrap.Modal(document.getElementById('sellOptionModal')).show();
+        }
+        
+        function updateEstimatedProceeds() {
+            const contracts = parseFloat(document.getElementById('sell_contracts').value) || 0;
+            const premium = parseFloat(document.getElementById('sell_premium').value) || 0;
+            const proceeds = contracts * premium * 100;
+            document.getElementById('estimated_proceeds').textContent = proceeds.toFixed(2);
+        }
+        
+        // Auto-uppercase symbol input
+        document.getElementById('symbol').addEventListener('input', function() {
+            this.value = this.value.toUpperCase();
+        });
+    </script>
+{% endblock %}

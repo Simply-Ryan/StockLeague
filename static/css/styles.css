@@ -1,14 +1,43 @@
 /* StockLeague Custom Styles */
 
 :root {
-    --primary-color: #2c3e50;
-    --secondary-color: #3498db;
-    --success-color: #27ae60;
-    --danger-color: #e74c3c;
-    --warning-color: #f39c12;
-    --info-color: #16a085;
-    --light-bg: #ecf0f1;
-    --dark-bg: #34495e;
+    --primary-color: #6366f1;
+    --primary-dark: #4f46e5;
+    --secondary-color: #8b5cf6;
+    --accent-color: #ec4899;
+    --success-color: #10b981;
+    --danger-color: #ef4444;
+    --warning-color: #f59e0b;
+    --info-color: #06b6d4;
+    --light-bg: #f8fafc;
+    --dark-bg: #1e293b;
+    --gradient-primary: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    --gradient-accent: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+    
+    /* Dark mode (default) */
+    --bg-primary: #0f172a;
+    --bg-secondary: #1e293b;
+    --bg-tertiary: #334155;
+    --text-primary: #ffffff;
+    --text-secondary: #e2e8f0;
+    --text-muted: #cbd5e1;
+    --border-color: rgba(148, 163, 184, 0.3);
+    --card-bg: rgba(30, 41, 59, 0.95);
+    --card-hover: rgba(51, 65, 85, 0.95);
+    --shadow: rgba(0, 0, 0, 0.5);
+}
+
+[data-theme="light"] {
+    --bg-primary: #ffffff;
+    --bg-secondary: #f8fafc;
+    --bg-tertiary: #e2e8f0;
+    --text-primary: #0f172a;
+    --text-secondary: #475569;
+    --text-muted: #64748b;
+    --border-color: rgba(203, 213, 225, 0.5);
+    --card-bg: rgba(255, 255, 255, 0.95);
+    --card-hover: rgba(248, 250, 252, 0.95);
+    --shadow: rgba(0, 0, 0, 0.1);
 }
 
 body {
@@ -16,8 +45,10 @@ body {
     display: flex;
     flex-direction: column;
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-secondary) 50%, var(--bg-tertiary) 100%);
     background-attachment: fixed;
+    color: var(--text-primary);
+    transition: background 0.3s ease, color 0.3s ease;
 }
 
 main {
@@ -32,42 +63,54 @@ main {
 }
 
 .navbar-brand i {
-    color: var(--success-color);
+    background: var(--gradient-accent);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
 }
 
+/* Navigation styling */
 .navbar-dark .navbar-nav .nav-link {
     transition: color 0.3s ease;
 }
 
 .navbar-dark .navbar-nav .nav-link:hover {
-    color: var(--success-color) !important;
+    color: var(--primary-color) !important;
 }
 
 /* Card Enhancements */
 .card {
-    border: none;
+    border: 1px solid var(--border-color);
     border-radius: 15px;
-    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    background-color: var(--card-bg);
+    backdrop-filter: blur(10px);
+    transition: transform 0.3s ease, box-shadow 0.3s ease, background-color 0.3s ease;
 }
 
 .card:hover {
     transform: translateY(-5px);
-    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 10px 25px var(--shadow);
+    background-color: var(--card-hover);
 }
 
 .card-body {
     padding: 2rem;
+    color: var(--text-primary);
 }
 
 /* Table Styling */
 .table {
-    background-color: white;
+    background-color: var(--card-bg);
     border-radius: 10px;
     overflow: hidden;
+    color: var(--text-primary);
+    transition: background-color 0.3s ease;
 }
 
 .table thead {
     font-weight: 600;
+    background-color: var(--bg-tertiary);
+    color: var(--text-primary);
 }
 
 .table-hover tbody tr:hover {
@@ -102,39 +145,60 @@ main {
 }
 
 .btn-primary {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: var(--gradient-accent);
     border: none;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(99, 102, 241, 0.4);
 }
 
 .btn-success {
-    background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+    background: linear-gradient(135deg, #10b981 0%, #06b6d4 100%);
     border: none;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.btn-success:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(16, 185, 129, 0.4);
 }
 
 .btn-danger {
-    background: linear-gradient(135deg, #eb3349 0%, #f45c43 100%);
+    background: linear-gradient(135deg, #ef4444 0%, #ec4899 100%);
     border: none;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.btn-danger:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(239, 68, 68, 0.4);
 }
 
 /* Portfolio Container */
 .portfolio-container,
 .history-container {
-    background: white;
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
     border-radius: 15px;
     padding: 2rem;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 10px 30px var(--shadow);
+    backdrop-filter: blur(10px);
+    transition: background-color 0.3s ease;
 }
 
 .portfolio-container h1,
 .history-container h1 {
-    color: var(--primary-color);
+    color: var(--text-primary);
     margin-bottom: 1.5rem;
 }
 
 /* Quote Result */
 .quote-result {
     padding: 2rem;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: var(--gradient-accent);
     border-radius: 15px;
     color: white;
     margin-bottom: 1rem;
@@ -163,8 +227,9 @@ main {
 /* Footer */
 .footer {
     margin-top: auto;
-    background-color: rgba(44, 62, 80, 0.9) !important;
+    background: linear-gradient(135deg, rgba(15, 23, 42, 0.95) 0%, rgba(30, 41, 59, 0.95) 100%);
     backdrop-filter: blur(10px);
+    border-top: 1px solid rgba(99, 102, 241, 0.2);
 }
 
 .footer .text-muted {
@@ -307,6 +372,260 @@ canvas {
 footer a:hover {
     color: var(--secondary-color) !important;
     transition: color 0.3s ease;
+}
+
+/* Light mode specific overrides */
+[data-theme="light"] body {
+    background: linear-gradient(135deg, #ffffff 0%, #f8fafc 50%, #e2e8f0 100%);
+}
+
+[data-theme="light"] .navbar-dark {
+    background-color: rgba(255, 255, 255, 0.95) !important;
+    border-bottom: 1px solid var(--border-color);
+    backdrop-filter: blur(10px);
+}
+
+[data-theme="light"] .navbar-dark .navbar-brand,
+[data-theme="light"] .navbar-dark .navbar-nav .nav-link {
+    color: var(--text-primary) !important;
+}
+
+[data-theme="light"] .navbar-dark .navbar-nav .nav-link:hover {
+    color: var(--primary-color) !important;
+}
+
+[data-theme="light"] .text-white {
+    color: var(--text-primary) !important;
+}
+
+[data-theme="light"] .bg-dark {
+    background-color: var(--bg-secondary) !important;
+}
+
+[data-theme="light"] .text-muted {
+    color: var(--text-muted) !important;
+}
+
+/* Improved text contrast for dark mode */
+h1, h2, h3, h4, h5, h6 {
+    color: var(--text-primary);
+}
+
+p, span, div, td, th, li, a {
+    color: var(--text-secondary);
+}
+
+.text-secondary {
+    color: var(--text-secondary) !important;
+}
+
+label, .form-label {
+    color: var(--text-primary);
+    font-weight: 500;
+}
+
+.form-control, .form-select {
+    background-color: var(--card-bg);
+    border-color: var(--border-color);
+    color: var(--text-primary);
+}
+
+.form-control:focus, .form-select:focus {
+    background-color: var(--card-hover);
+    border-color: var(--primary-color);
+    color: var(--text-primary);
+}
+
+.form-control::placeholder {
+    color: var(--text-muted);
+}
+
+.list-group-item {
+    background-color: var(--card-bg);
+    border-color: var(--border-color);
+    color: var(--text-primary);
+}
+
+.dropdown-menu {
+    background-color: var(--card-bg);
+    border-color: var(--border-color);
+}
+
+.dropdown-item {
+    color: var(--text-primary);
+}
+
+.dropdown-item:hover {
+    background-color: var(--card-hover);
+    color: var(--text-primary);
+}
+
+.modal-content {
+    background-color: var(--card-bg);
+    color: var(--text-primary);
+}
+
+.modal-header, .modal-footer {
+    border-color: var(--border-color);
+}
+
+.alert {
+    color: var(--text-primary);
+}
+
+/* Fix alert backgrounds and text for dark mode */
+.alert-info {
+    background-color: rgba(6, 182, 212, 0.15) !important;
+    border-color: rgba(6, 182, 212, 0.3) !important;
+    color: var(--text-primary) !important;
+}
+
+.alert-success {
+    background-color: rgba(16, 185, 129, 0.15) !important;
+    border-color: rgba(16, 185, 129, 0.3) !important;
+    color: var(--text-primary) !important;
+}
+
+.alert-warning {
+    background-color: rgba(245, 158, 11, 0.15) !important;
+    border-color: rgba(245, 158, 11, 0.3) !important;
+    color: var(--text-primary) !important;
+}
+
+.alert-danger {
+    background-color: rgba(239, 68, 68, 0.15) !important;
+    border-color: rgba(239, 68, 68, 0.3) !important;
+    color: var(--text-primary) !important;
+}
+
+[data-theme="light"] .alert-info {
+    background-color: rgba(6, 182, 212, 0.1) !important;
+    border-color: rgba(6, 182, 212, 0.3) !important;
+    color: #0e7490 !important;
+}
+
+[data-theme="light"] .alert-success {
+    background-color: rgba(16, 185, 129, 0.1) !important;
+    border-color: rgba(16, 185, 129, 0.3) !important;
+    color: #047857 !important;
+}
+
+[data-theme="light"] .alert-warning {
+    background-color: rgba(245, 158, 11, 0.1) !important;
+    border-color: rgba(245, 158, 11, 0.3) !important;
+    color: #b45309 !important;
+}
+
+[data-theme="light"] .alert-danger {
+    background-color: rgba(239, 68, 68, 0.1) !important;
+    border-color: rgba(239, 68, 68, 0.3) !important;
+    color: #b91c1c !important;
+}
+
+/* Medal colors */
+.medal-silver {
+    color: #c0c0c0 !important;
+}
+
+.medal-bronze {
+    color: #cd7f32 !important;
+}
+
+/* Badge colors */
+.bg-purple {
+    background-color: #6f42c1 !important;
+}
+
+.text-purple {
+    color: #6f42c1 !important;
+}
+
+/* Real-time price update animation */
+.price-updated {
+    animation: priceFlash 0.5s ease-in-out;
+}
+
+@keyframes priceFlash {
+    0% { background-color: transparent; }
+    50% { background-color: rgba(99, 102, 241, 0.3); }
+    100% { background-color: transparent; }
+}
+
+/* Override Bootstrap hardcoded colors for dark mode */
+.bg-light {
+    background-color: var(--card-bg) !important;
+}
+
+.text-dark {
+    color: var(--text-primary) !important;
+}
+
+.text-muted {
+    color: var(--text-muted) !important;
+}
+
+.card-subtitle.text-muted {
+    color: var(--text-muted) !important;
+}
+
+.form-text {
+    color: var(--text-muted) !important;
+}
+
+.small.text-muted,
+small.text-muted {
+    color: var(--text-muted) !important;
+}
+
+/* Fix table headers */
+.table-dark {
+    --bs-table-bg: var(--bg-tertiary);
+    --bs-table-color: var(--text-primary);
+    --bs-table-border-color: var(--border-color);
+}
+
+.table-hover tbody tr:hover {
+    --bs-table-hover-bg: var(--card-hover);
+    --bs-table-hover-color: var(--text-primary);
+}
+
+/* Fix card text in bg-light cards */
+.card.bg-light .card-text {
+    color: var(--text-primary) !important;
+}
+
+.card.bg-light .card-subtitle {
+    color: var(--text-muted) !important;
+}
+
+/* Ensure Bootstrap bg-* utilities maintain readable text */
+.bg-success {
+    color: #ffffff !important;
+}
+
+.bg-danger {
+    color: #ffffff !important;
+}
+
+.bg-warning {
+    color: #000000 !important;
+}
+
+.bg-info {
+    color: #ffffff !important;
+}
+
+/* Fix list group items */
+.list-group-item {
+    background-color: var(--card-bg);
+    color: var(--text-primary);
+    border-color: var(--border-color);
+}
+
+.list-group-item-action:hover,
+.list-group-item-action:focus {
+    background-color: var(--card-hover);
+    color: var(--text-primary);
 }
 
 /* Responsive Table */

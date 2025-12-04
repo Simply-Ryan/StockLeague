@@ -1,0 +1,93 @@
+{% extends "layout.html" %}
+
+{% block title %}Create League - StockLeague{% endblock %}
+
+{% block main %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0"><i class="fas fa-trophy"></i> Create Trading League</h4>
+                </div>
+                <div class="card-body">
+                    <form action="/leagues/create" method="post">
+                        <div class="mb-3">
+                            <label for="name" class="form-label">League Name <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="name" name="name" required 
+                                   placeholder="e.g., Wall Street Warriors" maxlength="100">
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="description" class="form-label">Description</label>
+                            <textarea class="form-control" id="description" name="description" rows="3" 
+                                      placeholder="Describe your league's goals and rules..."></textarea>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="league_type" class="form-label">League Type</label>
+                            <select class="form-select" id="league_type" name="league_type">
+                                <option value="public">Public - Anyone can join</option>
+                                <option value="private">Private - Invite code required</option>
+                            </select>
+                            <div class="form-text">Public leagues appear in the browse list, private leagues require an invite code</div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="starting_cash" class="form-label">Starting Cash</label>
+                                <div class="input-group">
+                                    <span class="input-group-text">$</span>
+                                    <input type="number" class="form-control" id="starting_cash" name="starting_cash" 
+                                           value="10000" min="1000" max="1000000" step="1000">
+                                </div>
+                                <div class="form-text">How much cash each member starts with</div>
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label for="duration_days" class="form-label">Season Duration</label>
+                                <select class="form-select" id="duration_days" name="duration_days">
+                                    <option value="7">1 Week</option>
+                                    <option value="14">2 Weeks</option>
+                                    <option value="30" selected>1 Month</option>
+                                    <option value="60">2 Months</option>
+                                    <option value="90">3 Months</option>
+                                    <option value="180">6 Months</option>
+                                    <option value="365">1 Year</option>
+                                </select>
+                                <div class="form-text">How long the competition lasts</div>
+                            </div>
+                        </div>
+
+                        <div class="mb-3 form-check">
+                            <input type="checkbox" class="form-check-input" id="auto_reset" name="auto_reset">
+                            <label class="form-check-label" for="auto_reset">
+                                Auto-reset after season ends
+                            </label>
+                            <div class="form-text">Automatically start a new season when current one ends</div>
+                        </div>
+
+                        <div class="alert alert-info">
+                            <h6><i class="fas fa-info-circle"></i> How Leagues Work</h6>
+                            <ul class="mb-0">
+                                <li>Members trade with virtual cash starting from the same amount</li>
+                                <li>Rankings are based on total portfolio value (cash + stocks)</li>
+                                <li>Seasons run for the specified duration</li>
+                                <li>Top performers are notified when season ends</li>
+                                <li>You'll receive an invite code to share with others</li>
+                            </ul>
+                        </div>
+
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-primary btn-lg">
+                                <i class="fas fa-trophy"></i> Create League
+                            </button>
+                            <a href="/leagues" class="btn btn-outline-secondary">Cancel</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

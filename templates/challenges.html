@@ -1,0 +1,197 @@
+{% extends "layout.html" %}
+
+{% block title %}
+    Challenges
+{% endblock %}
+
+{% block main %}
+<div class="container-fluid px-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1><i class="fas fa-trophy me-2"></i>Trading Challenges</h1>
+        <a href="/challenges/create" class="btn btn-primary">
+            <i class="fas fa-plus me-2"></i>Create Challenge
+        </a>
+    </div>
+
+    <!-- Active Challenges -->
+    {% if user_challenges %}
+    <div class="card shadow mb-4">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0"><i class="fas fa-fire me-2"></i>Your Active Challenges</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                {% for challenge in user_challenges %}
+                <div class="col-md-6 col-lg-4 mb-3">
+                    <div class="card h-100 border-primary">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <h5 class="card-title mb-0">{{ challenge.name }}</h5>
+                                {% if challenge.completed %}
+                                <span class="badge bg-success">
+                                    <i class="fas fa-check me-1"></i>Completed
+                                </span>
+                                {% else %}
+                                <span class="badge bg-warning text-dark">
+                                    <i class="fas fa-clock me-1"></i>In Progress
+                                </span>
+                                {% endif %}
+                            </div>
+                            
+                            <p class="card-text text-muted small mb-3">{{ challenge.description }}</p>
+                            
+                            <!-- Challenge Type Badge -->
+                            <div class="mb-2">
+                                {% if challenge.challenge_type == 'profit_target' %}
+                                <span class="badge bg-info">
+                                    <i class="fas fa-dollar-sign me-1"></i>Profit Target
+                                </span>
+                                {% elif challenge.challenge_type == 'trade_volume' %}
+                                <span class="badge bg-success">
+                                    <i class="fas fa-chart-line me-1"></i>Trade Volume
+                                </span>
+                                {% elif challenge.challenge_type == 'portfolio_value' %}
+                                <span class="badge bg-warning text-dark">
+                                    <i class="fas fa-wallet me-1"></i>Portfolio Value
+                                </span>
+                                {% elif challenge.challenge_type == 'sector_focus' %}
+                                <span class="badge bg-purple">
+                                    <i class="fas fa-bullseye me-1"></i>Sector Focus
+                                </span>
+                                {% endif %}
+                            </div>
+                            
+                            <!-- Progress -->
+                            <div class="mb-3">
+                                <div class="d-flex justify-content-between mb-1">
+                                    <small class="text-muted">Your Score</small>
+                                    <small class="fw-bold">{{ "%.2f"|format(challenge.score) }}</small>
+                                </div>
+                                {% if challenge.challenge_type == 'profit_target' %}
+                                <div class="progress" style="height: 8px;">
+                                    <div class="progress-bar bg-primary" role="progressbar" 
+                                         style="width: {{ min(100, (challenge.score / challenge.rules.target_profit * 100)) }}%">
+                                    </div>
+                                </div>
+                                <small class="text-muted">Target: ${{ "%.2f"|format(challenge.rules.target_profit) }}</small>
+                                {% elif challenge.challenge_type == 'trade_volume' %}
+                                <div class="progress" style="height: 8px;">
+                                    <div class="progress-bar bg-success" role="progressbar" 
+                                         style="width: {{ min(100, (challenge.score / challenge.rules.target_trades * 100)) }}%">
+                                    </div>
+                                </div>
+                                <small class="text-muted">Target: {{ challenge.rules.target_trades }} trades</small>
+                                {% elif challenge.challenge_type == 'portfolio_value' %}
+                                <div class="progress" style="height: 8px;">
+                                    <div class="progress-bar bg-warning" role="progressbar" 
+                                         style="width: {{ min(100, (challenge.score / challenge.rules.target_value * 100)) }}%">
+                                    </div>
+                                </div>
+                                <small class="text-muted">Target: ${{ "%.2f"|format(challenge.rules.target_value) }}</small>
+                                {% endif %}
+                            </div>
+                            
+                            <!-- Stats -->
+                            <div class="d-flex justify-content-between text-muted small mb-3">
+                                <span>
+                                    <i class="fas fa-users me-1"></i>
+                                    {{ challenge.participant_count }} participants
+                                </span>
+                                {% if challenge.rank %}
+                                <span class="fw-bold text-primary">
+                                    <i class="fas fa-medal me-1"></i>
+                                    Rank #{{ challenge.rank }}
+                                </span>
+                                {% endif %}
+                            </div>
+                            
+                            <a href="/challenges/{{ challenge.id }}" class="btn btn-sm btn-outline-primary w-100">
+                                View Details
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Available Challenges -->
+    <div class="card shadow">
+        <div class="card-header bg-secondary text-white">
+            <h5 class="mb-0"><i class="fas fa-list me-2"></i>Available Challenges</h5>
+        </div>
+        <div class="card-body">
+            {% if available_challenges %}
+            <div class="row">
+                {% for challenge in available_challenges %}
+                <div class="col-md-6 col-lg-4 mb-3">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <h5 class="card-title">{{ challenge.name }}</h5>
+                            <p class="card-text text-muted small">{{ challenge.description }}</p>
+                            
+                            <!-- Challenge Type -->
+                            <div class="mb-2">
+                                {% if challenge.challenge_type == 'profit_target' %}
+                                <span class="badge bg-info">
+                                    <i class="fas fa-dollar-sign me-1"></i>Profit Target: ${{ "%.0f"|format(challenge.rules.target_profit) }}
+                                </span>
+                                {% elif challenge.challenge_type == 'trade_volume' %}
+                                <span class="badge bg-success">
+                                    <i class="fas fa-chart-line me-1"></i>{{ challenge.rules.target_trades }} Trades
+                                </span>
+                                {% elif challenge.challenge_type == 'portfolio_value' %}
+                                <span class="badge bg-warning text-dark">
+                                    <i class="fas fa-wallet me-1"></i>Reach ${{ "%.0f"|format(challenge.rules.target_value) }}
+                                </span>
+                                {% elif challenge.challenge_type == 'sector_focus' %}
+                                <span class="badge bg-purple">
+                                    <i class="fas fa-bullseye me-1"></i>{{ challenge.rules.target_sector }}
+                                </span>
+                                {% endif %}
+                            </div>
+                            
+                            <!-- Reward -->
+                            {% if challenge.reward.cash and challenge.reward.cash > 0 %}
+                            <div class="mb-3">
+                                <span class="badge bg-success">
+                                    <i class="fas fa-gift me-1"></i>Reward: ${{ "%.2f"|format(challenge.reward.cash) }}
+                                </span>
+                            </div>
+                            {% endif %}
+                            
+                            <!-- Stats -->
+                            <div class="d-flex justify-content-between text-muted small mb-3">
+                                <span>
+                                    <i class="fas fa-users me-1"></i>
+                                    {{ challenge.participant_count }} joined
+                                </span>
+                                <span>
+                                    <i class="fas fa-check me-1"></i>
+                                    {{ challenge.completed_count }} completed
+                                </span>
+                            </div>
+                            
+                            <a href="/challenges/{{ challenge.id }}" class="btn btn-sm btn-primary w-100">
+                                Join Challenge
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="text-center py-5">
+                <i class="fas fa-trophy fa-3x text-muted mb-3"></i>
+                <p class="text-muted">No challenges available at the moment.</p>
+                <a href="/challenges/create" class="btn btn-primary">
+                    <i class="fas fa-plus me-2"></i>Create the First Challenge
+                </a>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

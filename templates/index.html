@@ -82,13 +82,13 @@
                     <td>
                         <strong><a href="/quote?symbol={{ stock.symbol }}" class="text-decoration-none">{{ stock.symbol }}</a></strong>
                     </td>
-                    <td>{{ stock.shares }}</td>
+                    <td data-shares="{{ stock.shares }}">{{ stock.shares }}</td>
                     <td>{{ stock.avg_cost | usd }}</td>
-                    <td>{{ stock.price | usd }}</td>
-                    <td class="{% if stock.change_percent >= 0 %}text-success{% else %}text-danger{% endif %}">
+                    <td class="stock-price" data-symbol="{{ stock.symbol }}">{{ stock.price | usd }}</td>
+                    <td class="stock-change {% if stock.change_percent >= 0 %}text-success{% else %}text-danger{% endif %}" data-symbol="{{ stock.symbol }}">
                         {% if stock.change_percent >= 0 %}+{% endif %}{{ "%.2f" | format(stock.change_percent) }}%
                     </td>
-                    <td><strong>{{ stock.total | usd }}</strong></td>
+                    <td class="stock-value" data-symbol="{{ stock.symbol }}"><strong>{{ stock.total | usd }}</strong></td>
                     <td class="{% if stock.gain_loss >= 0 %}text-success{% else %}text-danger{% endif %}">
                         {% if stock.gain_loss >= 0 %}+{% endif %}{{ stock.gain_loss | usd }}
                     </td>
@@ -118,98 +118,17 @@
     {% endif %}
 
     <!-- Watchlist Preview -->
-    {% if watchlist %}
+    {% if watchlist_count > 0 %}
     <div class="mt-4">
-        <h4 class="mb-3">
-            <i class="fas fa-star"></i> Your Watchlist
-            <a href="/watchlist" class="btn btn-sm btn-outline-primary float-end">View All</a>
-        </h4>
-        <div class="row">
-            {% for item in watchlist[:4] %}
-            <div class="col-lg-3 col-md-4 col-sm-6 mb-3">
-                <div class="card h-100">
-                    <div class="card-body">
-                        <h6 class="card-title">
-                            <a href="/quote?symbol={{ item.symbol }}" class="text-decoration-none">
-                                <strong>{{ item.symbol }}</strong>
-                            </a>
-                        </h6>
-                        {% if item.price %}
-                        <h5 class="mb-1">{{ item.price | usd }}</h5>
-                        <p class="mb-0 {% if item.change_percent >= 0 %}text-success{% else %}text-danger{% endif %}">
-                            <i class="fas fa-{% if item.change_percent >= 0 %}arrow-up{% else %}arrow-down{% endif %}"></i>
-                            {% if item.change_percent >= 0 %}+{% endif %}{{ "%.2f" | format(item.change_percent) }}%
-                        </p>
-                        {% endif %}
-                    </div>
-                </div>
-            </div>
-            {% endfor %}
-        </div>
-    </div>
-    {% endif %}
-
-    <!-- Market Movers -->
-    {% if market_movers and (market_movers.gainers or market_movers.losers) %}
-    <div class="mt-4">
-        <h4 class="mb-3"><i class="fas fa-fire"></i> Market Movers</h4>
-        <div class="row">
-            <!-- Top Gainers -->
-            <div class="col-md-6 mb-3">
-                <div class="card h-100">
-                    <div class="card-header bg-success text-white">
-                        <h6 class="mb-0"><i class="fas fa-arrow-up"></i> Top Gainers</h6>
-                    </div>
-                    <div class="card-body p-0">
-                        <div class="list-group list-group-flush">
-                            {% for stock in market_movers.gainers %}
-                            <a href="/quote?symbol={{ stock.symbol }}" class="list-group-item list-group-item-action">
-                                <div class="d-flex justify-content-between align-items-center">
-                                    <div>
-                                        <strong>{{ stock.symbol }}</strong>
-                                        <small class="text-muted d-block">{{ stock.name }}</small>
-                                    </div>
-                                    <div class="text-end">
-                                        <div>{{ stock.price | usd }}</div>
-                                        <small class="text-success">
-                                            <i class="fas fa-arrow-up"></i> +{{ "%.2f" | format(stock.change_percent) }}%
-                                        </small>
-                                    </div>
-                                </div>
-                            </a>
-                            {% endfor %}
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Top Losers -->
-            <div class="col-md-6 mb-3">
-                <div class="card h-100">
-                    <div class="card-header bg-danger text-white">
-                        <h6 class="mb-0"><i class="fas fa-arrow-down"></i> Top Losers</h6>
-                    </div>
-                    <div class="card-body p-0">
-                        <div class="list-group list-group-flush">
-                            {% for stock in market_movers.losers %}
-                            <a href="/quote?symbol={{ stock.symbol }}" class="list-group-item list-group-item-action">
-                                <div class="d-flex justify-content-between align-items-center">
-                                    <div>
-                                        <strong>{{ stock.symbol }}</strong>
-                                        <small class="text-muted d-block">{{ stock.name }}</small>
-                                    </div>
-                                    <div class="text-end">
-                                        <div>{{ stock.price | usd }}</div>
-                                        <small class="text-danger">
-                                            <i class="fas fa-arrow-down"></i> {{ "%.2f" | format(stock.change_percent) }}%
-                                        </small>
-                                    </div>
-                                </div>
-                            </a>
-                            {% endfor %}
-                        </div>
-                    </div>
-                </div>
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <i class="fas fa-star"></i> Your Watchlist
+                </h5>
+                <p class="card-text">You're tracking {{ watchlist_count }} stock{{ 's' if watchlist_count != 1 else '' }}.</p>
+                <a href="/watchlist" class="btn btn-primary">
+                    <i class="fas fa-eye"></i> View Watchlist
+                </a>
             </div>
         </div>
     </div>

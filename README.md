@@ -6,10 +6,21 @@ A **gamified social paper trading platform** where users compete in leagues, cha
 
 ### 🎯 Trading Features
 - **Paper Trading** - Risk-free stock trading with virtual money
-- **Real-time Quotes** - Live stock prices using Yahoo Finance API
+- **Real-time Quotes** - Live stock prices using Finnhub API with WebSocket updates
+- **Options Trading** - Trade calls and puts with Black-Scholes pricing
+  - Full options chain with multiple expiration dates
+  - Greeks calculations (Delta, Gamma, Theta, Vega, Rho)
+  - Auto-exercise ITM options at expiration
+  - Real-time P&L tracking
+- **News & Sentiment Analysis** - AI-powered news aggregation with sentiment scoring
+  - Real-time news from Finnhub API
+  - VADER sentiment analysis (positive/neutral/negative)
+  - Stock-specific news feeds
+  - Market sentiment dashboard
+  - Personalized news tracking
 - **Portfolio Management** - Track your holdings and performance
 - **Transaction History** - Complete trade log with timestamps
-- **Performance Analytics** - Charts, graphs, and detailed statistics
+- **Performance Analytics** - Charts, graphs, and detailed statistics with risk metrics
 
 ### 👥 Social Features
 - **Friends System** - Add friends, send requests, view friend activity

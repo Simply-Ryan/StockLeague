@@ -12,7 +12,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <!-- Custom CSS -->
-    <link href="{{ url_for('static', filename='css/styles.css') }}" rel="stylesheet">
+    <link href="{{ url_for('static', filename='css/styles.css') }}?v=11" rel="stylesheet">
     
     {% block head %}{% endblock %}
 </head>
@@ -28,7 +28,8 @@
             </button>
             <div class="collapse navbar-collapse" id="navbarNav">
                 {% if session["user_id"] %}
-                <ul class="navbar-nav me-auto">
+                <ul class="navbar-nav ms-auto">
+                    <!-- Core Trading -->
                     <li class="nav-item">
                         <a class="nav-link" href="/explore">
                             <i class="fas fa-compass"></i> Explore
@@ -50,33 +51,45 @@
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="/history">
-                            <i class="fas fa-history"></i> History
-                        </a>
-                    </li>
-                    <li class="nav-item">
                         <a class="nav-link" href="/watchlist">
                             <i class="fas fa-star"></i> Watchlist
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="/alerts">
-                            <i class="fas fa-bell"></i> Alerts
+                        <a class="nav-link" href="/analytics">
+                            <i class="fas fa-chart-pie"></i> Analytics
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/chat">
+                            <i class="fas fa-comments"></i> Chat
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/options">
+                            <i class="fas fa-chart-line"></i> Options
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/news">
+                            <i class="fas fa-newspaper"></i> News
+                        </a>
+                    </li>
+                    
+                    <!-- Social & Competition -->
+                    <li class="nav-item">
+                        <a class="nav-link" href="/leagues">
+                            <i class="fas fa-trophy"></i> Leagues
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/challenges">
+                            <i class="fas fa-bullseye"></i> Challenges
                         </a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" href="/leaderboard">
-                            <i class="fas fa-trophy"></i> Leaderboard
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="/compare">
-                            <i class="fas fa-balance-scale"></i> Compare
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="/feed">
-                            <i class="fas fa-stream"></i> Feed
+                            <i class="fas fa-crown"></i> Leaderboard
                         </a>
                     </li>
                     <li class="nav-item">
@@ -84,26 +97,70 @@
                             <i class="fas fa-user-friends"></i> Friends
                         </a>
                     </li>
-                    <li class="nav-item">
-                        <a class="nav-link position-relative" href="/notifications">
-                            <i class="fas fa-bell"></i> 
+                    
+                    <!-- More Menu -->
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="moreDropdown" role="button" 
+                           data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="fas fa-ellipsis-h"></i> More
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="moreDropdown">
+                            <li><a class="dropdown-item" href="/history">
+                                <i class="fas fa-history"></i> Transaction History
+                            </a></li>
+                            <li><a class="dropdown-item" href="/alerts">
+                                <i class="fas fa-bell"></i> Price Alerts
+                            </a></li>
+                            <li><a class="dropdown-item" href="/compare">
+                                <i class="fas fa-balance-scale"></i> Compare Portfolios
+                            </a></li>
+                            <li><a class="dropdown-item" href="/feed">
+                                <i class="fas fa-stream"></i> Activity Feed
+                            </a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="/add_cash">
+                                <i class="fas fa-wallet"></i> Add Cash
+                            </a></li>
+                        </ul>
+                    </li>
+                    
+                    <!-- Notifications -->
+                    <li class="nav-item dropdown">
+                        <a class="nav-link position-relative" href="#" id="notificationsDropdown" 
+                           role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="fas fa-bell"></i>
                             <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" 
                                   id="notif-badge" style="display: none; font-size: 0.6rem;">
                                 0
                             </span>
                         </a>
+                        <ul class="dropdown-menu dropdown-menu-end shadow" style="width: 350px; max-height: 400px; overflow-y: auto;" id="notifications-dropdown">
+                            <li><h6 class="dropdown-header">Recent Notifications</h6></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li id="notifications-list">
+                                <div class="text-center text-muted py-3">
+                                    <i class="fas fa-spinner fa-spin"></i> Loading...
+                                </div>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item text-center" href="/notifications">
+                                <i class="fas fa-eye"></i> View All Notifications
+                            </a></li>
+                        </ul>
                     </li>
+                    
+                    <!-- Theme Toggle -->
                     <li class="nav-item">
-                        <a class="nav-link" href="/add_cash">
-                            <i class="fas fa-wallet"></i> Add Cash
-                        </a>
+                        <button class="nav-link btn btn-link" id="theme-toggle" title="Toggle Theme" style="border: none; background: none; padding: 0.5rem 1rem;">
+                            <i class="fas fa-moon" id="theme-icon"></i>
+                        </button>
                     </li>
-                </ul>
-                <ul class="navbar-nav">
+                    
+                    <!-- Account Menu -->
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" 
                            data-bs-toggle="dropdown" aria-expanded="false">
-                            <i class="fas fa-user-circle"></i> Account
+                            <i class="fas fa-user-circle"></i>
                         </a>
                         <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="navbarDropdown">
                             <li><a class="dropdown-item" href="/profile/{{ session.get('username', 'me') }}">
@@ -118,13 +175,10 @@
                             <li><a class="dropdown-item" href="/strategies">
                                 <i class="fas fa-chess"></i> Strategies
                             </a></li>
-                            <li><a class="dropdown-item" href="/notifications">
-                                <i class="fas fa-bell"></i> Notifications
-                            </a></li>
+                            <li><hr class="dropdown-divider"></li>
                             <li><a class="dropdown-item" href="/settings">
                                 <i class="fas fa-cog"></i> Settings
                             </a></li>
-                            <li><hr class="dropdown-divider"></li>
                             <li><a class="dropdown-item" href="/logout">
                                 <i class="fas fa-sign-out-alt"></i> Logout
                             </a></li>
@@ -213,8 +267,105 @@
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     
+    <!-- Socket.IO Client -->
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    
     <!-- Custom JS -->
     <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+    
+    {% if session.get("user_id") %}
+    <!-- Real-time Stock Updates -->
+    <script>
+        // Initialize Socket.IO connection
+        const socket = io();
+        
+        // Store subscribed symbols
+        const subscribedStocks = new Set();
+        
+        socket.on('connect', function() {
+            console.log('Connected to real-time updates');
+        });
+        
+        socket.on('disconnect', function() {
+            console.log('Disconnected from real-time updates');
+        });
+        
+        socket.on('stock_update', function(data) {
+            console.log('Stock update received:', data);
+            updateStockPrice(data);
+        });
+        
+        function subscribeToStock(symbol) {
+            if (!subscribedStocks.has(symbol)) {
+                socket.emit('subscribe_stock', {symbol: symbol});
+                subscribedStocks.add(symbol);
+                console.log('Subscribed to', symbol);
+            }
+        }
+        
+        function unsubscribeFromStock(symbol) {
+            if (subscribedStocks.has(symbol)) {
+                socket.emit('unsubscribe_stock', {symbol: symbol});
+                subscribedStocks.delete(symbol);
+                console.log('Unsubscribed from', symbol);
+            }
+        }
+        
+        function updateStockPrice(data) {
+            const symbol = data.symbol;
+            
+            // Update price elements with data-symbol attribute
+            document.querySelectorAll(`[data-symbol="${symbol}"]`).forEach(el => {
+                if (el.classList.contains('stock-price')) {
+                    el.textContent = '$' + data.price.toFixed(2);
+                    
+                    // Add flash effect
+                    el.classList.add('price-updated');
+                    setTimeout(() => el.classList.remove('price-updated'), 500);
+                }
+                
+                if (el.classList.contains('stock-change')) {
+                    const changeText = (data.change >= 0 ? '+' : '') + data.change.toFixed(2);
+                    const changePercent = (data.change_percent >= 0 ? '+' : '') + data.change_percent.toFixed(2) + '%';
+                    el.textContent = `${changeText} (${changePercent})`;
+                    
+                    // Update color
+                    el.classList.remove('text-success', 'text-danger');
+                    el.classList.add(data.change >= 0 ? 'text-success' : 'text-danger');
+                }
+                
+                if (el.classList.contains('stock-value')) {
+                    // Recalculate value if shares are available
+                    const sharesEl = el.closest('tr')?.querySelector('[data-shares]');
+                    if (sharesEl) {
+                        const shares = parseFloat(sharesEl.dataset.shares);
+                        const value = shares * data.price;
+                        el.textContent = '$' + value.toFixed(2);
+                    }
+                }
+            });
+        }
+        
+        // Auto-subscribe to stocks on page
+        window.addEventListener('DOMContentLoaded', function() {
+            // Find all elements with data-symbol and subscribe
+            const symbols = new Set();
+            document.querySelectorAll('[data-symbol]').forEach(el => {
+                const symbol = el.dataset.symbol;
+                if (symbol && symbol.length > 0) {
+                    symbols.add(symbol);
+                }
+            });
+            
+            symbols.forEach(symbol => subscribeToStock(symbol));
+        });
+        
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', function() {
+            subscribedStocks.forEach(symbol => unsubscribeFromStock(symbol));
+        });
+    </script>
+    {% endif %}
     
     {% if session.get("user_id") %}
     <!-- Notification checker -->
@@ -233,10 +384,89 @@
                 })
                 .catch(err => console.error('Error checking notifications:', err));
         }
+
+        function loadRecentNotifications() {
+            fetch('/api/notifications/recent')
+                .then(response => response.json())
+                .then(data => {
+                    const list = document.getElementById('notifications-list');
+                    if (data.notifications && data.notifications.length > 0) {
+                        list.innerHTML = data.notifications.map(notif => {
+                            const iconMap = {
+                                'friend_request': '<i class="fas fa-user-plus text-primary"></i>',
+                                'friend_accepted': '<i class="fas fa-user-check text-success"></i>',
+                                'achievement': '<i class="fas fa-trophy text-warning"></i>',
+                                'milestone': '<i class="fas fa-flag-checkered text-info"></i>',
+                                'alert': '<i class="fas fa-bell text-danger"></i>'
+                            };
+                            const icon = iconMap[notif.type] || '<i class="fas fa-info-circle text-secondary"></i>';
+                            const unreadClass = notif.is_read ? '' : 'bg-light';
+                            const actionBtn = notif.action_url ? 
+                                `<a href="${notif.action_url}" class="btn btn-sm btn-primary mt-2">View</a>` : '';
+                            
+                            return `
+                                <div class="dropdown-item ${unreadClass}" style="white-space: normal;">
+                                    <div class="d-flex align-items-start">
+                                        <div class="me-2">${icon}</div>
+                                        <div class="flex-grow-1">
+                                            <strong>${notif.title}</strong>
+                                            <p class="mb-0 small">${notif.message}</p>
+                                            <small class="text-muted">${notif.created_at}</small>
+                                            ${actionBtn}
+                                        </div>
+                                    </div>
+                                </div>
+                            `;
+                        }).join('');
+                    } else {
+                        list.innerHTML = '<div class="text-center text-muted py-3">No new notifications</div>';
+                    }
+                })
+                .catch(err => console.error('Error loading notifications:', err));
+        }
+
+        // Load notifications when dropdown is opened
+        document.getElementById('notificationsDropdown').addEventListener('click', loadRecentNotifications);
         
         // Check immediately and then every 30 seconds
         checkNotifications();
         setInterval(checkNotifications, 30000);
+
+        // Theme toggle functionality
+        const themeToggle = document.getElementById('theme-toggle');
+        const themeIcon = document.getElementById('theme-icon');
+        const html = document.documentElement;
+        
+        // Get saved theme or default to dark
+        const savedTheme = localStorage.getItem('theme') || 'dark';
+        html.setAttribute('data-theme', savedTheme);
+        updateThemeButton(savedTheme);
+        
+        function updateThemeButton(theme) {
+            if (theme === 'light') {
+                themeIcon.className = 'fas fa-sun text-warning';
+                themeToggle.title = 'Switch to Dark Mode';
+            } else {
+                themeIcon.className = 'fas fa-moon text-primary';
+                themeToggle.title = 'Switch to Light Mode';
+            }
+        }
+        
+        themeToggle.addEventListener('click', function() {
+            const currentTheme = html.getAttribute('data-theme');
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            
+            html.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+            updateThemeButton(newTheme);
+            
+            // Save to server
+            fetch('/api/theme', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({theme: newTheme})
+            }).catch(err => console.error('Failed to save theme:', err));
+        });
     </script>
     {% endif %}
     
