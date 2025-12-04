@@ -1,7 +1,9 @@
+import os
 import requests
 from flask import redirect, render_template, session
 from functools import wraps
 import random
+from datetime import datetime, timedelta
 
 
 def apology(message, code=400):
@@ -150,6 +152,33 @@ def get_popular_stocks():
             stocks.append(quote)
     
     return stocks
+
+
+def get_stock_news(symbol, limit=5):
+    """Get recent news for a stock"""
+    api_key = os.environ.get("FINNHUB_API_KEY")
+    if not api_key:
+        return []
+    
+    try:
+        # Calculate date range (last 7 days)
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=7)
+        
+        end_str = end_date.strftime('%Y-%m-%d')
+        start_str = start_date.strftime('%Y-%m-%d')
+        
+        url = f"https://finnhub.io/api/v1/company-news?symbol={symbol.upper()}&from={start_str}&to={end_str}&token={api_key}"
+        response = requests.get(url, timeout=5)
+        response.raise_for_status()
+        news_data = response.json()
+        
+        # Return limited number of articles
+        return news_data[:limit] if isinstance(news_data, list) else []
+    
+    except Exception as e:
+        print(f"Error fetching news for {symbol}: {str(e)}")
+        return []
 
 
 def get_market_movers():

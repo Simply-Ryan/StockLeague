@@ -3,7 +3,7 @@ from flask import Flask, flash, redirect, render_template, request, session
 from flask_session import Session
 from werkzeug.security import check_password_hash, generate_password_hash
 from functools import wraps
-from helpers import apology, lookup, usd, get_chart_data, get_popular_stocks, get_market_movers
+from helpers import apology, lookup, usd, get_chart_data, get_popular_stocks, get_market_movers, get_stock_news
 from database.db_manager import DatabaseManager
 from dotenv import load_dotenv
 
@@ -392,7 +392,16 @@ def quote():
         user_id = session["user_id"]
         in_watchlist = db.is_in_watchlist(user_id, symbol.upper())
         
-        return render_template("quoted.html", quote=quote, chart_data=chart_data, in_watchlist=in_watchlist)
+        # Get stock news
+        news = get_stock_news(symbol.upper(), limit=5)
+        
+        # Check for triggered alerts
+        triggered = db.check_alerts(user_id, symbol.upper(), quote['price'])
+        if triggered:
+            for alert in triggered:
+                flash(f"🔔 Alert triggered: {symbol.upper()} {'reached above' if alert['alert_type'] == 'above' else 'fell below'} {usd(alert['target_price'])}!", "info")
+        
+        return render_template("quoted.html", quote=quote, chart_data=chart_data, in_watchlist=in_watchlist, news=news)
     
     else:
         return render_template("quote.html")
@@ -1158,6 +1167,75 @@ def explore():
                          market_movers=market_movers,
                          popular_stocks=popular,
                          sectors=sectors)
+
+
+@app.route("/alerts")
+@login_required
+def alerts():
+    """Show and manage price alerts"""
+    user_id = session["user_id"]
+    
+    # Get active alerts
+    active_alerts = db.get_user_alerts(user_id, status='active')
+    triggered_alerts = db.get_user_alerts(user_id, status='triggered')
+    
+    # Enrich with current prices
+    for alert in active_alerts:
+        quote = lookup(alert['symbol'])
+        if quote:
+            alert['current_price'] = quote['price']
+            alert['distance'] = quote['price'] - alert['target_price']
+            alert['distance_percent'] = (alert['distance'] / alert['target_price'] * 100) if alert['target_price'] > 0 else 0
+    
+    return render_template("alerts.html", 
+                         active_alerts=active_alerts,
+                         triggered_alerts=triggered_alerts)
+
+
+@app.route("/alerts/create", methods=["POST"])
+@login_required
+def create_alert():
+    """Create a new price alert"""
+    user_id = session["user_id"]
+    
+    symbol = request.form.get("symbol")
+    target_price = request.form.get("target_price")
+    alert_type = request.form.get("alert_type")
+    
+    if not symbol or not target_price or not alert_type:
+        return apology("must provide all fields", 400)
+    
+    # Validate symbol
+    quote = lookup(symbol.upper())
+    if not quote:
+        return apology("invalid symbol", 400)
+    
+    try:
+        target_price = float(target_price)
+        if target_price <= 0:
+            return apology("target price must be positive", 400)
+    except ValueError:
+        return apology("invalid target price", 400)
+    
+    if alert_type not in ['above', 'below']:
+        return apology("invalid alert type", 400)
+    
+    # Create alert
+    db.create_alert(user_id, symbol.upper(), target_price, alert_type)
+    
+    flash(f"Alert created for {symbol.upper()} at {usd(target_price)}!")
+    return redirect("/alerts")
+
+
+@app.route("/alerts/delete/<int:alert_id>", methods=["POST"])
+@login_required
+def delete_alert(alert_id):
+    """Delete a price alert"""
+    user_id = session["user_id"]
+    db.delete_alert(alert_id, user_id)
+    
+    flash("Alert deleted!")
+    return redirect("/alerts")
 
 
 @app.route("/analytics")

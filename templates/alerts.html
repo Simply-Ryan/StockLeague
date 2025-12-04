@@ -1,0 +1,172 @@
+{% extends "layout.html" %}
+
+{% block title %}Price Alerts - StockLeague{% endblock %}
+
+{% block main %}
+<div class="container mt-4">
+    <h2 class="mb-4">
+        <i class="fas fa-bell"></i> Price Alerts
+    </h2>
+
+    <!-- Create Alert Card -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0"><i class="fas fa-plus-circle"></i> Create New Alert</h5>
+        </div>
+        <div class="card-body">
+            <form action="/alerts/create" method="post">
+                <div class="row">
+                    <div class="col-md-3 mb-3">
+                        <label for="symbol" class="form-label">Stock Symbol</label>
+                        <input type="text" class="form-control" id="symbol" name="symbol" 
+                               placeholder="e.g., AAPL" required>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <label for="target_price" class="form-label">Target Price</label>
+                        <input type="number" class="form-control" id="target_price" name="target_price" 
+                               step="0.01" min="0.01" placeholder="0.00" required>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <label for="alert_type" class="form-label">Alert When Price</label>
+                        <select class="form-select" id="alert_type" name="alert_type" required>
+                            <option value="above">Goes Above</option>
+                            <option value="below">Goes Below</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <label class="form-label">&nbsp;</label>
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="fas fa-bell"></i> Create Alert
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Active Alerts -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0"><i class="fas fa-bell-on"></i> Active Alerts</h5>
+        </div>
+        <div class="card-body">
+            {% if active_alerts %}
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Symbol</th>
+                            <th>Current Price</th>
+                            <th>Target Price</th>
+                            <th>Type</th>
+                            <th>Distance</th>
+                            <th>Created</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for alert in active_alerts %}
+                        <tr>
+                            <td>
+                                <a href="/quote?symbol={{ alert.symbol }}" class="text-decoration-none">
+                                    <strong>{{ alert.symbol }}</strong>
+                                </a>
+                            </td>
+                            <td>{{ alert.current_price | usd if alert.current_price else 'N/A' }}</td>
+                            <td>{{ alert.target_price | usd }}</td>
+                            <td>
+                                {% if alert.alert_type == 'above' %}
+                                    <span class="badge bg-success">
+                                        <i class="fas fa-arrow-up"></i> Above
+                                    </span>
+                                {% else %}
+                                    <span class="badge bg-danger">
+                                        <i class="fas fa-arrow-down"></i> Below
+                                    </span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if alert.current_price %}
+                                    <span class="{% if alert.distance > 0 %}text-success{% else %}text-danger{% endif %}">
+                                        {{ alert.distance | usd }}
+                                        ({{ "%.2f" | format(alert.distance_percent) }}%)
+                                    </span>
+                                {% else %}
+                                    N/A
+                                {% endif %}
+                            </td>
+                            <td>{{ alert.created_at }}</td>
+                            <td>
+                                <form action="/alerts/delete/{{ alert.id }}" method="post" class="d-inline">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" 
+                                            onclick="return confirm('Delete this alert?')">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="text-center text-muted mb-0">
+                No active alerts. Create one above to get notified when prices reach your targets!
+            </p>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Triggered Alerts -->
+    {% if triggered_alerts %}
+    <div class="card mb-4">
+        <div class="card-header bg-success text-white">
+            <h5 class="mb-0"><i class="fas fa-check-circle"></i> Triggered Alerts</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover table-sm">
+                    <thead>
+                        <tr>
+                            <th>Symbol</th>
+                            <th>Target Price</th>
+                            <th>Type</th>
+                            <th>Triggered At</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for alert in triggered_alerts[:10] %}
+                        <tr>
+                            <td>
+                                <a href="/quote?symbol={{ alert.symbol }}">{{ alert.symbol }}</a>
+                            </td>
+                            <td>{{ alert.target_price | usd }}</td>
+                            <td>
+                                {% if alert.alert_type == 'above' %}
+                                    <span class="badge bg-success">Above</span>
+                                {% else %}
+                                    <span class="badge bg-danger">Below</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ alert.triggered_at }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Info Card -->
+    <div class="alert alert-info">
+        <h5><i class="fas fa-info-circle"></i> How Price Alerts Work</h5>
+        <ul class="mb-0">
+            <li><strong>Above:</strong> Get notified when the stock price goes above your target</li>
+            <li><strong>Below:</strong> Get notified when the stock price goes below your target</li>
+            <li>Alerts are checked when you view the alerts page or when trades are made</li>
+            <li>Once triggered, alerts are automatically marked as completed</li>
+        </ul>
+    </div>
+</div>
+{% endblock %}

@@ -79,6 +79,21 @@ class DatabaseManager:
             )
         """)
         
+        # Price alerts table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS price_alerts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                symbol TEXT NOT NULL,
+                target_price NUMERIC NOT NULL,
+                alert_type TEXT NOT NULL,
+                status TEXT DEFAULT 'active',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                triggered_at TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id)
+            )
+        """)
+        
         # ============ SOCIAL TABLES ============
         
         # Friends table
@@ -1155,3 +1170,96 @@ class DatabaseManager:
             })
         
         return breakdown
+    
+    # ============ PRICE ALERTS METHODS ============
+    
+    def create_alert(self, user_id, symbol, target_price, alert_type):
+        """Create a new price alert"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            INSERT INTO price_alerts (user_id, symbol, target_price, alert_type)
+            VALUES (?, ?, ?, ?)
+        """, (user_id, symbol.upper(), target_price, alert_type))
+        
+        conn.commit()
+        alert_id = cursor.lastrowid
+        conn.close()
+        
+        return alert_id
+    
+    def get_user_alerts(self, user_id, status='active'):
+        """Get user's price alerts"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        if status:
+            cursor.execute("""
+                SELECT * FROM price_alerts 
+                WHERE user_id = ? AND status = ?
+                ORDER BY created_at DESC
+            """, (user_id, status))
+        else:
+            cursor.execute("""
+                SELECT * FROM price_alerts 
+                WHERE user_id = ?
+                ORDER BY created_at DESC
+            """, (user_id,))
+        
+        alerts = cursor.fetchall()
+        conn.close()
+        
+        return [dict(row) for row in alerts]
+    
+    def delete_alert(self, alert_id, user_id):
+        """Delete a price alert"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            DELETE FROM price_alerts 
+            WHERE id = ? AND user_id = ?
+        """, (alert_id, user_id))
+        
+        conn.commit()
+        conn.close()
+    
+    def trigger_alert(self, alert_id):
+        """Mark an alert as triggered"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            UPDATE price_alerts 
+            SET status = 'triggered', triggered_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        """, (alert_id,))
+        
+        conn.commit()
+        conn.close()
+    
+    def check_alerts(self, user_id, symbol, current_price):
+        """Check if any alerts should be triggered"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            SELECT * FROM price_alerts 
+            WHERE user_id = ? AND symbol = ? AND status = 'active'
+        """, (user_id, symbol.upper()))
+        
+        alerts = cursor.fetchall()
+        triggered_alerts = []
+        
+        for alert in alerts:
+            alert_dict = dict(alert)
+            if alert_dict['alert_type'] == 'above' and current_price >= alert_dict['target_price']:
+                triggered_alerts.append(alert_dict)
+                self.trigger_alert(alert_dict['id'])
+            elif alert_dict['alert_type'] == 'below' and current_price <= alert_dict['target_price']:
+                triggered_alerts.append(alert_dict)
+                self.trigger_alert(alert_dict['id'])
+        
+        conn.close()
+        return triggered_alerts
