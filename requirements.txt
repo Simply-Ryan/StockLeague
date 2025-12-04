@@ -1,0 +1,14 @@
+# StockLeague - Core Dependencies
+# Only direct dependencies needed for this webapp
+
+# Flask Framework (includes Werkzeug, Jinja2, itsdangerous, click, blinker)
+Flask>=3.0.0
+
+# Flask Extensions
+Flask-Session>=0.5.0
+
+# HTTP requests (for Finnhub API)
+requests>=2.31.0
+
+# Environment variables
+python-dotenv>=1.0.0

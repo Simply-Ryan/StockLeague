@@ -1,0 +1,46 @@
+{% extends "layout.html" %}
+
+{% block title %}Sell - StockLeague{% endblock %}
+
+{% block main %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card shadow">
+            <div class="card-body">
+                <h2 class="card-title text-center mb-4">
+                    <i class="fas fa-minus-circle text-danger"></i> Sell Stocks
+                </h2>
+                <form action="/sell" method="post">
+                    <div class="mb-3">
+                        <label for="symbol" class="form-label">Stock Symbol</label>
+                        <select class="form-select" id="symbol" name="symbol" required autofocus>
+                            <option value="">Select a stock...</option>
+                            {% for stock in stocks %}
+                            <option value="{{ stock.symbol }}">
+                                {{ stock.symbol }} ({{ stock.shares }} shares)
+                            </option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-text">Select the stock you want to sell</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="shares" class="form-label">Number of Shares</label>
+                        <input type="number" class="form-control" id="shares" name="shares" 
+                               min="1" placeholder="Enter number of shares to sell" required>
+                    </div>
+                    <button type="submit" class="btn btn-danger w-100">
+                        <i class="fas fa-hand-holding-usd"></i> Sell Stock
+                    </button>
+                </form>
+            </div>
+        </div>
+        
+        {% if not stocks %}
+        <div class="alert alert-warning mt-3">
+            <i class="fas fa-exclamation-triangle"></i> 
+            You don't have any stocks to sell. <a href="/buy" class="alert-link">Buy some stocks</a> first!
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

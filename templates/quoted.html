@@ -1,0 +1,221 @@
+{% extends "layout.html" %}
+
+{% block title %}{{ quote.symbol }} - Stock Quote{% endblock %}
+
+{% block main %}
+<div class="row justify-content-center">
+    <div class="col-lg-10">
+        <div class="card shadow">
+            <div class="card-body">
+                <!-- Header with company name and symbol -->
+                <div class="text-center mb-4">
+                    <h2 class="mb-2">{{ quote.name }}</h2>
+                    <h3 class="text-primary mb-0">{{ quote.symbol }}</h3>
+                </div>
+
+                <!-- Current Price and Change -->
+                <div class="row mb-4">
+                    <div class="col-md-6 text-center">
+                        <h6 class="text-muted">Current Price</h6>
+                        <div class="display-4 text-success">
+                            {{ quote.price | usd }}
+                        </div>
+                    </div>
+                    <div class="col-md-6 text-center">
+                        <h6 class="text-muted">Change</h6>
+                        <div class="display-6 {% if quote.change >= 0 %}text-success{% else %}text-danger{% endif %}">
+                            {% if quote.change >= 0 %}+{% endif %}{{ quote.change | usd }}
+                            <small>({% if quote.change_percent >= 0 %}+{% endif %}{{ "%.2f" | format(quote.change_percent) }}%)</small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Stock Details Grid -->
+                <div class="row mb-4">
+                    <div class="col-md-3 col-6 mb-3">
+                        <div class="card bg-light">
+                            <div class="card-body text-center">
+                                <h6 class="card-subtitle mb-2 text-muted">Open</h6>
+                                <p class="card-text fw-bold">{{ quote.open | usd }}</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 col-6 mb-3">
+                        <div class="card bg-light">
+                            <div class="card-body text-center">
+                                <h6 class="card-subtitle mb-2 text-muted">Previous Close</h6>
+                                <p class="card-text fw-bold">{{ quote.previous_close | usd }}</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 col-6 mb-3">
+                        <div class="card bg-light">
+                            <div class="card-body text-center">
+                                <h6 class="card-subtitle mb-2 text-muted">Day High</h6>
+                                <p class="card-text fw-bold text-success">{{ quote.high | usd }}</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 col-6 mb-3">
+                        <div class="card bg-light">
+                            <div class="card-body text-center">
+                                <h6 class="card-subtitle mb-2 text-muted">Day Low</h6>
+                                <p class="card-text fw-bold text-danger">{{ quote.low | usd }}</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Price Chart -->
+                {% if chart_data and chart_data.dates %}
+                <div class="mb-4">
+                    <h5 class="text-center mb-3">30-Day Price History</h5>
+                    <canvas id="priceChart" style="max-height: 400px;"></canvas>
+                </div>
+                {% endif %}
+
+                <!-- Action Buttons -->
+                <hr>
+                <div class="d-grid gap-2 d-md-flex justify-content-md-center">
+                    <a href="/quote" class="btn btn-primary">
+                        <i class="fas fa-search"></i> Get Another Quote
+                    </a>
+                    <a href="/buy?symbol={{ quote.symbol }}" class="btn btn-success">
+                        <i class="fas fa-shopping-cart"></i> Buy {{ quote.symbol }}
+                    </a>
+                    {% if in_watchlist %}
+                    <form action="/watchlist/remove" method="post" class="d-inline">
+                        <input type="hidden" name="symbol" value="{{ quote.symbol }}">
+                        <button type="submit" class="btn btn-outline-warning">
+                            <i class="fas fa-star"></i> Remove from Watchlist
+                        </button>
+                    </form>
+                    {% else %}
+                    <button type="button" class="btn btn-outline-warning" data-bs-toggle="modal" data-bs-target="#addWatchlistModal">
+                        <i class="far fa-star"></i> Add to Watchlist
+                    </button>
+                    {% endif %}
+                    <a href="/" class="btn btn-secondary">
+                        <i class="fas fa-home"></i> Back to Portfolio
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+{% if chart_data and chart_data.dates %}
+<script>
+    // Prepare chart data
+    const dates = {{ chart_data.dates | tojson }};
+    const prices = {{ chart_data.prices | tojson }};
+    const highs = {{ chart_data.highs | tojson }};
+    const lows = {{ chart_data.lows | tojson }};
+
+    // Create the chart
+    const ctx = document.getElementById('priceChart').getContext('2d');
+    const priceChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: dates,
+            datasets: [{
+                label: 'Closing Price',
+                data: prices,
+                borderColor: 'rgb(75, 192, 192)',
+                backgroundColor: 'rgba(75, 192, 192, 0.1)',
+                borderWidth: 2,
+                tension: 0.1,
+                fill: true
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            interaction: {
+                intersect: false,
+                mode: 'index'
+            },
+            plugins: {
+                legend: {
+                    display: true,
+                    position: 'top'
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            let label = context.dataset.label || '';
+                            if (label) {
+                                label += ': ';
+                            }
+                            label += '$' + context.parsed.y.toFixed(2);
+                            
+                            // Add high/low info
+                            const index = context.dataIndex;
+                            if (highs[index] && lows[index]) {
+                                label += ' (H: $' + highs[index].toFixed(2) + ', L: $' + lows[index].toFixed(2) + ')';
+                            }
+                            return label;
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    display: true,
+                    title: {
+                        display: true,
+                        text: 'Date'
+                    },
+                    ticks: {
+                        maxTicksLimit: 10
+                    }
+                },
+                y: {
+                    display: true,
+                    title: {
+                        display: true,
+                        text: 'Price (USD)'
+                    },
+                    ticks: {
+                        callback: function(value) {
+                            return '$' + value.toFixed(2);
+                        }
+                    }
+                }
+            }
+        }
+    });
+</script>
+{% endif %}
+
+<!-- Add to Watchlist Modal -->
+<div class="modal fade" id="addWatchlistModal" tabindex="-1" aria-labelledby="addWatchlistModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form action="/watchlist/add" method="post">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="addWatchlistModalLabel">Add {{ quote.symbol }} to Watchlist</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" name="symbol" value="{{ quote.symbol }}">
+                    <div class="mb-3">
+                        <label for="notes" class="form-label">Notes (Optional)</label>
+                        <textarea class="form-control" id="notes" name="notes" rows="3" 
+                                  placeholder="Why are you watching this stock?"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-warning">
+                        <i class="fas fa-star"></i> Add to Watchlist
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

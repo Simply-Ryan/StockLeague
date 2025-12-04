@@ -1,0 +1,57 @@
+{% extends "layout.html" %}
+
+{% block title %}Buy - StockLeague{% endblock %}
+
+{% block main %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card shadow">
+            <div class="card-body">
+                <h2 class="card-title text-center mb-4">
+                    <i class="fas fa-plus-circle text-success"></i> Buy Stocks
+                </h2>
+                <form action="/buy" method="post">
+                    <div class="mb-3">
+                        <label for="symbol" class="form-label">Stock Symbol</label>
+                        <input type="text" class="form-control text-uppercase" id="symbol" name="symbol" 
+                               placeholder="e.g., AAPL, GOOGL, TSLA" value="{{ symbol if symbol else '' }}" required autofocus>
+                        <div class="form-text">Enter the ticker symbol of the stock you want to buy</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="shares" class="form-label">Number of Shares</label>
+                        <input type="number" class="form-control" id="shares" name="shares" 
+                               min="1" placeholder="Enter number of shares" required>
+                    </div>
+                    <button type="submit" class="btn btn-success w-100">
+                        <i class="fas fa-shopping-cart"></i> Buy Stock
+                    </button>
+                </form>
+            </div>
+        </div>
+        
+        <!-- Info Card -->
+        <div class="card mt-3">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <i class="fas fa-info-circle text-info"></i> How to Buy
+                </h5>
+                <ul class="mb-0">
+                    <li>Enter the stock symbol (ticker) in uppercase (e.g., AAPL for Apple)</li>
+                    <li>Specify how many shares you want to purchase</li>
+                    <li>Make sure you have sufficient cash balance</li>
+                    <li>Click "Buy Stock" to complete the transaction</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Auto-uppercase symbol input
+    document.getElementById('symbol').addEventListener('input', function(e) {
+        e.target.value = e.target.value.toUpperCase();
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}StockLeague{% endblock %}</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Custom CSS -->
+    <link href="{{ url_for('static', filename='css/styles.css') }}" rel="stylesheet">
+    
+    {% block head %}{% endblock %}
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/">
+                <i class="fas fa-chart-line"></i> StockLeague
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                {% if session["user_id"] %}
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/explore">
+                            <i class="fas fa-compass"></i> Explore
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/quote">
+                            <i class="fas fa-search"></i> Quote
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/buy">
+                            <i class="fas fa-plus-circle"></i> Buy
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/sell">
+                            <i class="fas fa-minus-circle"></i> Sell
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/history">
+                            <i class="fas fa-history"></i> History
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/watchlist">
+                            <i class="fas fa-star"></i> Watchlist
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/leaderboard">
+                            <i class="fas fa-trophy"></i> Leaderboard
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/compare">
+                            <i class="fas fa-balance-scale"></i> Compare
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/feed">
+                            <i class="fas fa-stream"></i> Feed
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/friends">
+                            <i class="fas fa-user-friends"></i> Friends
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link position-relative" href="/notifications">
+                            <i class="fas fa-bell"></i> 
+                            <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" 
+                                  id="notif-badge" style="display: none; font-size: 0.6rem;">
+                                0
+                            </span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/add_cash">
+                            <i class="fas fa-wallet"></i> Add Cash
+                        </a>
+                    </li>
+                </ul>
+                <ul class="navbar-nav">
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" 
+                           data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="fas fa-user-circle"></i> Account
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="navbarDropdown">
+                            <li><a class="dropdown-item" href="/profile/{{ session.get('username', 'me') }}">
+                                <i class="fas fa-user"></i> My Profile
+                            </a></li>
+                            <li><a class="dropdown-item" href="/achievements">
+                                <i class="fas fa-trophy"></i> Achievements
+                            </a></li>
+                            <li><a class="dropdown-item" href="/analytics">
+                                <i class="fas fa-chart-pie"></i> Analytics
+                            </a></li>
+                            <li><a class="dropdown-item" href="/notifications">
+                                <i class="fas fa-bell"></i> Notifications
+                            </a></li>
+                            <li><a class="dropdown-item" href="/settings">
+                                <i class="fas fa-cog"></i> Settings
+                            </a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="/logout">
+                                <i class="fas fa-sign-out-alt"></i> Logout
+                            </a></li>
+                        </ul>
+                    </li>
+                </ul>
+                {% else %}
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/about">
+                            <i class="fas fa-info-circle"></i> About
+                        </a>
+                    </li>
+                </ul>
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/register">
+                            <i class="fas fa-user-plus"></i> Register
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/login">
+                            <i class="fas fa-sign-in-alt"></i> Login
+                        </a>
+                    </li>
+                </ul>
+                {% endif %}
+            </div>
+        </div>
+    </nav>
+
+    <!-- Flash Messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div class="container mt-3">
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category if category != 'message' else 'info' }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
+
+    <!-- Main Content -->
+    <main class="container mt-4">
+        {% block main %}{% endblock %}
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer mt-5 py-4 bg-dark text-white">
+        <div class="container">
+            <div class="row">
+                <div class="col-md-4 mb-3">
+                    <h5><i class="fas fa-chart-line"></i> StockLeague</h5>
+                    <p class="text-muted">Practice trading stocks risk-free and compete with friends!</p>
+                </div>
+                <div class="col-md-4 mb-3">
+                    <h5>Quick Links</h5>
+                    <ul class="list-unstyled">
+                        <li><a href="/about" class="text-muted text-decoration-none">About</a></li>
+                        {% if session["user_id"] %}
+                        <li><a href="/leaderboard" class="text-muted text-decoration-none">Leaderboard</a></li>
+                        <li><a href="/history" class="text-muted text-decoration-none">History</a></li>
+                        {% else %}
+                        <li><a href="/register" class="text-muted text-decoration-none">Register</a></li>
+                        <li><a href="/login" class="text-muted text-decoration-none">Login</a></li>
+                        {% endif %}
+                    </ul>
+                </div>
+                <div class="col-md-4 mb-3">
+                    <h5>Data Provider</h5>
+                    <p class="text-muted">
+                        <small>Real-time stock data powered by <a href="https://finnhub.io" target="_blank" class="text-info">Finnhub API</a></small>
+                    </p>
+                </div>
+            </div>
+            <hr class="bg-secondary">
+            <div class="text-center text-muted">
+                <small>&copy; 2025 StockLeague. Built with Flask, Python & Bootstrap.</small>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Custom JS -->
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+    
+    {% if session.get("user_id") %}
+    <!-- Notification checker -->
+    <script>
+        function checkNotifications() {
+            fetch('/api/notifications/count')
+                .then(response => response.json())
+                .then(data => {
+                    const badge = document.getElementById('notif-badge');
+                    if (data.count > 0) {
+                        badge.textContent = data.count;
+                        badge.style.display = 'inline-block';
+                    } else {
+                        badge.style.display = 'none';
+                    }
+                })
+                .catch(err => console.error('Error checking notifications:', err));
+        }
+        
+        // Check immediately and then every 30 seconds
+        checkNotifications();
+        setInterval(checkNotifications, 30000);
+    </script>
+    {% endif %}
+    
+    {% block scripts %}{% endblock %}
+</body>
+</html>

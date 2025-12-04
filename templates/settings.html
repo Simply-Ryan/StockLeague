@@ -1,0 +1,142 @@
+{% extends "layout.html" %}
+
+{% block title %}Settings - StockLeague{% endblock %}
+
+{% block main %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <h1 class="mb-4">
+                <i class="fas fa-cog"></i> Account Settings
+            </h1>
+            
+            <!-- Profile Settings -->
+            <div class="card shadow mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="fas fa-user"></i> Profile Information</h5>
+                </div>
+                <div class="card-body">
+                    <form action="/settings/profile" method="post">
+                        <div class="mb-3">
+                            <label for="username" class="form-label">Username</label>
+                            <input type="text" class="form-control" id="username" value="{{ user.username }}" disabled>
+                            <div class="form-text">Username cannot be changed</div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="email" class="form-label">Email Address</label>
+                            <input type="email" class="form-control" id="email" name="email" 
+                                   value="{{ user.email if user.email else '' }}" placeholder="your@email.com">
+                            <div class="form-text">Optional - for notifications and password recovery</div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="bio" class="form-label">Bio</label>
+                            <textarea class="form-control" id="bio" name="bio" rows="3" 
+                                      placeholder="Tell us about yourself..." maxlength="200">{{ user.bio if user.bio else '' }}</textarea>
+                            <div class="form-text">Maximum 200 characters</div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="is_public" name="is_public" 
+                                       {% if user.is_public %}checked{% endif %}>
+                                <label class="form-check-label" for="is_public">
+                                    Public Profile - Allow others to view your profile and stats
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save"></i> Save Profile
+                        </button>
+                    </form>
+                </div>
+            </div>
+            
+            <!-- Password Change -->
+            <div class="card shadow mb-4">
+                <div class="card-header bg-warning text-dark">
+                    <h5 class="mb-0"><i class="fas fa-lock"></i> Change Password</h5>
+                </div>
+                <div class="card-body">
+                    <form action="/settings/password" method="post">
+                        <div class="mb-3">
+                            <label for="current_password" class="form-label">Current Password</label>
+                            <input type="password" class="form-control" id="current_password" 
+                                   name="current_password" required>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="new_password" class="form-label">New Password</label>
+                            <input type="password" class="form-control" id="new_password" 
+                                   name="new_password" required minlength="6">
+                            <div class="form-text">Minimum 6 characters</div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="confirm_password" class="form-label">Confirm New Password</label>
+                            <input type="password" class="form-control" id="confirm_password" 
+                                   name="confirm_password" required minlength="6">
+                        </div>
+                        
+                        <button type="submit" class="btn btn-warning">
+                            <i class="fas fa-key"></i> Change Password
+                        </button>
+                    </form>
+                </div>
+            </div>
+            
+            <!-- Account Info -->
+            <div class="card shadow mb-4">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0"><i class="fas fa-info-circle"></i> Account Information</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <h6 class="text-muted">Account Created</h6>
+                            <p>{{ user.created_at.split('.')[0] }}</p>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <h6 class="text-muted">Last Active</h6>
+                            <p>{{ user.last_active.split('.')[0] }}</p>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <h6 class="text-muted">User ID</h6>
+                            <p>#{{ user.id }}</p>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <h6 class="text-muted">Account Type</h6>
+                            <p><span class="badge bg-success">Active Trader</span></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Danger Zone -->
+            <div class="card shadow border-danger mb-4">
+                <div class="card-header bg-danger text-white">
+                    <h5 class="mb-0"><i class="fas fa-exclamation-triangle"></i> Danger Zone</h5>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted">
+                        Reset your portfolio to start fresh with $10,000. This action cannot be undone.
+                    </p>
+                    <form action="/settings/reset" method="post" onsubmit="return confirm('Are you sure you want to reset your portfolio? This will delete all your stocks and transaction history!')">
+                        <button type="submit" class="btn btn-danger">
+                            <i class="fas fa-redo"></i> Reset Portfolio
+                        </button>
+                    </form>
+                </div>
+            </div>
+            
+            <div class="text-center mb-4">
+                <a href="/" class="btn btn-secondary">
+                    <i class="fas fa-arrow-left"></i> Back to Portfolio
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

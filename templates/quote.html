@@ -1,0 +1,63 @@
+{% extends "layout.html" %}
+
+{% block title %}Quote - StockLeague{% endblock %}
+
+{% block main %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card shadow">
+            <div class="card-body">
+                <h2 class="card-title text-center mb-4">
+                    <i class="fas fa-search text-primary"></i> Get Stock Quote
+                </h2>
+                <form action="/quote" method="post">
+                    <div class="mb-3">
+                        <label for="symbol" class="form-label">Stock Symbol</label>
+                        <input type="text" class="form-control text-uppercase" id="symbol" name="symbol" 
+                               placeholder="e.g., AAPL, MSFT, AMZN" required autofocus>
+                        <div class="form-text">Enter the ticker symbol to get the current price</div>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="fas fa-search"></i> Get Quote
+                    </button>
+                </form>
+            </div>
+        </div>
+        
+        <!-- Popular Stocks -->
+        <div class="card mt-3">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <i class="fas fa-fire text-warning"></i> Popular Stocks
+                </h5>
+                <div class="d-flex flex-wrap gap-2">
+                    <button class="btn btn-outline-primary btn-sm quick-quote" data-symbol="AAPL">AAPL</button>
+                    <button class="btn btn-outline-primary btn-sm quick-quote" data-symbol="GOOGL">GOOGL</button>
+                    <button class="btn btn-outline-primary btn-sm quick-quote" data-symbol="MSFT">MSFT</button>
+                    <button class="btn btn-outline-primary btn-sm quick-quote" data-symbol="AMZN">AMZN</button>
+                    <button class="btn btn-outline-primary btn-sm quick-quote" data-symbol="TSLA">TSLA</button>
+                    <button class="btn btn-outline-primary btn-sm quick-quote" data-symbol="META">META</button>
+                    <button class="btn btn-outline-primary btn-sm quick-quote" data-symbol="NVDA">NVDA</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Auto-uppercase symbol input
+    document.getElementById('symbol').addEventListener('input', function(e) {
+        e.target.value = e.target.value.toUpperCase();
+    });
+    
+    // Quick quote buttons
+    document.querySelectorAll('.quick-quote').forEach(button => {
+        button.addEventListener('click', function() {
+            document.getElementById('symbol').value = this.dataset.symbol;
+            document.querySelector('form').submit();
+        });
+    });
+</script>
+{% endblock %}

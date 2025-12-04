@@ -1,0 +1,22 @@
+{% extends "layout.html" %}
+
+{% block title %}Error - StockLeague{% endblock %}
+
+{% block main %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card border-danger shadow">
+            <div class="card-body text-center">
+                <div class="display-1 text-danger mb-3">
+                    <i class="fas fa-exclamation-triangle"></i>
+                </div>
+                <h1 class="card-title text-danger mb-3">{{ top }}</h1>
+                <p class="lead mb-4">{{ bottom }}</p>
+                <a href="/" class="btn btn-primary">
+                    <i class="fas fa-home"></i> Go Back Home
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

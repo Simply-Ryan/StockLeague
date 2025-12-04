@@ -1,0 +1,205 @@
+{% extends "layout.html" %}
+
+{% block title %}Compare Portfolios - StockLeague{% endblock %}
+
+{% block main %}
+<div class="container mt-4">
+    <h2 class="mb-4">
+        <i class="fas fa-balance-scale"></i> Portfolio Comparison
+    </h2>
+
+    <!-- Friend Selection -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <h5 class="card-title">Compare With</h5>
+            <form method="get" action="/compare">
+                <div class="row">
+                    <div class="col-md-8">
+                        <select name="username" class="form-select" required>
+                            <option value="">Select a friend to compare...</option>
+                            {% for friend in friends %}
+                            <option value="{{ friend.username }}" {% if compare_user and compare_user.username == friend.username %}selected{% endif %}>
+                                {{ friend.username }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="fas fa-chart-bar"></i> Compare
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    {% if compare_user %}
+    <!-- Comparison Stats -->
+    <div class="row mb-4">
+        <div class="col-md-6 mb-3">
+            <div class="card text-center h-100 border-primary">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">You</h5>
+                </div>
+                <div class="card-body">
+                    <h3 class="card-title">{{ user_total | usd }}</h3>
+                    <p class="card-text text-muted">Total Portfolio Value</p>
+                    {% if user_history and user_history|length > 1 %}
+                    {% set first_value = user_history[0].total_value %}
+                    {% set last_value = user_history[-1].total_value %}
+                    {% set change = last_value - first_value %}
+                    {% set change_percent = (change / first_value * 100) if first_value > 0 else 0 %}
+                    <p class="mb-0 {% if change >= 0 %}text-success{% else %}text-danger{% endif %}">
+                        30-day change: 
+                        {% if change >= 0 %}+{% endif %}{{ change | usd }}
+                        ({% if change_percent >= 0 %}+{% endif %}{{ "%.2f" | format(change_percent) }}%)
+                    </p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 mb-3">
+            <div class="card text-center h-100 border-info">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0">{{ compare_user.username }}</h5>
+                </div>
+                <div class="card-body">
+                    <h3 class="card-title">{{ compare_total | usd }}</h3>
+                    <p class="card-text text-muted">Total Portfolio Value</p>
+                    {% if compare_history and compare_history|length > 1 %}
+                    {% set first_value = compare_history[0].total_value %}
+                    {% set last_value = compare_history[-1].total_value %}
+                    {% set change = last_value - first_value %}
+                    {% set change_percent = (change / first_value * 100) if first_value > 0 else 0 %}
+                    <p class="mb-0 {% if change >= 0 %}text-success{% else %}text-danger{% endif %}">
+                        30-day change: 
+                        {% if change >= 0 %}+{% endif %}{{ change | usd }}
+                        ({% if change_percent >= 0 %}+{% endif %}{{ "%.2f" | format(change_percent) }}%)
+                    </p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Performance Comparison Chart -->
+    {% if user_history and compare_history and user_history|length > 1 and compare_history|length > 1 %}
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0"><i class="fas fa-chart-line"></i> Performance Comparison (30 Days)</h5>
+        </div>
+        <div class="card-body">
+            <canvas id="comparisonChart" style="max-height: 400px;"></canvas>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        // Performance Comparison Chart
+        const userHistory = {{ user_history | tojson }};
+        const compareHistory = {{ compare_history | tojson }};
+        
+        const userDates = userHistory.map(item => {
+            const date = new Date(item.timestamp);
+            return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        });
+        
+        const compareDates = compareHistory.map(item => {
+            const date = new Date(item.timestamp);
+            return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        });
+        
+        // Use the longer date array
+        const allDates = userDates.length > compareDates.length ? userDates : compareDates;
+        
+        const userValues = userHistory.map(item => item.total_value);
+        const compareValues = compareHistory.map(item => item.total_value);
+        
+        const ctx = document.getElementById('comparisonChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: allDates,
+                datasets: [
+                    {
+                        label: 'You',
+                        data: userValues,
+                        borderColor: 'rgb(13, 110, 253)',
+                        backgroundColor: 'rgba(13, 110, 253, 0.1)',
+                        borderWidth: 2,
+                        fill: false,
+                        tension: 0.4,
+                        pointRadius: 3
+                    },
+                    {
+                        label: '{{ compare_user.username }}',
+                        data: compareValues,
+                        borderColor: 'rgb(13, 202, 240)',
+                        backgroundColor: 'rgba(13, 202, 240, 0.1)',
+                        borderWidth: 2,
+                        fill: false,
+                        tension: 0.4,
+                        pointRadius: 3
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'top'
+                    },
+                    tooltip: {
+                        mode: 'index',
+                        intersect: false,
+                        callbacks: {
+                            label: function(context) {
+                                return context.dataset.label + ': $' + context.parsed.y.toFixed(2);
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        display: true,
+                        title: {
+                            display: true,
+                            text: 'Date'
+                        },
+                        ticks: {
+                            maxTicksLimit: 10
+                        }
+                    },
+                    y: {
+                        display: true,
+                        title: {
+                            display: true,
+                            text: 'Portfolio Value (USD)'
+                        },
+                        ticks: {
+                            callback: function(value) {
+                                return '$' + value.toFixed(0);
+                            }
+                        }
+                    }
+                },
+                interaction: {
+                    mode: 'nearest',
+                    axis: 'x',
+                    intersect: false
+                }
+            }
+        });
+    </script>
+    {% endif %}
+    {% else %}
+    <div class="alert alert-info text-center">
+        <i class="fas fa-info-circle"></i>
+        <p class="mb-0">Select a friend from the dropdown above to compare portfolios!</p>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

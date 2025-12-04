@@ -1,0 +1,127 @@
+{% extends "layout.html" %}
+
+{% block title %}Watchlist - StockLeague{% endblock %}
+
+{% block main %}
+<div class="container">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>
+            <i class="fas fa-star text-warning"></i> My Watchlist
+        </h1>
+        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addStockModal">
+            <i class="fas fa-plus"></i> Add Stock
+        </button>
+    </div>
+
+    {% if watchlist %}
+    <div class="row">
+        {% for item in watchlist %}
+        <div class="col-lg-4 col-md-6 mb-4">
+            <div class="card shadow h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start mb-3">
+                        <div>
+                            <h4 class="card-title mb-0">
+                                <a href="/quote?symbol={{ item.symbol }}" class="text-decoration-none">
+                                    {{ item.symbol }}
+                                </a>
+                            </h4>
+                            <small class="text-muted">{{ item.company_name }}</small>
+                        </div>
+                        <form action="/watchlist/remove" method="post" class="d-inline">
+                            <input type="hidden" name="symbol" value="{{ item.symbol }}">
+                            <button type="submit" class="btn btn-sm btn-outline-danger" title="Remove from watchlist">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </form>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <h3 class="mb-0">{{ item.current_price | usd }}</h3>
+                        <span class="{% if item.change >= 0 %}text-success{% else %}text-danger{% endif %}">
+                            {% if item.change >= 0 %}▲{% else %}▼{% endif %}
+                            {{ item.change | usd }} ({% if item.change_percent >= 0 %}+{% endif %}{{ "%.2f" | format(item.change_percent) }}%)
+                        </span>
+                    </div>
+                    
+                    {% if item.added_price %}
+                    <div class="mb-2">
+                        <small class="text-muted">Added at: {{ item.added_price | usd }}</small>
+                        <br>
+                        <small class="{% if item.current_price >= item.added_price %}text-success{% else %}text-danger{% endif %}">
+                            Since added: {% if item.current_price >= item.added_price %}+{% endif %}{{ ((item.current_price - item.added_price) / item.added_price * 100) | round(2) }}%
+                        </small>
+                    </div>
+                    {% endif %}
+                    
+                    {% if item.notes %}
+                    <div class="alert alert-info py-2 mb-3">
+                        <small><i class="fas fa-sticky-note"></i> {{ item.notes }}</small>
+                    </div>
+                    {% endif %}
+                    
+                    <div class="d-grid gap-2">
+                        <a href="/buy?symbol={{ item.symbol }}" class="btn btn-sm btn-success">
+                            <i class="fas fa-shopping-cart"></i> Buy
+                        </a>
+                        <a href="/quote?symbol={{ item.symbol }}" class="btn btn-sm btn-outline-primary">
+                            <i class="fas fa-chart-line"></i> View Details
+                        </a>
+                    </div>
+                    
+                    <div class="mt-2">
+                        <small class="text-muted">Added {{ item.created_at.split('.')[0] }}</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="card shadow">
+        <div class="card-body text-center py-5">
+            <i class="fas fa-star fa-4x text-muted mb-3"></i>
+            <h4 class="text-muted">Your watchlist is empty</h4>
+            <p class="text-muted">Add stocks you're interested in to track their performance</p>
+            <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addStockModal">
+                <i class="fas fa-plus"></i> Add Your First Stock
+            </button>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Add Stock Modal -->
+<div class="modal fade" id="addStockModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-plus-circle"></i> Add Stock to Watchlist
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form action="/watchlist/add" method="post">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="symbol" class="form-label">Stock Symbol *</label>
+                        <input type="text" class="form-control text-uppercase" id="symbol" name="symbol" 
+                               placeholder="e.g., AAPL" required autofocus>
+                    </div>
+                    <div class="mb-3">
+                        <label for="notes" class="form-label">Notes (Optional)</label>
+                        <textarea class="form-control" id="notes" name="notes" rows="3" 
+                                  placeholder="Why are you watching this stock?"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-star"></i> Add to Watchlist
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

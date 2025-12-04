@@ -1,0 +1,307 @@
+{% extends "layout.html" %}
+
+{% block title %}Analytics - StockLeague{% endblock %}
+
+{% block main %}
+<div class="container mt-4">
+    <h2 class="mb-4">
+        <i class="fas fa-chart-pie"></i> Trading Analytics
+    </h2>
+
+    <!-- Trading Statistics Cards -->
+    <div class="row mb-4">
+        <div class="col-md-3 mb-3">
+            <div class="card text-center h-100">
+                <div class="card-body">
+                    <i class="fas fa-exchange-alt fa-2x text-primary mb-2"></i>
+                    <h6 class="card-subtitle mb-2 text-muted">Total Trades</h6>
+                    <h3 class="card-title">{{ stats.total_trades }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card text-center h-100">
+                <div class="card-body">
+                    <i class="fas fa-arrow-up fa-2x text-success mb-2"></i>
+                    <h6 class="card-subtitle mb-2 text-muted">Buy Orders</h6>
+                    <h3 class="card-title text-success">{{ stats.buys }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card text-center h-100">
+                <div class="card-body">
+                    <i class="fas fa-arrow-down fa-2x text-danger mb-2"></i>
+                    <h6 class="card-subtitle mb-2 text-muted">Sell Orders</h6>
+                    <h3 class="card-title text-danger">{{ stats.sells }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 mb-3">
+            <div class="card text-center h-100">
+                <div class="card-body">
+                    <i class="fas fa-chart-bar fa-2x text-info mb-2"></i>
+                    <h6 class="card-subtitle mb-2 text-muted">Avg Trade Size</h6>
+                    <h3 class="card-title text-info">{{ "%.1f" | format(stats.avg_trade_size) }}</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-md-6 mb-3">
+            <div class="card text-center h-100">
+                <div class="card-body">
+                    <i class="fas fa-star fa-2x text-warning mb-2"></i>
+                    <h6 class="card-subtitle mb-2 text-muted">Most Traded Stock</h6>
+                    <h3 class="card-title">
+                        {% if stats.most_traded_symbol %}
+                            <a href="/quote?symbol={{ stats.most_traded_symbol }}" class="text-decoration-none">
+                                {{ stats.most_traded_symbol }}
+                            </a>
+                            <small class="d-block text-muted">({{ stats.most_traded_count }} trades)</small>
+                        {% else %}
+                            N/A
+                        {% endif %}
+                    </h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 mb-3">
+            <div class="card text-center h-100">
+                <div class="card-body">
+                    <i class="fas fa-calendar fa-2x text-secondary mb-2"></i>
+                    <h6 class="card-subtitle mb-2 text-muted">Trading Since</h6>
+                    <h3 class="card-title">{{ stats.first_trade_date or "N/A" }}</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Portfolio Allocation -->
+    {% if portfolio_breakdown %}
+    <div class="row mb-4">
+        <div class="col-lg-6 mb-3">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-pie-chart"></i> Portfolio Allocation</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="portfolioChart" style="max-height: 300px;"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-6 mb-3">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-list"></i> Holdings Breakdown</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-sm">
+                            <thead>
+                                <tr>
+                                    <th>Symbol</th>
+                                    <th>Shares</th>
+                                    <th>Value</th>
+                                    <th>%</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in portfolio_breakdown %}
+                                <tr>
+                                    <td><a href="/quote?symbol={{ item.symbol }}">{{ item.symbol }}</a></td>
+                                    <td>{{ item.shares }}</td>
+                                    <td>{{ item.value | usd }}</td>
+                                    <td>{{ "%.1f" | format(item.percentage) }}%</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Performance Charts -->
+    {% if portfolio_history and portfolio_history|length > 1 %}
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0"><i class="fas fa-chart-line"></i> Portfolio Performance (90 Days)</h5>
+        </div>
+        <div class="card-body">
+            <canvas id="performanceChart" style="max-height: 300px;"></canvas>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Best and Worst Trades -->
+    <div class="row mb-4">
+        <div class="col-lg-6 mb-3">
+            <div class="card h-100">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0"><i class="fas fa-thumbs-up"></i> Best Trades</h5>
+                </div>
+                <div class="card-body p-0">
+                    {% if best_trades %}
+                    <div class="table-responsive">
+                        <table class="table table-sm mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Symbol</th>
+                                    <th>Shares</th>
+                                    <th>Gain</th>
+                                    <th>%</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for trade in best_trades %}
+                                <tr>
+                                    <td><a href="/quote?symbol={{ trade.symbol }}">{{ trade.symbol }}</a></td>
+                                    <td>{{ trade.shares }}</td>
+                                    <td class="text-success">{{ trade.gain_loss | usd }}</td>
+                                    <td class="text-success">+{{ "%.2f" | format(trade.gain_loss_percent) }}%</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <p class="text-center py-3 mb-0">No trades yet</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-6 mb-3">
+            <div class="card h-100">
+                <div class="card-header bg-danger text-white">
+                    <h5 class="mb-0"><i class="fas fa-thumbs-down"></i> Worst Trades</h5>
+                </div>
+                <div class="card-body p-0">
+                    {% if worst_trades %}
+                    <div class="table-responsive">
+                        <table class="table table-sm mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Symbol</th>
+                                    <th>Shares</th>
+                                    <th>Loss</th>
+                                    <th>%</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for trade in worst_trades %}
+                                <tr>
+                                    <td><a href="/quote?symbol={{ trade.symbol }}">{{ trade.symbol }}</a></td>
+                                    <td>{{ trade.shares }}</td>
+                                    <td class="text-danger">{{ trade.gain_loss | usd }}</td>
+                                    <td class="text-danger">{{ "%.2f" | format(trade.gain_loss_percent) }}%</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <p class="text-center py-3 mb-0">No trades yet</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+{% if portfolio_breakdown %}
+<script>
+    // Portfolio Allocation Pie Chart
+    const allocationCtx = document.getElementById('portfolioChart').getContext('2d');
+    const symbols = {{ portfolio_breakdown | map(attribute='symbol') | list | tojson }};
+    const percentages = {{ portfolio_breakdown | map(attribute='percentage') | list | tojson }};
+    
+    const colors = [
+        'rgb(13, 110, 253)', 'rgb(25, 135, 84)', 'rgb(220, 53, 69)',
+        'rgb(255, 193, 7)', 'rgb(13, 202, 240)', 'rgb(108, 117, 125)',
+        'rgb(214, 51, 132)', 'rgb(111, 66, 193)'
+    ];
+    
+    new Chart(allocationCtx, {
+        type: 'doughnut',
+        data: {
+            labels: symbols,
+            datasets: [{
+                data: percentages,
+                backgroundColor: colors,
+                borderWidth: 2,
+                borderColor: '#fff'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: {
+                    position: 'right'
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return context.label + ': ' + context.parsed.toFixed(1) + '%';
+                        }
+                    }
+                }
+            }
+        }
+    });
+</script>
+{% endif %}
+
+{% if portfolio_history and portfolio_history|length > 1 %}
+<script>
+    // Performance Line Chart
+    const portfolioData = {{ portfolio_history | tojson }};
+    const dates = portfolioData.map(item => {
+        const date = new Date(item.timestamp);
+        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    });
+    const values = portfolioData.map(item => item.total_value);
+    
+    const performanceCtx = document.getElementById('performanceChart').getContext('2d');
+    new Chart(performanceCtx, {
+        type: 'line',
+        data: {
+            labels: dates,
+            datasets: [{
+                label: 'Portfolio Value',
+                data: values,
+                borderColor: 'rgb(13, 110, 253)',
+                backgroundColor: 'rgba(13, 110, 253, 0.1)',
+                borderWidth: 2,
+                fill: true,
+                tension: 0.4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: {
+                    display: false
+                }
+            },
+            scales: {
+                y: {
+                    ticks: {
+                        callback: function(value) {
+                            return '$' + value.toFixed(0);
+                        }
+                    }
+                }
+            }
+        }
+    });
+</script>
+{% endif %}
+{% endblock %}

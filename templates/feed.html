@@ -1,0 +1,101 @@
+{% extends "layout.html" %}
+
+{% block title %}Activity Feed - StockLeague{% endblock %}
+
+{% block main %}
+<div class="container mt-4">
+    <h2 class="mb-4">
+        <i class="fas fa-stream"></i> Activity Feed
+    </h2>
+
+    {% if activities %}
+    <div class="row">
+        <div class="col-lg-8 mx-auto">
+            {% for activity in activities %}
+            <div class="card mb-3">
+                <div class="card-body">
+                    <div class="d-flex align-items-start">
+                        <div class="flex-shrink-0">
+                            {% if activity.activity_type == 'transaction' %}
+                                {% if activity.type == 'buy' %}
+                                <div class="avatar-circle bg-success">
+                                    <i class="fas fa-arrow-up text-white"></i>
+                                </div>
+                                {% else %}
+                                <div class="avatar-circle bg-danger">
+                                    <i class="fas fa-arrow-down text-white"></i>
+                                </div>
+                                {% endif %}
+                            {% else %}
+                                <div class="avatar-circle bg-warning">
+                                    <i class="fas fa-trophy text-white"></i>
+                                </div>
+                            {% endif %}
+                        </div>
+                        <div class="flex-grow-1 ms-3">
+                            {% if activity.activity_type == 'transaction' %}
+                                <h6 class="mb-1">
+                                    <a href="/profile/{{ activity.username }}" class="text-decoration-none">
+                                        <strong>{{ activity.username }}</strong>
+                                    </a>
+                                    {% if activity.type == 'buy' %}
+                                        <span class="text-success">bought</span>
+                                    {% else %}
+                                        <span class="text-danger">sold</span>
+                                    {% endif %}
+                                    <a href="/quote?symbol={{ activity.symbol }}" class="text-decoration-none">
+                                        <strong>{{ activity.symbol }}</strong>
+                                    </a>
+                                </h6>
+                                <p class="mb-1">
+                                    {% if activity.type == 'buy' %}
+                                        Purchased {{ activity.shares }} shares at {{ activity.price | usd }}
+                                    {% else %}
+                                        Sold {{ activity.shares|abs }} shares at {{ activity.price | usd }}
+                                    {% endif %}
+                                </p>
+                                <small class="text-muted">
+                                    <i class="fas fa-clock"></i> {{ activity.timestamp }}
+                                </small>
+                            {% else %}
+                                <h6 class="mb-1">
+                                    <a href="/profile/{{ activity.username }}" class="text-decoration-none">
+                                        <strong>{{ activity.username }}</strong>
+                                    </a>
+                                    <span class="text-warning">earned an achievement</span>
+                                </h6>
+                                <p class="mb-1">
+                                    <i class="fas fa-trophy text-warning"></i> 
+                                    <strong>{{ activity.type }}</strong>
+                                </p>
+                                <small class="text-muted">
+                                    <i class="fas fa-clock"></i> {{ activity.timestamp }}
+                                </small>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% else %}
+    <div class="alert alert-info text-center">
+        <i class="fas fa-info-circle"></i>
+        <p class="mb-0">No recent activity from friends. <a href="/friends" class="alert-link">Add some friends</a> to see their trading activity!</p>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+    .avatar-circle {
+        width: 50px;
+        height: 50px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+    }
+</style>
+{% endblock %}

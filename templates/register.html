@@ -1,0 +1,64 @@
+{% extends "layout.html" %}
+
+{% block title %}Register - StockLeague{% endblock %}
+
+{% block main %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="card shadow">
+            <div class="card-body">
+                <h2 class="card-title text-center mb-4">
+                    <i class="fas fa-user-plus"></i> Register
+                </h2>
+                <form action="/register" method="post">
+                    <div class="mb-3">
+                        <label for="username" class="form-label">Username</label>
+                        <input type="text" class="form-control" id="username" name="username" 
+                               placeholder="Choose a username" autocomplete="username" required autofocus>
+                    </div>
+                    <div class="mb-3">
+                        <label for="password" class="form-label">Password</label>
+                        <input type="password" class="form-control" id="password" name="password" 
+                               placeholder="Enter password" autocomplete="new-password" required>
+                        <div class="form-text">Password must be at least 8 characters</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="confirmation" class="form-label">Confirm Password</label>
+                        <input type="password" class="form-control" id="confirmation" name="confirmation" 
+                               placeholder="Confirm password" autocomplete="new-password" required>
+                    </div>
+                    <button type="submit" class="btn btn-success w-100">
+                        <i class="fas fa-user-plus"></i> Register
+                    </button>
+                </form>
+                <hr>
+                <p class="text-center mb-0">
+                    Already have an account? <a href="/login">Login here</a>
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Client-side password validation
+    document.querySelector('form').addEventListener('submit', function(e) {
+        const password = document.getElementById('password').value;
+        const confirmation = document.getElementById('confirmation').value;
+        
+        if (password.length < 8) {
+            e.preventDefault();
+            alert('Password must be at least 8 characters long');
+            return;
+        }
+        
+        if (password !== confirmation) {
+            e.preventDefault();
+            alert('Passwords do not match');
+            return;
+        }
+    });
+</script>
+{% endblock %}

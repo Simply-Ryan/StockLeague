@@ -1,0 +1,36 @@
+{% extends "layout.html" %}
+
+{% block title %}Login - StockLeague{% endblock %}
+
+{% block main %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="card shadow">
+            <div class="card-body">
+                <h2 class="card-title text-center mb-4">
+                    <i class="fas fa-sign-in-alt"></i> Login
+                </h2>
+                <form action="/login" method="post">
+                    <div class="mb-3">
+                        <label for="username" class="form-label">Username</label>
+                        <input type="text" class="form-control" id="username" name="username" 
+                               placeholder="Enter username" autocomplete="username" required autofocus>
+                    </div>
+                    <div class="mb-3">
+                        <label for="password" class="form-label">Password</label>
+                        <input type="password" class="form-control" id="password" name="password" 
+                               placeholder="Enter password" autocomplete="current-password" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="fas fa-sign-in-alt"></i> Login
+                    </button>
+                </form>
+                <hr>
+                <p class="text-center mb-0">
+                    Don't have an account? <a href="/register">Register here</a>
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

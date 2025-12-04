@@ -1,0 +1,58 @@
+{% extends "layout.html" %}
+
+{% block title %}Add Cash - StockLeague{% endblock %}
+
+{% block main %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card shadow">
+            <div class="card-body">
+                <h2 class="card-title text-center mb-4">
+                    <i class="fas fa-wallet text-success"></i> Add Cash
+                </h2>
+                <form action="/add_cash" method="post">
+                    <div class="mb-3">
+                        <label for="amount" class="form-label">Amount (USD)</label>
+                        <div class="input-group">
+                            <span class="input-group-text">$</span>
+                            <input type="number" class="form-control" id="amount" name="amount" 
+                                   min="0.01" step="0.01" placeholder="0.00" required autofocus>
+                        </div>
+                        <div class="form-text">Enter the amount of cash you want to add to your account</div>
+                    </div>
+                    <button type="submit" class="btn btn-success w-100">
+                        <i class="fas fa-plus-circle"></i> Add Cash
+                    </button>
+                </form>
+            </div>
+        </div>
+        
+        <!-- Quick Amount Buttons -->
+        <div class="card mt-3">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <i class="fas fa-bolt text-warning"></i> Quick Add
+                </h5>
+                <div class="d-flex flex-wrap gap-2">
+                    <button class="btn btn-outline-success quick-amount" data-amount="100">$100</button>
+                    <button class="btn btn-outline-success quick-amount" data-amount="500">$500</button>
+                    <button class="btn btn-outline-success quick-amount" data-amount="1000">$1,000</button>
+                    <button class="btn btn-outline-success quick-amount" data-amount="5000">$5,000</button>
+                    <button class="btn btn-outline-success quick-amount" data-amount="10000">$10,000</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Quick amount buttons
+    document.querySelectorAll('.quick-amount').forEach(button => {
+        button.addEventListener('click', function() {
+            document.getElementById('amount').value = this.dataset.amount;
+        });
+    });
+</script>
+{% endblock %}

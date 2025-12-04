@@ -1,0 +1,338 @@
+/* StockLeague Custom Styles */
+
+:root {
+    --primary-color: #2c3e50;
+    --secondary-color: #3498db;
+    --success-color: #27ae60;
+    --danger-color: #e74c3c;
+    --warning-color: #f39c12;
+    --info-color: #16a085;
+    --light-bg: #ecf0f1;
+    --dark-bg: #34495e;
+}
+
+body {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background-attachment: fixed;
+}
+
+main {
+    flex: 1;
+    padding-bottom: 2rem;
+}
+
+/* Navbar Customization */
+.navbar-brand {
+    font-weight: bold;
+    font-size: 1.5rem;
+}
+
+.navbar-brand i {
+    color: var(--success-color);
+}
+
+.navbar-dark .navbar-nav .nav-link {
+    transition: color 0.3s ease;
+}
+
+.navbar-dark .navbar-nav .nav-link:hover {
+    color: var(--success-color) !important;
+}
+
+/* Card Enhancements */
+.card {
+    border: none;
+    border-radius: 15px;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+}
+
+.card-body {
+    padding: 2rem;
+}
+
+/* Table Styling */
+.table {
+    background-color: white;
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.table thead {
+    font-weight: 600;
+}
+
+.table-hover tbody tr:hover {
+    background-color: rgba(52, 152, 219, 0.1);
+    cursor: pointer;
+}
+
+/* Form Styling */
+.form-control:focus,
+.form-select:focus {
+    border-color: var(--secondary-color);
+    box-shadow: 0 0 0 0.2rem rgba(52, 152, 219, 0.25);
+}
+
+.form-control,
+.form-select {
+    border-radius: 10px;
+    padding: 0.75rem 1rem;
+}
+
+/* Button Enhancements */
+.btn {
+    border-radius: 10px;
+    padding: 0.75rem 1.5rem;
+    font-weight: 500;
+    transition: all 0.3s ease;
+}
+
+.btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border: none;
+}
+
+.btn-success {
+    background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+    border: none;
+}
+
+.btn-danger {
+    background: linear-gradient(135deg, #eb3349 0%, #f45c43 100%);
+    border: none;
+}
+
+/* Portfolio Container */
+.portfolio-container,
+.history-container {
+    background: white;
+    border-radius: 15px;
+    padding: 2rem;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+}
+
+.portfolio-container h1,
+.history-container h1 {
+    color: var(--primary-color);
+    margin-bottom: 1.5rem;
+}
+
+/* Quote Result */
+.quote-result {
+    padding: 2rem;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 15px;
+    color: white;
+    margin-bottom: 1rem;
+}
+
+.quote-result h3 {
+    color: white;
+    font-weight: 300;
+}
+
+.quote-result .display-4,
+.quote-result .display-5 {
+    color: white;
+}
+
+/* Alert Customization */
+.alert {
+    border-radius: 10px;
+    border: none;
+}
+
+.alert-dismissible .btn-close {
+    padding: 1rem;
+}
+
+/* Footer */
+.footer {
+    margin-top: auto;
+    background-color: rgba(44, 62, 80, 0.9) !important;
+    backdrop-filter: blur(10px);
+}
+
+.footer .text-muted {
+    color: rgba(255, 255, 255, 0.7) !important;
+}
+
+/* Responsive Adjustments */
+@media (max-width: 768px) {
+    .card-body {
+        padding: 1.5rem;
+    }
+    
+    .portfolio-container,
+    .history-container {
+        padding: 1rem;
+    }
+    
+    .btn {
+        padding: 0.5rem 1rem;
+    }
+}
+
+/* Animation for page load */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+main > * {
+    animation: fadeIn 0.5s ease-out;
+}
+
+/* Badge Styling */
+.badge {
+    padding: 0.5rem 0.75rem;
+    font-weight: 500;
+}
+
+/* Input Group Enhancements */
+.input-group-text {
+    background-color: var(--light-bg);
+    border-radius: 10px 0 0 10px;
+    border: 1px solid #ced4da;
+}
+
+/* Quick Action Cards on Index */
+.card .fa-3x {
+    opacity: 0.8;
+}
+
+.card:hover .fa-3x {
+    opacity: 1;
+    transform: scale(1.1);
+    transition: all 0.3s ease;
+}
+
+/* Loading Spinner (for future AJAX calls) */
+.spinner-border-sm {
+    width: 1rem;
+    height: 1rem;
+    border-width: 0.2em;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+    width: 10px;
+}
+
+::-webkit-scrollbar-track {
+    background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--secondary-color);
+    border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--primary-color);
+}
+
+/* Market Overview Cards */
+.market-overview .card {
+    transition: all 0.3s ease;
+    cursor: pointer;
+}
+
+.market-overview .card:hover {
+    border-color: var(--secondary-color) !important;
+}
+
+/* Leaderboard Trophy Icons */
+.fa-trophy {
+    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
+}
+
+/* Performance Cards */
+.border-success {
+    border-width: 2px !important;
+}
+
+.border-danger {
+    border-width: 2px !important;
+}
+
+/* Alert Enhancements */
+.alert {
+    border-radius: 10px;
+    border-left: 4px solid;
+}
+
+.alert-info {
+    border-left-color: var(--info-color);
+}
+
+.alert-success {
+    border-left-color: var(--success-color);
+}
+
+.alert-warning {
+    border-left-color: var(--warning-color);
+}
+
+.alert-danger {
+    border-left-color: var(--danger-color);
+}
+
+/* Chart Container */
+canvas {
+    max-height: 400px !important;
+}
+
+/* Footer Enhancements */
+footer a:hover {
+    color: var(--secondary-color) !important;
+    transition: color 0.3s ease;
+}
+
+/* Responsive Table */
+@media (max-width: 768px) {
+    .table {
+        font-size: 0.875rem;
+    }
+    
+    .display-4 {
+        font-size: 2rem;
+    }
+    
+    .display-5 {
+        font-size: 1.5rem;
+    }
+}
+
+/* Print Styles */
+@media print {
+    .navbar,
+    .footer,
+    .btn {
+        display: none;
+    }
+    
+    body {
+        background: white;
+    }
+}

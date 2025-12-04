@@ -1,0 +1,158 @@
+{% extends "layout.html" %}
+
+{% block title %}Friends - StockLeague{% endblock %}
+
+{% block main %}
+<div class="container">
+    <h1 class="mb-4">
+        <i class="fas fa-users"></i> Friends & Requests
+    </h1>
+    
+    <!-- Friend Requests -->
+    {% if pending_requests %}
+    <div class="card shadow mb-4">
+        <div class="card-header bg-warning text-dark">
+            <h5 class="mb-0">
+                <i class="fas fa-user-clock"></i> Pending Friend Requests 
+                <span class="badge bg-danger">{{ pending_requests | length }}</span>
+            </h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                {% for request in pending_requests %}
+                <div class="col-md-6 mb-3">
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <h5 class="mb-1">
+                                        <i class="fas fa-user-circle text-primary"></i> 
+                                        <a href="/profile/{{ request.username }}" class="text-decoration-none">
+                                            {{ request.username }}
+                                        </a>
+                                    </h5>
+                                    <small class="text-muted">{{ request.timestamp.split('.')[0] }}</small>
+                                </div>
+                                <div class="btn-group" role="group">
+                                    <form action="/accept_friend" method="post" class="d-inline">
+                                        <input type="hidden" name="request_id" value="{{ request.id }}">
+                                        <button type="submit" class="btn btn-sm btn-success">
+                                            <i class="fas fa-check"></i>
+                                        </button>
+                                    </form>
+                                    <form action="/decline_friend" method="post" class="d-inline">
+                                        <input type="hidden" name="request_id" value="{{ request.id }}">
+                                        <button type="submit" class="btn btn-sm btn-danger">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+    
+    <!-- Search Users -->
+    <div class="card shadow mb-4">
+        <div class="card-body">
+            <h5 class="card-title"><i class="fas fa-search"></i> Find Friends</h5>
+            <form action="/friends" method="get" class="mb-0">
+                <div class="input-group">
+                    <input type="text" class="form-control" name="search" 
+                           placeholder="Search by username..." value="{{ search_query if search_query else '' }}">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-search"></i> Search
+                    </button>
+                </div>
+            </form>
+            
+            {% if search_results %}
+            <hr>
+            <div class="list-group">
+                {% for user in search_results %}
+                <div class="list-group-item d-flex justify-content-between align-items-center">
+                    <div>
+                        <i class="fas fa-user-circle text-primary fa-2x me-2"></i>
+                        <a href="/profile/{{ user.username }}" class="text-decoration-none">
+                            <strong>{{ user.username }}</strong>
+                        </a>
+                    </div>
+                    {% if user.is_friend %}
+                    <span class="badge bg-success">
+                        <i class="fas fa-check"></i> Friends
+                    </span>
+                    {% elif user.request_pending %}
+                    <span class="badge bg-secondary">
+                        <i class="fas fa-clock"></i> Pending
+                    </span>
+                    {% else %}
+                    <form action="/send_friend_request" method="post">
+                        <input type="hidden" name="friend_id" value="{{ user.id }}">
+                        <button type="submit" class="btn btn-sm btn-primary">
+                            <i class="fas fa-user-plus"></i> Add Friend
+                        </button>
+                    </form>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            {% elif search_query %}
+            <hr>
+            <p class="text-muted text-center mb-0">No users found matching "{{ search_query }}"</p>
+            {% endif %}
+        </div>
+    </div>
+    
+    <!-- Friends List -->
+    <div class="card shadow">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">
+                <i class="fas fa-users"></i> My Friends 
+                <span class="badge bg-light text-dark">{{ friends | length }}</span>
+            </h5>
+        </div>
+        <div class="card-body">
+            {% if friends %}
+            <div class="row">
+                {% for friend in friends %}
+                <div class="col-md-4 col-sm-6 mb-3">
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <div class="text-center mb-3">
+                                <i class="fas fa-user-circle fa-3x text-primary"></i>
+                            </div>
+                            <h5 class="card-title text-center">
+                                <a href="/profile/{{ friend.username }}" class="text-decoration-none">
+                                    {{ friend.username }}
+                                </a>
+                            </h5>
+                            <div class="text-center">
+                                <small class="text-muted d-block mb-2">Portfolio: {{ friend.portfolio_value | usd }}</small>
+                                <form action="/remove_friend" method="post">
+                                    <input type="hidden" name="friend_id" value="{{ friend.id }}">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger" 
+                                            onclick="return confirm('Remove {{ friend.username }} from friends?')">
+                                        <i class="fas fa-user-minus"></i> Remove
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-muted text-center mb-0">
+                <i class="fas fa-user-friends fa-3x mb-3 d-block"></i>
+                You haven't added any friends yet. Search for users above to get started!
+            </p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

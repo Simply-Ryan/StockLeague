@@ -1,0 +1,165 @@
+{% extends "layout.html" %}
+
+{% block title %}Achievements - StockLeague{% endblock %}
+
+{% block main %}
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-lg-10">
+            <h1 class="mb-4 text-center">
+                <i class="fas fa-trophy text-warning"></i> Achievements
+            </h1>
+            
+            <div class="text-center mb-4">
+                <h3>
+                    <span class="badge bg-primary">{{ earned_count }} / {{ total_count }}</span>
+                    Achievements Unlocked
+                </h3>
+                <div class="progress" style="height: 25px;">
+                    <div class="progress-bar bg-success" role="progressbar" 
+                         style="width: {{ (earned_count / total_count * 100) if total_count > 0 else 0 }}%">
+                        {{ "%.0f" | format((earned_count / total_count * 100) if total_count > 0 else 0) }}%
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row">
+                <!-- Trading Achievements -->
+                <div class="col-md-6 mb-4">
+                    <div class="card shadow">
+                        <div class="card-header bg-primary text-white">
+                            <h5 class="mb-0"><i class="fas fa-chart-line"></i> Trading Milestones</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="achievement-item mb-3 p-3 {{ 'bg-light' if 'first_trade' in earned_keys else 'border' }} rounded">
+                                <div class="d-flex align-items-center">
+                                    <i class="fas fa-handshake fa-3x {{ 'text-success' if 'first_trade' in earned_keys else 'text-muted' }} me-3"></i>
+                                    <div class="flex-grow-1">
+                                        <h5 class="mb-1">First Trade</h5>
+                                        <p class="mb-0 text-muted">Make your first trade</p>
+                                        {% if 'first_trade' in earned_keys %}
+                                        <small class="text-success"><i class="fas fa-check-circle"></i> Unlocked</small>
+                                        {% else %}
+                                        <small class="text-muted"><i class="fas fa-lock"></i> Locked</small>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="achievement-item mb-3 p-3 {{ 'bg-light' if 'active_trader' in earned_keys else 'border' }} rounded">
+                                <div class="d-flex align-items-center">
+                                    <i class="fas fa-chart-bar fa-3x {{ 'text-success' if 'active_trader' in earned_keys else 'text-muted' }} me-3"></i>
+                                    <div class="flex-grow-1">
+                                        <h5 class="mb-1">Active Trader</h5>
+                                        <p class="mb-0 text-muted">Complete 10 trades</p>
+                                        {% if 'active_trader' in earned_keys %}
+                                        <small class="text-success"><i class="fas fa-check-circle"></i> Unlocked</small>
+                                        {% else %}
+                                        <small class="text-muted"><i class="fas fa-lock"></i> Locked</small>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="achievement-item p-3 {{ 'bg-light' if 'day_trader' in earned_keys else 'border' }} rounded">
+                                <div class="d-flex align-items-center">
+                                    <i class="fas fa-clock fa-3x {{ 'text-success' if 'day_trader' in earned_keys else 'text-muted' }} me-3"></i>
+                                    <div class="flex-grow-1">
+                                        <h5 class="mb-1">Day Trader</h5>
+                                        <p class="mb-0 text-muted">Complete 50 trades</p>
+                                        {% if 'day_trader' in earned_keys %}
+                                        <small class="text-success"><i class="fas fa-check-circle"></i> Unlocked</small>
+                                        {% else %}
+                                        <small class="text-muted"><i class="fas fa-lock"></i> Locked</small>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Wealth Achievements -->
+                <div class="col-md-6 mb-4">
+                    <div class="card shadow">
+                        <div class="card-header bg-success text-white">
+                            <h5 class="mb-0"><i class="fas fa-dollar-sign"></i> Wealth Milestones</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="achievement-item mb-3 p-3 {{ 'bg-light' if 'profit_maker' in earned_keys else 'border' }} rounded">
+                                <div class="d-flex align-items-center">
+                                    <i class="fas fa-money-bill-wave fa-3x {{ 'text-success' if 'profit_maker' in earned_keys else 'text-muted' }} me-3"></i>
+                                    <div class="flex-grow-1">
+                                        <h5 class="mb-1">Profit Maker</h5>
+                                        <p class="mb-0 text-muted">Earn $1,000 in profit</p>
+                                        {% if 'profit_maker' in earned_keys %}
+                                        <small class="text-success"><i class="fas fa-check-circle"></i> Unlocked</small>
+                                        {% else %}
+                                        <small class="text-muted"><i class="fas fa-lock"></i> Locked</small>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="achievement-item mb-3 p-3 {{ 'bg-light' if 'big_winner' in earned_keys else 'border' }} rounded">
+                                <div class="d-flex align-items-center">
+                                    <i class="fas fa-gem fa-3x {{ 'text-success' if 'big_winner' in earned_keys else 'text-muted' }} me-3"></i>
+                                    <div class="flex-grow-1">
+                                        <h5 class="mb-1">Big Winner</h5>
+                                        <p class="mb-0 text-muted">Earn $5,000 in profit</p>
+                                        {% if 'big_winner' in earned_keys %}
+                                        <small class="text-success"><i class="fas fa-check-circle"></i> Unlocked</small>
+                                        {% else %}
+                                        <small class="text-muted"><i class="fas fa-lock"></i> Locked</small>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="achievement-item p-3 {{ 'bg-light' if 'portfolio_builder' in earned_keys else 'border' }} rounded">
+                                <div class="d-flex align-items-center">
+                                    <i class="fas fa-briefcase fa-3x {{ 'text-success' if 'portfolio_builder' in earned_keys else 'text-muted' }} me-3"></i>
+                                    <div class="flex-grow-1">
+                                        <h5 class="mb-1">Portfolio Builder</h5>
+                                        <p class="mb-0 text-muted">Reach $15,000 portfolio value</p>
+                                        {% if 'portfolio_builder' in earned_keys %}
+                                        <small class="text-success"><i class="fas fa-check-circle"></i> Unlocked</small>
+                                        {% else %}
+                                        <small class="text-muted"><i class="fas fa-lock"></i> Locked</small>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Strategy Achievements -->
+                <div class="col-md-6 mb-4">
+                    <div class="card shadow">
+                        <div class="card-header bg-info text-white">
+                            <h5 class="mb-0"><i class="fas fa-brain"></i> Strategy Milestones</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="achievement-item p-3 {{ 'bg-light' if 'diversified' in earned_keys else 'border' }} rounded">
+                                <div class="d-flex align-items-center">
+                                    <i class="fas fa-layer-group fa-3x {{ 'text-success' if 'diversified' in earned_keys else 'text-muted' }} me-3"></i>
+                                    <div class="flex-grow-1">
+                                        <h5 class="mb-1">Diversified</h5>
+                                        <p class="mb-0 text-muted">Own 5 different stocks</p>
+                                        {% if 'diversified' in earned_keys %}
+                                        <small class="text-success"><i class="fas fa-check-circle"></i> Unlocked</small>
+                                        {% else %}
+                                        <small class="text-muted"><i class="fas fa-lock"></i> Locked</small>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,80 @@
+{% extends "layout.html" %}
+
+{% block title %}Leaderboard - StockLeague{% endblock %}
+
+{% block main %}
+<div class="leaderboard-container">
+    <h1 class="mb-4 text-center">
+        <i class="fas fa-trophy text-warning"></i> Leaderboard
+    </h1>
+
+    <div class="row justify-content-center mb-4">
+        <div class="col-md-8">
+            <div class="alert alert-info text-center">
+                <i class="fas fa-info-circle"></i>
+                Compete with other traders! Rankings are based on total portfolio value.
+            </div>
+        </div>
+    </div>
+
+    {% if leaderboard %}
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card shadow">
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th style="width: 80px;">Rank</th>
+                                    <th>Username</th>
+                                    <th>Portfolio Value</th>
+                                    <th>Total Return</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for i in range(leaderboard | length) %}
+                                <tr {% if leaderboard[i].username == current_user %}class="table-primary"{% endif %}>
+                                    <td class="text-center">
+                                        {% if i == 0 %}
+                                        <i class="fas fa-trophy text-warning fa-2x"></i>
+                                        {% elif i == 1 %}
+                                        <i class="fas fa-medal" style="color: silver; font-size: 1.5em;"></i>
+                                        {% elif i == 2 %}
+                                        <i class="fas fa-medal" style="color: #CD7F32; font-size: 1.5em;"></i>
+                                        {% else %}
+                                        <strong>{{ i + 1 }}</strong>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <strong>{{ leaderboard[i].username }}</strong>
+                                        {% if leaderboard[i].username == current_user %}
+                                        <span class="badge bg-primary">You</span>
+                                        {% endif %}
+                                    </td>
+                                    <td><strong>{{ leaderboard[i].total_value | usd }}</strong></td>
+                                    <td class="{% if leaderboard[i].total_return >= 0 %}text-success{% else %}text-danger{% endif %}">
+                                        {% if leaderboard[i].total_return >= 0 %}+{% endif %}{{ leaderboard[i].total_return | usd }}
+                                        <small>({{ "%.2f" | format(leaderboard[i].return_percent) }}%)</small>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% else %}
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="alert alert-warning text-center">
+                <i class="fas fa-users-slash"></i>
+                No traders to display yet. Be the first to start trading!
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
