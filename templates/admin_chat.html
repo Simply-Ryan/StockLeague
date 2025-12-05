@@ -1,0 +1,59 @@
+{% extends "layout.html" %}
+{% block title %}Chat Admin Dashboard - StockLeague{% endblock %}
+{% block main %}
+<div class="container py-4">
+    <h2 class="mb-4"><i class="fas fa-user-shield"></i> Chat Admin Dashboard</h2>
+    <div class="row">
+        <div class="col-lg-10 mx-auto">
+            <div class="card shadow mb-4">
+                <div class="card-header bg-dark text-white">
+                    <strong>Active Chat Rooms</strong>
+                </div>
+                <div class="card-body">
+                    <ul id="admin-room-list" class="list-group mb-3"></ul>
+                    <button class="btn btn-primary" onclick="refreshRooms()">Refresh Rooms</button>
+                </div>
+            </div>
+            <div class="card shadow mb-4">
+                <div class="card-header bg-dark text-white">
+                    <strong>Reported Messages</strong>
+                </div>
+                <div class="card-body">
+                    <ul id="admin-reported-list" class="list-group mb-3"></ul>
+                    <button class="btn btn-primary" onclick="refreshReports()">Refresh Reports</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+function refreshRooms() {
+    fetch('/admin/api/chat/rooms').then(r=>r.json()).then(data => {
+        const ul = document.getElementById('admin-room-list');
+        ul.innerHTML = '';
+        data.rooms.forEach(room => {
+            const li = document.createElement('li');
+            li.className = 'list-group-item';
+            li.innerHTML = `<strong>${room.name}</strong> - Users: ${room.users.join(', ')}`;
+            ul.appendChild(li);
+        });
+    });
+}
+function refreshReports() {
+    fetch('/admin/api/chat/reports').then(r=>r.json()).then(data => {
+        const ul = document.getElementById('admin-reported-list');
+        ul.innerHTML = '';
+        data.reports.forEach(rep => {
+            const li = document.createElement('li');
+            li.className = 'list-group-item';
+            li.innerHTML = `<strong>${rep.room}</strong> - <span class='text-danger'>${rep.message}</span> <span class='text-muted'>by ${rep.username}</span>`;
+            ul.appendChild(li);
+        });
+    });
+}
+window.onload = function() {
+    refreshRooms();
+    refreshReports();
+};
+</script>
+{% endblock %}

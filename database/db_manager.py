@@ -7,30 +7,52 @@ class DatabaseManager:
     def __init__(self, db_path="database/stocks.db"):
         self.db_path = db_path
         self.init_db()
+        self.init_chat_table()
 
-    def get_portfolio_snapshots(self, user_id, limit=90):
-        """Get recent portfolio snapshots for a user (limit N)"""
+    def init_chat_table(self):
+        """Initialize chat messages table."""
         conn = self.get_connection()
         cursor = conn.cursor()
-        cursor.execute("""
-            SELECT total_value, cash, stocks_json, timestamp
-            FROM portfolio_snapshots
-            WHERE user_id = ?
-            ORDER BY timestamp DESC
-            LIMIT ?
-        """, (user_id, limit))
-        snapshots = cursor.fetchall()
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS chat_messages (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                room TEXT NOT NULL,
+                username TEXT NOT NULL,
+                message TEXT,
+                type TEXT DEFAULT 'text',
+                filedata TEXT,
+                filename TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+        conn.commit()
         conn.close()
-        return [dict(row) for row in snapshots]
-import sqlite3
-from datetime import datetime
 
+    def insert_chat_message(self, room, username, message, msg_type='text', filedata=None, filename=None):
+        """Insert a new chat message."""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            INSERT INTO chat_messages (room, username, message, type, filedata, filename)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ''', (room, username, message, msg_type, filedata, filename))
+        conn.commit()
+        conn.close()
 
-class DatabaseManager:
-    """Manages all database operations for the stock trading app."""
-    def __init__(self, db_path="database/stocks.db"):
-        self.db_path = db_path
-        self.init_db()
+    def get_chat_history(self, room, limit=100):
+        """Get chat history for a room."""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT username, message, type, filedata, filename, created_at FROM chat_messages
+            WHERE room = ?
+            ORDER BY created_at DESC
+            LIMIT ?
+        ''', (room, limit))
+        rows = cursor.fetchall()
+        conn.close()
+        # Return in chronological order
+        return [dict(row) for row in reversed(rows)]
 
     def get_portfolio_snapshots(self, user_id, limit=90):
         """Get recent portfolio snapshots for a user (limit N)"""

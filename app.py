@@ -1,3 +1,108 @@
+
+import os
+import random
+import uuid
+from flask import Flask, flash, redirect, render_template, request, session, jsonify, send_file
+from flask_session import Session
+from flask_socketio import SocketIO, emit, join_room, leave_room
+from werkzeug.security import check_password_hash, generate_password_hash
+from functools import wraps
+from helpers import apology, lookup, usd, get_chart_data, get_popular_stocks, get_market_movers, get_stock_news, get_option_price_and_greeks, analyze_sentiment, fetch_news_finnhub, get_cached_or_fetch_news
+from database.db_manager import DatabaseManager
+from dotenv import load_dotenv
+import threading
+import time
+from datetime import datetime
+from collections import defaultdict
+
+# --- Login Required Decorator (move up) ---
+def login_required(f):
+    """
+    Decorate routes to require login.
+    https://flask.palletsprojects.com/en/latest/patterns/viewdecorators/
+    """
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if session.get("user_id") is None:
+            return redirect("/login")
+        return f(*args, **kwargs)
+    return decorated_function
+
+# Load environment variables
+load_dotenv()
+
+# Configure application
+app = Flask(__name__)
+
+# Secret key for session management (change in production!)
+app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY") or "dev-secret-key-change-in-production"
+
+# Custom filter
+app.jinja_env.filters["usd"] = usd
+
+# Configure session to use filesystem (instead of signed cookies)
+app.config["SESSION_PERMANENT"] = False
+app.config["SESSION_TYPE"] = "filesystem"
+Session(app)
+
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode='eventlet')
+
+# --- Chat Settings (Themes/Dark Mode) ---
+@app.route("/chat/settings")
+@login_required
+def chat_settings():
+    return render_template("chat_settings.html")
+
+# --- Admin-only decorator ---
+def admin_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        user_id = session.get("user_id")
+        user = db.get_user(user_id)
+        if not user or not user.get("is_admin"):
+            return apology("Admins only", 403)
+        return f(*args, **kwargs)
+    return decorated_function
+
+# --- Chat Admin Dashboard ---
+@app.route("/admin/chat")
+@login_required
+@admin_required
+def admin_chat():
+    return render_template("admin_chat.html")
+
+@app.route("/admin/api/chat/rooms")
+@login_required
+@admin_required
+def admin_api_chat_rooms():
+    # List all rooms and users (from in-memory for now)
+    rooms = []
+    for room, users in chat_users.items():
+        rooms.append({"name": room, "users": list(users)})
+    return jsonify({"rooms": rooms})
+
+@app.route("/admin/api/chat/reports")
+@login_required
+@admin_required
+def admin_api_chat_reports():
+    # Placeholder: return empty for now
+    return jsonify({"reports": []})
+
+# --- Trading Event Chat Integration ---
+def send_trade_alert_to_chat(user_id, symbol, shares, price, trade_type):
+    user = db.get_user(user_id)
+    username = user["username"] if user else "User"
+    msg = f"{username} just {trade_type} {shares} shares of {symbol} at {usd(price)}."
+    # Send to General chat room
+    socketio.emit('chat_message', {
+        'id': str(uuid.uuid4()),
+        'username': 'System',
+        'message': msg,
+        'time': datetime.now().strftime('%H:%M'),
+        'reactions': {}
+    }, room='General')
+    # Optionally persist to chat history
+    db.insert_chat_message('General', 'System', msg)
 import os
 import random
 import uuid
@@ -32,11 +137,34 @@ app.config["SESSION_TYPE"] = "filesystem"
 Session(app)
 
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='eventlet')
+
+# --- Login Required Decorator (move up) ---
+def login_required(f):
+    """
+    Decorate routes to require login.
+    https://flask.palletsprojects.com/en/latest/patterns/viewdecorators/
+    """
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if session.get("user_id") is None:
+            return redirect("/login")
+        return f(*args, **kwargs)
+    return decorated_function
+
 # --- Real-Time Chat System ---
 # In-memory chat storage (replace with DB for production)
 chat_rooms = defaultdict(list)  # room -> list of messages
 chat_users = defaultdict(set)   # room -> set of usernames
 user_typing = defaultdict(set)  # room -> set of typing usernames
+# Private/group chat management
+private_rooms = defaultdict(set)  # room -> set of allowed usernames
+# In-memory moderation (replace with DB for production)
+muted_users = defaultdict(set)  # room -> set of muted usernames
+banned_users = defaultdict(set) # room -> set of banned usernames
+moderators = defaultdict(set)   # room -> set of moderator usernames
+
+# In-memory notifications (replace with DB for production)
+user_notifications = defaultdict(list)  # username -> list of notifications
 
 @app.route("/chat")
 @login_required
@@ -48,17 +176,52 @@ def chat():
 def handle_join_room(data):
     room = data.get('room', 'General')
     username = data.get('username', 'User')
+    # Prevent banned users from joining
+    if username in banned_users[room]:
+        emit('chat_notification', {'type': 'system', 'message': 'You are banned from this room.'}, room=request.sid)
+        return
+    # Private/group room access control
+    if room in private_rooms and private_rooms[room] and username not in private_rooms[room]:
+        emit('chat_notification', {'type': 'system', 'message': 'You are not a member of this private room.'}, room=request.sid)
+        return
     join_room(room)
     chat_users[room].add(username)
     emit('user_presence', list(chat_users[room]), room=room)
-    # Send chat history
-    emit('chat_history', chat_rooms[room], room=request.sid)
+    # Load chat history from DB
+    history = db.get_chat_history(room, limit=100)
+    emit('chat_history', history, room=request.sid)
+# Create private/group room
+@socketio.on('create_private_room')
+def handle_create_private_room(data):
+    room = data.get('room')
+    creator = data.get('creator')
+    members = set(data.get('members', []))
+    if not room or not creator:
+        return
+    private_rooms[room] = members | {creator}
+    moderators[room].add(creator)
+    emit('chat_notification', {'type': 'system', 'message': f'Private room "{room}" created.'}, room=request.sid)
+
+# Invite user to private/group room
+@socketio.on('invite_to_room')
+def handle_invite_to_room(data):
+    room = data.get('room')
+    inviter = data.get('inviter')
+    invitee = data.get('invitee')
+    if room and inviter and invitee:
+        if inviter in moderators[room] or inviter in private_rooms[room]:
+            private_rooms[room].add(invitee)
+            emit('chat_notification', {'type': 'system', 'message': f'{invitee} was invited to {room} by {inviter}.'}, room=room)
 
 @socketio.on('chat_message')
 def handle_chat_message(data):
     room = data.get('room', 'General')
     username = data.get('username', 'User')
     message = data.get('message', '')
+    # Prevent muted users from sending messages
+    if username in muted_users[room]:
+        emit('chat_notification', {'type': 'system', 'message': 'You are muted in this room.'}, room=request.sid)
+        return
     msg_id = str(uuid.uuid4())
     msg = {
         'id': msg_id,
@@ -68,7 +231,90 @@ def handle_chat_message(data):
         'reactions': {}
     }
     chat_rooms[room].append(msg)
+    # Persist to DB
+    db.insert_chat_message(room, username, message)
     emit('chat_message', msg, room=room)
+# Moderation events
+@socketio.on('mute_user')
+def handle_mute_user(data):
+    room = data.get('room', 'General')
+    target = data.get('target')
+    moderator = data.get('moderator')
+    # Only moderators can mute
+    if moderator in moderators[room]:
+        muted_users[room].add(target)
+        emit('chat_notification', {'type': 'system', 'message': f'{target} has been muted by {moderator}.'}, room=room)
+
+@socketio.on('unmute_user')
+def handle_unmute_user(data):
+    room = data.get('room', 'General')
+    target = data.get('target')
+    moderator = data.get('moderator')
+    if moderator in moderators[room]:
+        muted_users[room].discard(target)
+        emit('chat_notification', {'type': 'system', 'message': f'{target} has been unmuted by {moderator}.'}, room=room)
+
+@socketio.on('ban_user')
+def handle_ban_user(data):
+    room = data.get('room', 'General')
+    target = data.get('target')
+    moderator = data.get('moderator')
+    if moderator in moderators[room]:
+        banned_users[room].add(target)
+        chat_users[room].discard(target)
+        emit('chat_notification', {'type': 'system', 'message': f'{target} has been banned by {moderator}.'}, room=room)
+
+@socketio.on('unban_user')
+def handle_unban_user(data):
+    room = data.get('room', 'General')
+    target = data.get('target')
+    moderator = data.get('moderator')
+    if moderator in moderators[room]:
+        banned_users[room].discard(target)
+        emit('chat_notification', {'type': 'system', 'message': f'{target} has been unbanned by {moderator}.'}, room=room)
+
+@socketio.on('delete_message')
+def handle_delete_message(data):
+    room = data.get('room', 'General')
+    msg_id = data.get('msgId')
+    moderator = data.get('moderator')
+    if moderator in moderators[room]:
+        # Remove message from chat history
+        chat_rooms[room] = [msg for msg in chat_rooms[room] if msg.get('id') != msg_id]
+        emit('chat_history', chat_rooms[room], room=room)
+        emit('chat_notification', {'type': 'system', 'message': f'A message was deleted by {moderator}.'}, room=room)
+
+@socketio.on('report_message')
+def handle_report_message(data):
+    room = data.get('room', 'General')
+    msg_id = data.get('msgId')
+    reporter = data.get('reporter')
+    # For demo, just notify moderators
+    for mod in moderators[room]:
+        emit('chat_notification', {'type': 'system', 'message': f'Message {msg_id} was reported by {reporter}.'}, room=room)
+
+    # In-app notification for @mentions
+    words = message.split()
+    mentioned = [w[1:] for w in words if w.startswith('@') and len(w) > 1]
+    for user in mentioned:
+        if user in chat_users[room]:
+            notif = {
+                'type': 'mention',
+                'from': username,
+                'room': room,
+                'message': message,
+                'time': msg['time']
+            }
+            user_notifications[user].append(notif)
+            emit('chat_notification', notif, room=room)
+# SocketIO event for direct notification
+@socketio.on('send_notification')
+def handle_send_notification(data):
+    user = data.get('user')
+    notif = data.get('notification')
+    if user and notif:
+        user_notifications[user].append(notif)
+        emit('chat_notification', notif, room=request.sid)
 
 @socketio.on('chat_file')
 def handle_chat_file(data):
@@ -86,6 +332,8 @@ def handle_chat_file(data):
         'type': 'file'
     }
     chat_rooms[room].append(msg)
+    # Persist to DB
+    db.insert_chat_message(room, username, None, msg_type='file', filedata=filedata, filename=filename)
     emit('chat_file', msg, room=room)
 
 @socketio.on('typing')
@@ -397,6 +645,8 @@ def buy():
         
         # Record transaction
         txn_id = db.record_transaction(user_id, symbol, shares, price, "buy", strategy, notes)
+        # Send trade alert to chat
+        send_trade_alert_to_chat(user_id, symbol, shares, price, 'bought')
         
         # Update user's cash
         db.update_cash(user_id, cash - total_cost)
@@ -630,6 +880,8 @@ def sell():
         
         # Record transaction
         txn_id = db.record_transaction(user_id, symbol, -shares, price, "sell", strategy, notes)
+        # Send trade alert to chat
+        send_trade_alert_to_chat(user_id, symbol, shares, price, 'sold')
         
         # Update user's cash
         user = db.get_user(user_id)

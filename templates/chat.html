@@ -1,44 +1,102 @@
 {% extends "layout.html" %}
-{% block title %}Chat Room - StockLeague{% endblock %}
+{% block title %}Chat - StockLeague{% endblock %}
+{% block head %}
+<style>
+    .chat-container { height: calc(100vh - 120px); }
+    .chat-sidebar { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 15px 0 0 15px; }
+    .chat-main { background: #ffffff; border-radius: 0 15px 15px 0; }
+    .chat-history { height: calc(100% - 80px); overflow-y: auto; background: linear-gradient(to bottom, #f8f9fa 0%, #ffffff 100%); border-radius: 10px; }
+    .chat-message { padding: 12px; margin: 8px 0; background: white; border-radius: 18px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); transition: all 0.3s; }
+    .chat-message:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.12); }
+    .chat-message.own { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; margin-left: auto; max-width: 70%; }
+    .chat-message.system { background: #ffeaa7; border-left: 4px solid #fdcb6e; }
+    .user-avatar { width: 36px; height: 36px; border-radius: 50%; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; }
+    .room-btn { background: rgba(255,255,255,0.2); border: none; color: white; padding: 10px 20px; border-radius: 25px; margin: 5px; transition: all 0.3s; }
+    .room-btn:hover, .room-btn.active { background: rgba(255,255,255,0.4); transform: scale(1.05); }
+    .user-status { width: 10px; height: 10px; border-radius: 50%; background: #00b894; display: inline-block; margin-right: 8px; }
+    .chat-input-wrapper { background: white; border-radius: 25px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); padding: 8px 15px; }
+    .notification-toast { position: fixed; top: 20px; right: 20px; background: white; border-radius: 15px; box-shadow: 0 8px 24px rgba(0,0,0,0.15); padding: 20px; z-index: 9999; animation: slideIn 0.3s; }
+    @keyframes slideIn { from { transform: translateX(400px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+    .reaction-picker { position: absolute; bottom: 50px; background: white; border-radius: 15px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); padding: 10px; display: none; }
+    .reaction-emoji { font-size: 24px; cursor: pointer; padding: 5px; transition: transform 0.2s; }
+    .reaction-emoji:hover { transform: scale(1.3); }
+</style>
+{% endblock %}
 {% block main %}
-<div class="container py-4">
-    <h2 class="mb-4"><i class="fas fa-comments"></i> Real-Time Chat</h2>
-    <div class="row">
-        <div class="col-lg-8 mx-auto">
-            <div class="card shadow mb-4">
-                <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-                    <span><i class="fas fa-users"></i> Room: <span id="chat-room-name">General</span></span>
-                    <span id="user-presence" class="badge bg-success">Online</span>
-                </div>
-                <div class="card-body p-0">
-                    <div id="chat-history" class="p-3" style="height:350px; overflow-y:auto; background:#f8f9fa;"></div>
-                    <div class="p-3 border-top">
-                        <form id="chat-form" autocomplete="off">
-                            <div class="input-group">
-                                <input type="text" id="chat-input" class="form-control" placeholder="Type a message..." maxlength="500">
-                                <button type="button" class="btn btn-light" id="emoji-btn"><i class="far fa-smile"></i></button>
-                                <input type="file" id="file-input" style="display:none;">
-                                <button type="button" class="btn btn-light" id="file-btn"><i class="fas fa-paperclip"></i></button>
-                                <button type="submit" class="btn btn-primary">Send</button>
-                            </div>
-                            <div id="typing-indicator" class="mt-2 text-muted" style="display:none;">Someone is typing...</div>
-                        </form>
-                    </div>
-                </div>
+<div class="container-fluid px-4 py-3">
+    <div id="chat-notification-toast" class="notification-toast" style="display:none;">
+        <div class="d-flex align-items-center">
+            <i class="fas fa-bell text-primary me-3" style="font-size: 24px;"></i>
+            <div>
+                <strong id="notif-title">Notification</strong>
+                <p class="mb-0 small text-muted" id="notif-message"></p>
             </div>
-            <div class="card shadow">
-                <div class="card-body">
-                    <h5>Rooms</h5>
-                    <div class="d-flex flex-wrap gap-2 mb-3">
-                        <button class="btn btn-outline-secondary btn-sm" onclick="switchRoom('General')">General</button>
-                        <button class="btn btn-outline-secondary btn-sm" onclick="switchRoom('Leagues')">Leagues</button>
-                        <button class="btn btn-outline-secondary btn-sm" onclick="switchRoom('Trading')">Trading</button>
-                        <button class="btn btn-outline-secondary btn-sm" onclick="switchRoom('Friends')">Friends</button>
-                    </div>
-                    <h5>Active Users</h5>
-                    <ul id="active-users" class="list-unstyled mb-0"></ul>
-                </div>
+            <button class="btn-close ms-3" onclick="hideNotification()"></button>
+        </div>
+    </div>
+    
+    <div class="row chat-container g-0 shadow-lg" style="border-radius: 15px; overflow: hidden;">
+        <div class="col-md-3 chat-sidebar p-4">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h4 class="mb-0"><i class="fas fa-comments"></i> StockChat</h4>
+                <a href="/chat/settings" class="btn btn-sm btn-light"><i class="fas fa-cog"></i></a>
             </div>
+            
+            <div class="mb-4">
+                <h6 class="text-uppercase mb-3" style="opacity: 0.8;">Chat Rooms</h6>
+                <button class="room-btn active w-100 text-start mb-2" onclick="switchRoom('General')">
+                    <i class="fas fa-globe"></i> General
+                </button>
+                <button class="room-btn w-100 text-start mb-2" onclick="switchRoom('Trading')">
+                    <i class="fas fa-chart-line"></i> Trading
+                </button>
+                <button class="room-btn w-100 text-start mb-2" onclick="switchRoom('Leagues')">
+                    <i class="fas fa-trophy"></i> Leagues
+                </button>
+                <button class="room-btn w-100 text-start mb-2" onclick="switchRoom('Friends')">
+                    <i class="fas fa-user-friends"></i> Friends
+                </button>
+            </div>
+            
+            <div>
+                <h6 class="text-uppercase mb-3" style="opacity: 0.8;">Online Users (<span id="user-count">0</span>)</h6>
+                <div id="active-users" style="max-height: 200px; overflow-y: auto;"></div>
+            </div>
+        </div>
+        
+        <div class="col-md-9 chat-main p-4">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="mb-0">
+                    <i class="fas fa-hashtag text-primary"></i> 
+                    <span id="chat-room-name">General</span>
+                </h5>
+                <span class="badge bg-success" id="user-presence">
+                    <i class="fas fa-circle" style="font-size: 8px;"></i> Online
+                </span>
+            </div>
+            
+            <div id="chat-history" class="chat-history p-3 mb-3"></div>
+            
+            <div id="typing-indicator" class="mb-2 text-muted small" style="display:none; padding-left: 15px;">
+                <i class="fas fa-ellipsis-h"></i> Someone is typing...
+            </div>
+            
+            <form id="chat-form" autocomplete="off">
+                <div class="chat-input-wrapper d-flex align-items-center gap-2">
+                    <button type="button" class="btn btn-link text-dark p-0" id="emoji-btn">
+                        <i class="far fa-smile fa-lg"></i>
+                    </button>
+                    <input type="text" id="chat-input" class="form-control border-0 shadow-none" 
+                           placeholder="Type your message..." maxlength="500" style="flex: 1;">
+                    <input type="file" id="file-input" style="display:none;">
+                    <button type="button" class="btn btn-link text-dark p-0" id="file-btn">
+                        <i class="fas fa-paperclip fa-lg"></i>
+                    </button>
+                    <button type="submit" class="btn btn-primary rounded-circle" style="width: 40px; height: 40px;">
+                        <i class="fas fa-paper-plane"></i>
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
 </div>
@@ -47,6 +105,20 @@
 <script src="https://cdn.jsdelivr.net/npm/emoji-picker-element@1.6.2/dist/emoji-picker.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/socket.io-client@4.7.2/dist/socket.io.min.js"></script>
 <script>
+// Enhanced notification system
+let unreadCount = 0;
+function showChatNotification(title, msg) {
+    const toast = document.getElementById('chat-notification-toast');
+    const titleEl = document.getElementById('notif-title');
+    const msgEl = document.getElementById('notif-message');
+    titleEl.textContent = title;
+    msgEl.textContent = msg;
+    toast.style.display = 'block';
+    setTimeout(() => { toast.style.display = 'none'; }, 5000);
+}
+function hideNotification() {
+    document.getElementById('chat-notification-toast').style.display = 'none';
+}
 const socket = io();
 let currentRoom = 'General';
 let username = '{{ session["username"] if session["username"] else "User" }}';
@@ -115,12 +187,52 @@ chatForm.onsubmit = e => {
 };
 socket.on('chat_message', data => {
     const msgDiv = document.createElement('div');
-    msgDiv.className = 'mb-2';
-    msgDiv.innerHTML = `<strong>${data.username}</strong>: ${data.message} <span class='text-muted small'>${data.time}</span>`;
-    // Reaction button
-    msgDiv.innerHTML += ` <button class='btn btn-sm btn-light' onclick="addReaction('${data.id}', '👍')">👍</button>`;
-    msgDiv.innerHTML += ` <button class='btn btn-sm btn-light' onclick="addReaction('${data.id}', '😂')">😂</button>`;
-    msgDiv.innerHTML += ` <button class='btn btn-sm btn-light' onclick="addReaction('${data.id}', '🔥')">🔥</button>`;
+    const isOwn = data.username === username;
+    const isSystem = data.username === 'System';
+    
+    msgDiv.className = 'chat-message d-flex align-items-start gap-2' + (isOwn ? ' own' : '') + (isSystem ? ' system' : '');
+    
+    if (!isOwn && !isSystem) {
+        const avatar = document.createElement('div');
+        avatar.className = 'user-avatar flex-shrink-0';
+        avatar.textContent = data.username.charAt(0).toUpperCase();
+        msgDiv.appendChild(avatar);
+    }
+    
+    const content = document.createElement('div');
+    content.style.flex = '1';
+    
+    if (!isOwn) {
+        const header = document.createElement('div');
+        header.innerHTML = `<strong>${data.username}</strong> <span class='text-muted small ms-2'>${data.time}</span>`;
+        content.appendChild(header);
+    }
+    
+    const messageText = document.createElement('div');
+    messageText.textContent = data.message;
+    content.appendChild(messageText);
+    
+    if (!isSystem) {
+        const reactions = document.createElement('div');
+        reactions.className = 'mt-1';
+        reactions.innerHTML = `
+            <span class='reaction-emoji me-1' onclick="addReaction('${data.id}', '👍')" title="Like">👍</span>
+            <span class='reaction-emoji me-1' onclick="addReaction('${data.id}', '❤️')" title="Love">❤️</span>
+            <span class='reaction-emoji me-1' onclick="addReaction('${data.id}', '😂')" title="Laugh">😂</span>
+            <span class='reaction-emoji me-1' onclick="addReaction('${data.id}', '🔥')" title="Fire">🔥</span>
+        `;
+        content.appendChild(reactions);
+    }
+    
+    if (isOwn) {
+        const timeStamp = document.createElement('div');
+        timeStamp.className = 'text-end small mt-1';
+        timeStamp.style.opacity = '0.8';
+        timeStamp.textContent = data.time;
+        content.appendChild(timeStamp);
+    }
+    
+    msgDiv.appendChild(content);
     chatHistory.appendChild(msgDiv);
     chatHistory.scrollTop = chatHistory.scrollHeight;
 });
@@ -142,23 +254,77 @@ socket.on('chat_history', messages => {
     chatHistory.innerHTML = '';
     messages.forEach(data => {
         const msgDiv = document.createElement('div');
-        msgDiv.className = 'mb-2';
-        msgDiv.innerHTML = `<strong>${data.username}</strong>: ${data.message} <span class='text-muted small'>${data.time}</span>`;
+        const isOwn = data.username === username;
+        const isSystem = data.username === 'System';
+        
+        msgDiv.className = 'chat-message d-flex align-items-start gap-2' + (isOwn ? ' own' : '') + (isSystem ? ' system' : '');
+        
+        if (!isOwn && !isSystem) {
+            const avatar = document.createElement('div');
+            avatar.className = 'user-avatar flex-shrink-0';
+            avatar.textContent = data.username.charAt(0).toUpperCase();
+            msgDiv.appendChild(avatar);
+        }
+        
+        const content = document.createElement('div');
+        content.style.flex = '1';
+        
+        if (!isOwn) {
+            const header = document.createElement('div');
+            const time = data.created_at ? new Date(data.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '';
+            header.innerHTML = `<strong>${data.username}</strong> <span class='text-muted small ms-2'>${time}</span>`;
+            content.appendChild(header);
+        }
+        
+        const messageText = document.createElement('div');
+        messageText.textContent = data.message || '';
+        content.appendChild(messageText);
+        
+        msgDiv.appendChild(content);
         chatHistory.appendChild(msgDiv);
     });
     chatHistory.scrollTop = chatHistory.scrollHeight;
 });
+// In-app notification for chat events
+socket.on('chat_notification', notif => {
+    let title = 'Chat Notification';
+    let msg = '';
+    if (notif.type === 'mention') {
+        title = 'New Mention';
+        msg = `${notif.from} mentioned you in ${notif.room}`;
+    } else if (notif.type === 'system') {
+        title = 'System Message';
+        msg = notif.message;
+    } else {
+        msg = notif.message || 'New notification';
+    }
+    showChatNotification(title, msg);
+    unreadCount++;
+});
+
 socket.on('user_presence', users => {
     activeUsers.innerHTML = '';
+    document.getElementById('user-count').textContent = users.length;
     users.forEach(u => {
-        const li = document.createElement('li');
-        li.textContent = u;
-        activeUsers.appendChild(li);
+        const userDiv = document.createElement('div');
+        userDiv.className = 'd-flex align-items-center mb-2 p-2 rounded';
+        userDiv.style.background = 'rgba(255,255,255,0.1)';
+        userDiv.innerHTML = `
+            <span class='user-status'></span>
+            <div class='user-avatar me-2' style='width: 28px; height: 28px; font-size: 12px;'>${u.charAt(0).toUpperCase()}</div>
+            <span>${u}</span>
+        `;
+        activeUsers.appendChild(userDiv);
     });
 });
 function switchRoom(room) {
     currentRoom = room;
     document.getElementById('chat-room-name').textContent = room;
+    
+    // Update active room button
+    document.querySelectorAll('.room-btn').forEach(btn => btn.classList.remove('active'));
+    event.target.classList.add('active');
+    
     socket.emit('join_room', { room, username });
 }
 </script>

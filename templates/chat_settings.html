@@ -1,0 +1,56 @@
+{% extends "layout.html" %}
+{% block title %}Chat Settings - StockLeague{% endblock %}
+{% block main %}
+<div class="container py-4">
+    <h2 class="mb-4"><i class="fas fa-moon"></i> Chat Themes &amp; Dark Mode</h2>
+    <div class="row">
+        <div class="col-lg-8 mx-auto">
+            <div class="card shadow mb-4">
+                <div class="card-body">
+                    <h5>Choose Theme</h5>
+                    <div class="d-flex gap-3 mb-3">
+                        <button class="btn btn-outline-dark" onclick="setChatTheme('light')">Light</button>
+                        <button class="btn btn-outline-dark" onclick="setChatTheme('dark')">Dark</button>
+                        <button class="btn btn-outline-dark" onclick="setChatTheme('blue')">Blue</button>
+                        <button class="btn btn-outline-dark" onclick="setChatTheme('green')">Green</button>
+                    </div>
+                    <p class="text-muted mb-0">Your theme will be remembered on this device.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+function setChatTheme(theme) {
+    localStorage.setItem('chatTheme', theme);
+    applyChatTheme();
+}
+function applyChatTheme() {
+    const theme = localStorage.getItem('chatTheme') || 'light';
+    document.body.classList.remove('chat-theme-light', 'chat-theme-dark', 'chat-theme-blue', 'chat-theme-green');
+    document.body.classList.add('chat-theme-' + theme);
+}
+applyChatTheme();
+</script>
+<style>
+.chat-theme-dark {
+    background: #181a1b !important;
+    color: #f1f1f1 !important;
+}
+.chat-theme-dark .card, .chat-theme-dark .navbar, .chat-theme-dark .modal-content {
+    background: #23272b !important;
+    color: #f1f1f1 !important;
+}
+.chat-theme-dark .form-control, .chat-theme-dark .btn, .chat-theme-dark .input-group-text {
+    background: #23272b !important;
+    color: #f1f1f1 !important;
+    border-color: #444 !important;
+}
+.chat-theme-blue {
+    background: #e3f0ff !important;
+}
+.chat-theme-green {
+    background: #eaffea !important;
+}
+</style>
+{% endblock %}
