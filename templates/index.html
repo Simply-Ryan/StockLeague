@@ -8,11 +8,21 @@
         <i class="fas fa-briefcase"></i> Your Portfolio
     </h1>
 
+    <!-- Live Update Indicator -->
+    <div class="alert alert-info d-flex align-items-center mb-3" role="alert">
+        <div class="live-indicator me-3">LIVE</div>
+        <div>
+            <strong>Real-time updates enabled</strong>
+            <small class="d-block">Your portfolio values and prices update automatically</small>
+        </div>
+    </div>
+
     <!-- Portfolio Performance Chart -->
     {% if portfolio_history and portfolio_history|length > 1 %}
     <div class="card mb-4">
-        <div class="card-header">
+        <div class="card-header d-flex justify-content-between align-items-center">
             <h5 class="mb-0"><i class="fas fa-chart-area"></i> Portfolio Performance (30 Days)</h5>
+            <span class="live-indicator">LIVE</span>
         </div>
         <div class="card-body">
             <canvas id="portfolioChart" style="max-height: 300px;"></canvas>
@@ -26,7 +36,8 @@
             <div class="card text-center h-100">
                 <div class="card-body">
                     <h6 class="card-subtitle mb-2 text-muted">Total Value</h6>
-                    <h3 class="card-title text-primary">{{ grand_total | usd }}</h3>
+                    <h3 class="card-title text-primary" id="portfolio-value">{{ grand_total | usd }}</h3>
+                    <small class="text-muted"><i class="fas fa-sync-alt fa-spin"></i> Live</small>
                 </div>
             </div>
         </div>
@@ -82,9 +93,12 @@
                     <td>
                         <strong><a href="/quote?symbol={{ stock.symbol }}" class="text-decoration-none">{{ stock.symbol }}</a></strong>
                     </td>
-                    <td data-shares="{{ stock.shares }}">{{ stock.shares }}</td>
+                    <td class="shares-count" data-shares="{{ stock.shares }}">{{ stock.shares }}</td>
                     <td>{{ stock.avg_cost | usd }}</td>
-                    <td class="stock-price" data-symbol="{{ stock.symbol }}">{{ stock.price | usd }}</td>
+                    <td>
+                        <span class="stock-price" data-symbol="{{ stock.symbol }}">{{ stock.price | usd }}</span>
+                        <i class="fas fa-circle text-success ms-1" style="font-size: 0.5rem;" title="Live price"></i>
+                    </td>
                     <td class="stock-change {% if stock.change_percent >= 0 %}text-success{% else %}text-danger{% endif %}" data-symbol="{{ stock.symbol }}">
                         {% if stock.change_percent >= 0 %}+{% endif %}{{ "%.2f" | format(stock.change_percent) }}%
                     </td>

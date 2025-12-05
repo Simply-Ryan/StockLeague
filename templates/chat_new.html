@@ -5,12 +5,11 @@
 {% endblock %}
 
 {% block main %}
-<script>
-// Add class to body to identify chat page
-document.body.classList.add('chat-page');
-</script>
 <style>
     /* Full-page chat layout */
+    body {
+        overflow: hidden;
+    }
     .chat-container {
         position: fixed;
         top: 56px; /* Height of navbar */
@@ -19,12 +18,6 @@ document.body.classList.add('chat-page');
         bottom: 0;
         display: flex;
         background: var(--bg-primary);
-        z-index: 1;
-    }
-    
-    /* Hide footer on chat page */
-    body.chat-page .footer {
-        display: none;
     }
     
     /* Conversations sidebar */

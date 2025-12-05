@@ -1,58 +1,52 @@
 {% extends "layout.html" %}
 
-{% block title %}
-    Portfolio Analytics
-{% endblock %}
+{% block title %}Advanced Portfolio Analytics{% endblock %}
 
 {% block main %}
-<div class="container-fluid px-4">
-    <h1 class="mb-4"><i class="fas fa-chart-line me-2"></i>Portfolio Analytics</h1>
+<div class="container-fluid px-4 py-3">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="mb-0"><i class="fas fa-chart-line me-2"></i>Advanced Portfolio Analytics</h1>
+        <div>
+            <button class="btn btn-outline-primary btn-sm" onclick="window.print()">
+                <i class="fas fa-file-pdf"></i> Export PDF
+            </button>
+            <button class="btn btn-outline-success btn-sm" onclick="exportCSV()">
+                <i class="fas fa-file-csv"></i> Export CSV
+            </button>
+        </div>
+    </div>
     
     <!-- Summary Cards -->
     <div class="row mb-4">
-        <div class="col-lg-3 col-md-6 mb-3">
-            <div class="card shadow h-100">
+        <div class="col-xl-3 col-md-6 mb-3">
+            <div class="card border-start border-primary border-4 shadow h-100">
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
-                            <p class="text-muted mb-1">Total Value</p>
+                            <p class="text-muted mb-1 small">TOTAL VALUE</p>
                             <h3 class="mb-0">${{ "%.2f"|format(analytics.total_value) }}</h3>
+                            <small class="text-muted">Cash: ${{ "%.2f"|format(analytics.cash) }}</small>
                         </div>
-                        <i class="fas fa-wallet fa-2x text-primary"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <!-- New: Benchmark Comparison -->
-        <div class="col-lg-3 col-md-6 mb-3">
-            <div class="card shadow h-100">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <p class="text-muted mb-1">S&P 500 Return</p>
-                            <h3 class="mb-0 text-info">{{ "%.2f"|format(analytics.benchmark.spy_total_return|default(0)) }}%</h3>
-                            <small class="text-muted">Volatility: {{ "%.2f"|format(analytics.benchmark.spy_volatility|default(0)) }}%</small>
-                        </div>
-                        <i class="fab fa-line fa-2x text-info"></i>
+                        <i class="fas fa-wallet fa-2x text-primary opacity-50"></i>
                     </div>
                 </div>
             </div>
         </div>
         
-        <div class="col-lg-3 col-md-6 mb-3">
-            <div class="card shadow h-100">
+        <div class="col-xl-3 col-md-6 mb-3">
+            <div class="card border-start border-{% if analytics.total_return >= 0 %}success{% else %}danger{% endif %} border-4 shadow h-100">
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
-                            <p class="text-muted mb-1">Total Return</p>
+                            <p class="text-muted mb-1 small">TOTAL RETURN</p>
                             <h3 class="mb-0 {% if analytics.total_return >= 0 %}text-success{% else %}text-danger{% endif %}">
                                 ${{ "%.2f"|format(analytics.total_return) }}
                             </h3>
-                            <small class="{% if analytics.return_percentage >= 0 %}text-success{% else %}text-danger{% endif %}">
-                                {{ "%.2f"|format(analytics.return_percentage) }}%
+                            <small class="{% if analytics.total_return_pct >= 0 %}text-success{% else %}text-danger{% endif %}">
+                                {{ "%.2f"|format(analytics.total_return_pct) }}%
                             </small>
                         </div>
-                        <i class="fas fa-{% if analytics.total_return >= 0 %}arrow-up{% else %}arrow-down{% endif %} fa-2x {% if analytics.total_return >= 0 %}text-success{% else %}text-danger{% endif %}"></i>
+                        <i class="fas fa-{% if analytics.total_return >= 0 %}arrow-up{% else %}arrow-down{% endif %} fa-2x {% if analytics.total_return >= 0 %}text-success{% else %}text-danger{% endif %} opacity-50"></i>
                     </div>
                 </div>
             </div>
@@ -94,8 +88,8 @@
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
                             <p class="text-muted mb-1">Win Rate</p>
-                            <h3 class="mb-0">{{ "%.1f"|format(analytics.performance_metrics.win_rate|default(0)) }}%</h3>
-                            <small class="text-muted">{{ analytics.performance_metrics.winning_trades|default(0) }}/{{ analytics.performance_metrics.total_trades|default(0) }} trades</small>
+                            <h3 class="mb-0">{{ "%.1f"|format(analytics.get('performance_metrics', {}).get('win_rate', 0)) }}%</h3>
+                            <small class="text-muted">{{ analytics.get('performance_metrics', {}).get('winning_trades', 0) }}/{{ analytics.get('performance_metrics', {}).get('total_trades', 0) }} trades</small>
                         </div>
                         <i class="fas fa-trophy fa-2x text-warning"></i>
                     </div>
@@ -189,42 +183,49 @@
     
     <!-- Holdings Table -->
     <div class="card shadow mb-4">
-        <div class="card-header bg-success text-white">
-            <h5 class="mb-0"><i class="fas fa-briefcase me-2"></i>Current Holdings</h5>
-            <!-- New: Export Buttons -->
-            <div class="float-end">
-                <button class="btn btn-outline-light btn-sm" onclick="window.print()"><i class="fas fa-file-pdf"></i> Export PDF</button>
-                <button class="btn btn-outline-light btn-sm" onclick="exportCSV()"><i class="fas fa-file-csv"></i> Export CSV</button>
-            </div>
+        <div class="card-header" style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); color: white;">
+            <h5 class="mb-0"><i class="fas fa-briefcase me-2"></i>Current Holdings ({{ analytics.num_positions }})</h5>
         </div>
         <div class="card-body p-0">
-            {% if analytics.holdings %}
+            {% if analytics.positions %}
             <div class="table-responsive">
-                <table class="table table-hover mb-0">
-                    <thead>
+                <table class="table table-hover mb-0" id="holdingsTable">
+                    <thead class="table-light">
                         <tr>
                             <th>Symbol</th>
+                            <th>Sector</th>
                             <th class="text-end">Shares</th>
-                            <th class="text-end">Avg Cost</th>
                             <th class="text-end">Current Price</th>
                             <th class="text-end">Value</th>
                             <th class="text-end">Gain/Loss</th>
-                            <th class="text-end">% Weight</th>
+                            <th class="text-end">Weight</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {% for holding in analytics.holdings %}
+                        {% for pos in analytics.positions %}
                         <tr>
-                            <td><strong>{{ holding.symbol }}</strong></td>
-                            <td class="text-end">{{ holding.shares }}</td>
-                            <td class="text-end">${{ "%.2f"|format(holding.avg_price) }}</td>
-                            <td class="text-end">${{ "%.2f"|format(holding.current_price) }}</td>
-                            <td class="text-end"><strong>${{ "%.2f"|format(holding.current_value) }}</strong></td>
-                            <td class="text-end {% if holding.gain_loss >= 0 %}text-success{% else %}text-danger{% endif %}">
-                                ${{ "%.2f"|format(holding.gain_loss) }}
-                                ({{ "%.2f"|format(holding.gain_loss_pct) }}%)
+                            <td>
+                                <strong>{{ pos.symbol }}</strong>
+                                <a href="/quote?symbol={{ pos.symbol }}" class="btn btn-sm btn-link p-0 ms-1">
+                                    <i class="fas fa-external-link-alt"></i>
+                                </a>
                             </td>
-                            <td class="text-end">{{ "%.1f"|format(holding.portfolio_weight) }}%</td>
+                            <td><span class="badge bg-secondary">{{ pos.sector }}</span></td>
+                            <td class="text-end">{{ pos.shares }}</td>
+                            <td class="text-end">${{ "%.2f"|format(pos.current_price) }}</td>
+                            <td class="text-end"><strong>${{ "%.2f"|format(pos.current_value) }}</strong></td>
+                            <td class="text-end {% if pos.profit_loss >= 0 %}text-success{% else %}text-danger{% endif %}">
+                                <i class="fas fa-{% if pos.profit_loss >= 0 %}arrow-up{% else %}arrow-down{% endif %}"></i>
+                                ${{ "%.2f"|format(pos.profit_loss) }}
+                                <small>({{ "%.2f"|format(pos.profit_loss_pct) }}%)</small>
+                            </td>
+                            <td class="text-end">
+                                <div class="progress" style="height: 20px; min-width: 60px;">
+                                    <div class="progress-bar bg-primary" role="progressbar" style="width: {{ pos.weight }}%">
+                                        {{ "%.1f"|format(pos.weight) }}%
+                                    </div>
+                                </div>
+                            </td>
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -239,72 +240,33 @@
             {% endif %}
         </div>
     </div>
-    
-    <!-- Diversification Metrics -->
-    <div class="card shadow mb-4">
-        <div class="card-header bg-info text-white">
-            <h5 class="mb-0"><i class="fas fa-balance-scale me-2"></i>Diversification Analysis</h5>
-            <!-- New: Top/Bottom Performers -->
-            <div class="float-end">
-                <span class="badge bg-success">Top: {{ analytics.holdings[0].symbol if analytics.holdings else 'N/A' }}</span>
-                <span class="badge bg-danger">Bottom: {{ analytics.holdings[-1].symbol if analytics.holdings else 'N/A' }}</span>
-            </div>
-        </div>
-        <div class="card-body">
-            <div class="row">
-                <div class="col-md-3">
-                    <div class="text-center p-3 bg-light rounded">
-                        <i class="fas fa-boxes fa-2x text-primary mb-2"></i>
-                        <h4 class="mb-0">{{ analytics.diversification.num_holdings|default(0) }}</h4>
-                        <small class="text-muted">Holdings</small>
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="text-center p-3 bg-light rounded">
-                        <i class="fas fa-industry fa-2x text-success mb-2"></i>
-                        <h4 class="mb-0">{{ analytics.diversification.num_sectors|default(0) }}</h4>
-                        <small class="text-muted">Sectors</small>
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="text-center p-3 bg-light rounded">
-                        <i class="fas fa-percentage fa-2x text-warning mb-2"></i>
-                        <h4 class="mb-0">{{ "%.1f"|format(analytics.diversification.concentration|default(0)) }}%</h4>
-                        <small class="text-muted">Top Holding</small>
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="text-center p-3 bg-light rounded">
-                        <i class="fas fa-chart-bar fa-2x text-info mb-2"></i>
-                        <h4 class="mb-0">{{ "%.3f"|format(analytics.diversification.herfindahl_index|default(0)) }}</h4>
-                        <small class="text-muted">HHI (Lower = Better)</small>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
 // Export CSV function
 function exportCSV() {
-    let csv = 'Symbol,Shares,Avg Cost,Current Price,Value,Gain/Loss,% Weight\n';
-    {% for holding in analytics.holdings %}
-    csv += '{{ holding.symbol }},{{ holding.shares }},{{ holding.avg_price }},{{ holding.current_price }},{{ holding.current_value }},{{ holding.gain_loss }},{{ holding.portfolio_weight }}\n';
+    let csv = 'Symbol,Sector,Shares,Current Price,Value,Gain/Loss,% Weight\n';
+    {% for pos in analytics.positions %}
+    csv += '{{ pos.symbol }},{{ pos.sector }},{{ pos.shares }},{{ pos.current_price }},{{ pos.current_value }},{{ pos.profit_loss }},{{ pos.weight }}\n';
     {% endfor %}
     const blob = new Blob([csv], { type: 'text/csv' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = 'portfolio_analytics.csv';
+    link.download = 'portfolio_analytics_' + new Date().toISOString().split('T')[0] + '.csv';
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
 }
+
 // Performance Chart
 {% if performance_history %}
 const performanceCtx = document.getElementById('performanceChart').getContext('2d');
 const performanceData = {{ performance_history|tojson }};
+
+const gradient = performanceCtx.createLinearGradient(0, 0, 0, 400);
+gradient.addColorStop(0, 'rgba(102, 126, 234, 0.5)');
+gradient.addColorStop(1, 'rgba(118, 75, 162, 0.0)');
 
 new Chart(performanceCtx, {
     type: 'line',
@@ -313,23 +275,37 @@ new Chart(performanceCtx, {
         datasets: [{
             label: 'Portfolio Value',
             data: performanceData.map(d => d.value),
-            borderColor: 'rgb(99, 102, 241)',
-            backgroundColor: 'rgba(99, 102, 241, 0.1)',
+            borderColor: 'rgb(102, 126, 234)',
+            backgroundColor: gradient,
             fill: true,
-            tension: 0.4
+            tension: 0.4,
+            borderWidth: 3,
+            pointRadius: 0,
+            pointHoverRadius: 6,
+            pointHoverBackgroundColor: 'rgb(102, 126, 234)',
+            pointHoverBorderColor: '#fff',
+            pointHoverBorderWidth: 2
         }]
     },
     options: {
         responsive: true,
         maintainAspectRatio: false,
+        interaction: {
+            intersect: false,
+            mode: 'index'
+        },
         plugins: {
             legend: {
                 display: false
             },
             tooltip: {
+                backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                padding: 12,
+                titleFont: { size: 14, weight: 'bold' },
+                bodyFont: { size: 13 },
                 callbacks: {
                     label: function(context) {
-                        return '$' + context.parsed.y.toFixed(2);
+                        return 'Value: $' + context.parsed.y.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
                     }
                 }
             }
@@ -337,10 +313,23 @@ new Chart(performanceCtx, {
         scales: {
             y: {
                 beginAtZero: false,
+                grid: {
+                    color: 'rgba(0, 0, 0, 0.05)'
+                },
                 ticks: {
                     callback: function(value) {
-                        return '$' + value.toFixed(0);
-                    }
+                        return '$' + value.toLocaleString('en-US', {maximumFractionDigits: 0});
+                    },
+                    font: { size: 11 }
+                }
+            },
+            x: {
+                grid: {
+                    display: false
+                },
+                ticks: {
+                    maxTicksLimit: 10,
+                    font: { size: 11 }
                 }
             }
         }
@@ -368,8 +357,12 @@ new Chart(sectorCtx, {
                 'rgb(239, 68, 68)',
                 'rgb(168, 85, 247)',
                 'rgb(59, 130, 246)',
-                'rgb(236, 72, 153)'
-            ]
+                'rgb(236, 72, 153)',
+                'rgb(52, 211, 153)',
+                'rgb(251, 146, 60)'
+            ],
+            borderWidth: 2,
+            borderColor: '#fff'
         }]
     },
     options: {
@@ -377,9 +370,24 @@ new Chart(sectorCtx, {
         maintainAspectRatio: false,
         plugins: {
             legend: {
-                position: 'right'
+                position: 'right',
+                labels: {
+                    padding: 15,
+                    font: { size: 12 },
+                    generateLabels: function(chart) {
+                        const data = chart.data;
+                        return data.labels.map((label, i) => ({
+                            text: label + ' (' + data.datasets[0].data[i].toFixed(1) + '%)',
+                            fillStyle: data.datasets[0].backgroundColor[i],
+                            hidden: false,
+                            index: i
+                        }));
+                    }
+                }
             },
             tooltip: {
+                backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                padding: 12,
                 callbacks: {
                     label: function(context) {
                         return context.label + ': ' + context.parsed.toFixed(1) + '%';

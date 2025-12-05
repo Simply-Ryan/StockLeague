@@ -1,0 +1,358 @@
+{% extends "layout.html" %}
+{% block title %}Advanced Orders{% endblock %}
+{% block main %}
+<div class="container py-4">
+    <h1 class="mb-4"><i class="fas fa-sliders-h me-2"></i>Advanced Order Types</h1>
+    
+    <!-- Orders Tabs -->
+    <ul class="nav nav-pills mb-4" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="create-tab" data-bs-toggle="tab" data-bs-target="#create-orders" type="button">
+                <i class="fas fa-plus-circle"></i> Create Order
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="pending-tab" data-bs-toggle="tab" data-bs-target="#pending-orders" type="button">
+                <i class="fas fa-clock"></i> Pending Orders ({{ pending_orders|length }})
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="history-tab" data-bs-toggle="tab" data-bs-target="#order-history" type="button">
+                <i class="fas fa-history"></i> Order History
+            </button>
+        </li>
+    </ul>
+    
+    <div class="tab-content">
+        <!-- Create Order Tab -->
+        <div class="tab-pane fade show active" id="create-orders">
+            <div class="row">
+                <div class="col-lg-8">
+                    <div class="card shadow">
+                        <div class="card-header" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+                            <h5 class="mb-0"><i class="fas fa-chart-line me-2"></i>Place Advanced Order</h5>
+                        </div>
+                        <div class="card-body">
+                            <form action="/advanced-orders/create" method="post">
+                                <!-- Symbol Input -->
+                                <div class="mb-3">
+                                    <label class="form-label">Stock Symbol</label>
+                                    <input type="text" class="form-control" name="symbol" id="symbol" required placeholder="AAPL" autocomplete="off" value="{{ symbol }}">
+                                    <div id="symbol-info" class="mt-2"></div>
+                                </div>
+                                
+                                <!-- Order Type Selection -->
+                                <div class="mb-3">
+                                    <label class="form-label">Order Type</label>
+                                    <select class="form-select" name="order_type" id="order_type" required>
+                                        <option value="" disabled selected>Choose order type...</option>
+                                        <option value="limit">Limit Order - Buy/Sell at specific price or better</option>
+                                        <option value="stop">Stop Order - Trigger order when price reaches level</option>
+                                        <option value="stop_limit">Stop-Limit - Trigger at stop, execute at limit</option>
+                                        <option value="trailing_stop">Trailing Stop - Dynamic stop that follows price</option>
+                                    </select>
+                                </div>
+                                
+                                <!-- Action (Buy/Sell) -->
+                                <div class="mb-3">
+                                    <label class="form-label">Action</label>
+                                    <div class="btn-group w-100" role="group">
+                                        <input type="radio" class="btn-check" name="action" id="action-buy" value="buy" required>
+                                        <label class="btn btn-outline-success" for="action-buy">
+                                            <i class="fas fa-arrow-up"></i> BUY
+                                        </label>
+                                        
+                                        <input type="radio" class="btn-check" name="action" id="action-sell" value="sell">
+                                        <label class="btn btn-outline-danger" for="action-sell">
+                                            <i class="fas fa-arrow-down"></i> SELL
+                                        </label>
+                                    </div>
+                                </div>
+                                
+                                <!-- Shares -->
+                                <div class="mb-3">
+                                    <label class="form-label">Number of Shares</label>
+                                    <input type="number" class="form-control" name="shares" min="1" required placeholder="100">
+                                </div>
+                                
+                                <!-- Limit Price (for limit and stop-limit) -->
+                                <div class="mb-3" id="limit-price-group" style="display: none;">
+                                    <label class="form-label">Limit Price ($)</label>
+                                    <input type="number" class="form-control" name="limit_price" step="0.01" min="0.01" placeholder="150.00">
+                                    <small class="text-muted">Maximum price for buy, minimum price for sell</small>
+                                </div>
+                                
+                                <!-- Stop Price (for stop and stop-limit) -->
+                                <div class="mb-3" id="stop-price-group" style="display: none;">
+                                    <label class="form-label">Stop Price ($)</label>
+                                    <input type="number" class="form-control" name="stop_price" step="0.01" min="0.01" placeholder="145.00">
+                                    <small class="text-muted">Price at which the order is triggered</small>
+                                </div>
+                                
+                                <!-- Trailing Stop Options -->
+                                <div id="trailing-stop-group" style="display: none;">
+                                    <div class="mb-3">
+                                        <label class="form-label">Trailing Type</label>
+                                        <select class="form-select" name="trailing_type" id="trailing_type">
+                                            <option value="percent">Percentage (%)</option>
+                                            <option value="amount">Dollar Amount ($)</option>
+                                        </select>
+                                    </div>
+                                    
+                                    <div class="mb-3" id="trailing-percent-group">
+                                        <label class="form-label">Trailing Percentage (%)</label>
+                                        <input type="number" class="form-control" name="trailing_percent" step="0.1" min="0.1" max="50" placeholder="5">
+                                        <small class="text-muted">Stop will trail price by this percentage</small>
+                                    </div>
+                                    
+                                    <div class="mb-3" id="trailing-amount-group" style="display: none;">
+                                        <label class="form-label">Trailing Amount ($)</label>
+                                        <input type="number" class="form-control" name="trailing_amount" step="0.01" min="0.01" placeholder="5.00">
+                                        <small class="text-muted">Stop will trail price by this dollar amount</small>
+                                    </div>
+                                </div>
+                                
+                                <!-- Expiration -->
+                                <div class="mb-3">
+                                    <label class="form-label">Order Expiration</label>
+                                    <select class="form-select" name="expiration" id="expiration">
+                                        <option value="day">Day Order (expires end of trading day)</option>
+                                        <option value="gtc" selected>Good-Till-Canceled (GTC)</option>
+                                        <option value="week">1 Week</option>
+                                        <option value="month">1 Month</option>
+                                        <option value="custom">Custom Date</option>
+                                    </select>
+                                </div>
+                                
+                                <div class="mb-3" id="custom-expiration-group" style="display: none;">
+                                    <label class="form-label">Custom Expiration Date</label>
+                                    <input type="datetime-local" class="form-control" name="custom_expiration">
+                                </div>
+                                
+                                <!-- Notes -->
+                                <div class="mb-3">
+                                    <label class="form-label">Notes (Optional)</label>
+                                    <textarea class="form-control" name="notes" rows="2" placeholder="Trading strategy, reasoning, etc."></textarea>
+                                </div>
+                                
+                                <!-- Submit Button -->
+                                <div class="d-grid gap-2">
+                                    <button type="submit" class="btn btn-primary btn-lg">
+                                        <i class="fas fa-paper-plane me-2"></i>Place Order
+                                    </button>
+                                    <a href="/quote" class="btn btn-outline-secondary">
+                                        <i class="fas fa-arrow-left me-2"></i>Back to Quote
+                                    </a>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Order Type Explanations -->
+                <div class="col-lg-4">
+                    <div class="card shadow mb-3">
+                        <div class="card-header bg-info text-white">
+                            <h6 class="mb-0"><i class="fas fa-info-circle me-2"></i>Order Types Explained</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <strong><i class="fas fa-tag text-primary me-2"></i>Limit Order</strong>
+                                <p class="small mb-0">Buy or sell at a specific price or better. Guarantees price but not execution.</p>
+                            </div>
+                            <hr>
+                            <div class="mb-3">
+                                <strong><i class="fas fa-stop-circle text-warning me-2"></i>Stop Order</strong>
+                                <p class="small mb-0">Becomes a market order when price reaches stop level. Used for stop-losses.</p>
+                            </div>
+                            <hr>
+                            <div class="mb-3">
+                                <strong><i class="fas fa-layer-group text-success me-2"></i>Stop-Limit</strong>
+                                <p class="small mb-0">Combines stop and limit. Triggers at stop price, executes at limit price.</p>
+                            </div>
+                            <hr>
+                            <div>
+                                <strong><i class="fas fa-chart-line text-danger me-2"></i>Trailing Stop</strong>
+                                <p class="small mb-0">Dynamic stop that follows price movements. Locks in profits while limiting losses.</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="card shadow">
+                        <div class="card-header bg-warning text-dark">
+                            <h6 class="mb-0"><i class="fas fa-exclamation-triangle me-2"></i>Important Notes</h6>
+                        </div>
+                        <div class="card-body">
+                            <ul class="small mb-0">
+                                <li>Orders are checked every minute during market hours</li>
+                                <li>Execution price may vary from your limit/stop price</li>
+                                <li>GTC orders remain active until filled or canceled</li>
+                                <li>Day orders expire at market close</li>
+                                <li>You can cancel pending orders anytime</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Pending Orders Tab -->
+        <div class="tab-pane fade" id="pending-orders">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="fas fa-clock me-2"></i>Active Pending Orders</h5>
+                </div>
+                <div class="card-body">
+                    {% if pending_orders %}
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Symbol</th>
+                                    <th>Type</th>
+                                    <th>Action</th>
+                                    <th class="text-end">Shares</th>
+                                    <th class="text-end">Trigger Price</th>
+                                    <th>Created</th>
+                                    <th>Expires</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for order in pending_orders %}
+                                <tr>
+                                    <td><strong>{{ order.symbol }}</strong></td>
+                                    <td><span class="badge bg-secondary">{{ order.order_type|upper }}</span></td>
+                                    <td>
+                                        <span class="badge bg-{% if order.action == 'buy' %}success{% else %}danger{% endif %}">
+                                            {{ order.action|upper }}
+                                        </span>
+                                    </td>
+                                    <td class="text-end">{{ order.shares }}</td>
+                                    <td class="text-end">
+                                        {% if order.limit_price %}${{ "%.2f"|format(order.limit_price) }}{% endif %}
+                                        {% if order.stop_price %}${{ "%.2f"|format(order.stop_price) }}{% endif %}
+                                        {% if order.trailing_percent %}{{ "%.1f"|format(order.trailing_percent) }}%{% endif %}
+                                    </td>
+                                    <td>{{ order.created_at.split()[0] }}</td>
+                                    <td>{{ order.expiration if order.expiration else 'GTC' }}</td>
+                                    <td>
+                                        <form action="/advanced-orders/cancel/{{ order.id }}" method="post" style="display: inline;">
+                                            <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Cancel this order?')">
+                                                <i class="fas fa-times"></i> Cancel
+                                            </button>
+                                        </form>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="text-center py-5">
+                        <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+                        <p class="text-muted">No pending orders</p>
+                        <button class="btn btn-primary" id="goto-create">Create Your First Order</button>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
+        <!-- Order History Tab -->
+        <div class="tab-pane fade" id="order-history">
+            <div class="card shadow">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0"><i class="fas fa-check-circle me-2"></i>Executed & Cancelled Orders</h5>
+                </div>
+                <div class="card-body">
+                    <p class="text-center text-muted">Coming soon - View your order history</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Order type dependent fields
+const orderTypeSelect = document.getElementById('order_type');
+const limitPriceGroup = document.getElementById('limit-price-group');
+const stopPriceGroup = document.getElementById('stop-price-group');
+const trailingStopGroup = document.getElementById('trailing-stop-group');
+const trailingTypeSelect = document.getElementById('trailing_type');
+const trailingPercentGroup = document.getElementById('trailing-percent-group');
+const trailingAmountGroup = document.getElementById('trailing-amount-group');
+
+orderTypeSelect.addEventListener('change', function() {
+    // Hide all first
+    limitPriceGroup.style.display = 'none';
+    stopPriceGroup.style.display = 'none';
+    trailingStopGroup.style.display = 'none';
+    
+    // Show relevant fields
+    if (this.value === 'limit' || this.value === 'stop_limit') {
+        limitPriceGroup.style.display = 'block';
+    }
+    if (this.value === 'stop' || this.value === 'stop_limit') {
+        stopPriceGroup.style.display = 'block';
+    }
+    if (this.value === 'trailing_stop') {
+        trailingStopGroup.style.display = 'block';
+    }
+});
+
+// Trailing stop type toggle
+trailingTypeSelect.addEventListener('change', function() {
+    if (this.value === 'percent') {
+        trailingPercentGroup.style.display = 'block';
+        trailingAmountGroup.style.display = 'none';
+    } else {
+        trailingPercentGroup.style.display = 'none';
+        trailingAmountGroup.style.display = 'block';
+    }
+});
+
+// Custom expiration toggle
+document.getElementById('expiration').addEventListener('change', function() {
+    document.getElementById('custom-expiration-group').style.display = 
+        this.value === 'custom' ? 'block' : 'none';
+});
+
+// Symbol lookup
+const symbolInput = document.getElementById('symbol');
+let debounceTimer;
+
+symbolInput.addEventListener('input', function() {
+    clearTimeout(debounceTimer);
+    const symbol = this.value.toUpperCase().trim();
+    
+    if (symbol.length >= 1) {
+        debounceTimer = setTimeout(() => {
+            fetch(`/api/quote/${symbol}`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.error) {
+                        document.getElementById('symbol-info').innerHTML = `<div class="alert alert-warning py-2">${data.error}</div>`;
+                    } else {
+                        const changeColor = data.change >= 0 ? 'success' : 'danger';
+                        document.getElementById('symbol-info').innerHTML = `
+                            <div class="alert alert-info py-2">
+                                <strong>${data.name}</strong> - $${data.price.toFixed(2)}
+                                <span class="text-${changeColor}">
+                                    ${data.change >= 0 ? '+' : ''}${data.change.toFixed(2)} (${data.change_percent.toFixed(2)}%)
+                                </span>
+                            </div>
+                        `;
+                    }
+                })
+                .catch(err => console.error(err));
+        }, 500);
+    }
+});
+
+// Navigate to create tab
+document.getElementById('goto-create')?.addEventListener('click', function() {
+    document.getElementById('create-tab').click();
+});
+</script>
+{% endblock %}

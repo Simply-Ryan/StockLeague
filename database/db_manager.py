@@ -8,6 +8,7 @@ class DatabaseManager:
         self.db_path = db_path
         self.init_db()
         self.init_chat_table()
+        self.init_activity_reactions_table()
 
     def init_chat_table(self):
         """Initialize chat messages table."""
@@ -17,25 +18,31 @@ class DatabaseManager:
             CREATE TABLE IF NOT EXISTS chat_messages (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 room TEXT NOT NULL,
+                user_id INTEGER,
                 username TEXT NOT NULL,
                 message TEXT,
                 type TEXT DEFAULT 'text',
                 filedata TEXT,
                 filename TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id)
             )
+        ''')
+        # Create index for faster queries
+        cursor.execute('''
+            CREATE INDEX IF NOT EXISTS idx_chat_room ON chat_messages(room, created_at DESC)
         ''')
         conn.commit()
         conn.close()
 
-    def insert_chat_message(self, room, username, message, msg_type='text', filedata=None, filename=None):
+    def insert_chat_message(self, room, username, message, msg_type='text', filedata=None, filename=None, user_id=None):
         """Insert a new chat message."""
         conn = self.get_connection()
         cursor = conn.cursor()
         cursor.execute('''
-            INSERT INTO chat_messages (room, username, message, type, filedata, filename)
-            VALUES (?, ?, ?, ?, ?, ?)
-        ''', (room, username, message, msg_type, filedata, filename))
+            INSERT INTO chat_messages (room, user_id, username, message, type, filedata, filename)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        ''', (room, user_id, username, message, msg_type, filedata, filename))
         conn.commit()
         conn.close()
 
@@ -44,7 +51,7 @@ class DatabaseManager:
         conn = self.get_connection()
         cursor = conn.cursor()
         cursor.execute('''
-            SELECT username, message, type, filedata, filename, created_at FROM chat_messages
+            SELECT user_id, username, message, type, filedata, filename, created_at FROM chat_messages
             WHERE room = ?
             ORDER BY created_at DESC
             LIMIT ?
@@ -53,6 +60,56 @@ class DatabaseManager:
         conn.close()
         # Return in chronological order
         return [dict(row) for row in reversed(rows)]
+
+    def get_user_conversations(self, user_id):
+        """Get list of conversations (direct messages and leagues) for a user."""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        conversations = []
+        
+        # Get friends for direct messages
+        cursor.execute('''
+            SELECT u.id, u.username
+            FROM users u
+            JOIN friends f ON (f.friend_id = u.id OR f.user_id = u.id)
+            WHERE (f.user_id = ? OR f.friend_id = ?)
+            AND f.status = 'accepted'
+            AND u.id != ?
+        ''', (user_id, user_id, user_id))
+        
+        friends = cursor.fetchall()
+        for friend in friends:
+            # Generate consistent room ID (lower ID first)
+            room_id = f'dm_{min(user_id, friend[0])}_{max(user_id, friend[0])}'
+            conversations.append({
+                'type': 'dm',
+                'id': room_id,
+                'name': friend[1],
+                'user_id': friend[0]
+            })
+        
+        # Get league conversations
+        cursor.execute('''
+            SELECT l.id, l.name
+            FROM leagues l
+            JOIN league_members lm ON l.id = lm.league_id
+            WHERE lm.user_id = ?
+            AND l.is_active = 1
+            ORDER BY l.name
+        ''', (user_id,))
+        
+        leagues = cursor.fetchall()
+        for league in leagues:
+            conversations.append({
+                'type': 'league',
+                'id': f'league_{league[0]}',
+                'name': league[1],
+                'league_id': league[0]
+            })
+        
+        conn.close()
+        return conversations
 
     def get_portfolio_snapshots(self, user_id, limit=90):
         """Get recent portfolio snapshots for a user (limit N)"""
@@ -110,6 +167,29 @@ class DatabaseManager:
                 strategy TEXT,
                 notes TEXT,
                 timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id)
+            )
+        """)
+        
+        # Pending orders table for advanced order types
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS pending_orders (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                symbol TEXT NOT NULL,
+                shares INTEGER NOT NULL,
+                order_type TEXT NOT NULL,
+                action TEXT NOT NULL,
+                limit_price NUMERIC,
+                stop_price NUMERIC,
+                trailing_percent NUMERIC,
+                trailing_amount NUMERIC,
+                status TEXT DEFAULT 'pending',
+                expiration TIMESTAMP,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                executed_at TIMESTAMP,
+                cancelled_at TIMESTAMP,
+                notes TEXT,
                 FOREIGN KEY (user_id) REFERENCES users(id)
             )
         """)
@@ -540,6 +620,9 @@ class DatabaseManager:
         # ============ INDEXES FOR PERFORMANCE ============
         
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_user_transactions ON transactions(user_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_pending_orders_user ON pending_orders(user_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_pending_orders_status ON pending_orders(status)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_pending_orders_symbol ON pending_orders(symbol)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_username ON users(username)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_friends_user ON friends(user_id)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_friends_status ON friends(status)")
@@ -782,6 +865,128 @@ class DatabaseManager:
         conn.close()
         
         return dict(stock) if stock else None
+    
+    # ============ PENDING ORDERS METHODS ============
+    
+    def create_pending_order(self, user_id, symbol, shares, order_type, action, limit_price=None, stop_price=None, trailing_percent=None, trailing_amount=None, expiration=None, notes=None):
+        """Create a new pending order (limit, stop, trailing stop, etc.)"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            INSERT INTO pending_orders 
+            (user_id, symbol, shares, order_type, action, limit_price, stop_price, trailing_percent, trailing_amount, expiration, notes)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (user_id, symbol, shares, order_type, action, limit_price, stop_price, trailing_percent, trailing_amount, expiration, notes))
+        
+        order_id = cursor.lastrowid
+        conn.commit()
+        conn.close()
+        
+        return order_id
+    
+    def get_pending_orders(self, user_id, status='pending'):
+        """Get all pending orders for a user"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            SELECT * FROM pending_orders
+            WHERE user_id = ? AND status = ?
+            ORDER BY created_at DESC
+        """, (user_id, status))
+        
+        orders = cursor.fetchall()
+        conn.close()
+        
+        return [dict(order) for order in orders]
+    
+    def get_pending_order(self, order_id):
+        """Get a specific pending order"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute("SELECT * FROM pending_orders WHERE id = ?", (order_id,))
+        order = cursor.fetchone()
+        conn.close()
+        
+        return dict(order) if order else None
+    
+    def execute_pending_order(self, order_id, execution_price):
+        """Mark order as executed"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            UPDATE pending_orders
+            SET status = 'executed', executed_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        """, (order_id,))
+        
+        conn.commit()
+        conn.close()
+    
+    def cancel_pending_order(self, order_id):
+        """Cancel a pending order"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            UPDATE pending_orders
+            SET status = 'cancelled', cancelled_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        """, (order_id,))
+        
+        conn.commit()
+        conn.close()
+    
+    def check_and_execute_orders(self, symbol, current_price):
+        """Check all pending orders for a symbol and execute if conditions are met"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        # Get all pending orders for this symbol
+        cursor.execute("""
+            SELECT * FROM pending_orders
+            WHERE symbol = ? AND status = 'pending'
+        """, (symbol,))
+        
+        orders = cursor.fetchall()
+        executed_orders = []
+        
+        for order in orders:
+            order_dict = dict(order)
+            should_execute = False
+            
+            if order_dict['order_type'] == 'limit':
+                # Limit Buy: execute when price <= limit_price
+                # Limit Sell: execute when price >= limit_price
+                if order_dict['action'] == 'buy' and current_price <= order_dict['limit_price']:
+                    should_execute = True
+                elif order_dict['action'] == 'sell' and current_price >= order_dict['limit_price']:
+                    should_execute = True
+            
+            elif order_dict['order_type'] == 'stop':
+                # Stop Buy: execute when price >= stop_price
+                # Stop Sell: execute when price <= stop_price
+                if order_dict['action'] == 'buy' and current_price >= order_dict['stop_price']:
+                    should_execute = True
+                elif order_dict['action'] == 'sell' and current_price <= order_dict['stop_price']:
+                    should_execute = True
+            
+            elif order_dict['order_type'] == 'stop_limit':
+                # Stop-Limit: trigger at stop_price, execute at limit_price
+                if order_dict['action'] == 'buy' and current_price >= order_dict['stop_price'] and current_price <= order_dict['limit_price']:
+                    should_execute = True
+                elif order_dict['action'] == 'sell' and current_price <= order_dict['stop_price'] and current_price >= order_dict['limit_price']:
+                    should_execute = True
+            
+            if should_execute:
+                executed_orders.append(order_dict)
+                self.execute_pending_order(order_dict['id'], current_price)
+        
+        conn.close()
+        return executed_orders
     
     # ============ FRIENDS SYSTEM METHODS ============
     
@@ -2966,3 +3171,89 @@ class DatabaseManager:
         conn.close()
         
         return [dict(row) for row in traders]
+    
+    # === Activity Reactions ===
+    
+    def init_activity_reactions_table(self):
+        """Initialize activity reactions table for emoji reactions on feed items"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS activity_reactions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                activity_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                emoji TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(activity_id, user_id),
+                FOREIGN KEY (user_id) REFERENCES users(id)
+            )
+        ''')
+        cursor.execute('''
+            CREATE INDEX IF NOT EXISTS idx_activity_reactions_activity 
+            ON activity_reactions(activity_id)
+        ''')
+        conn.commit()
+        conn.close()
+    
+    def add_activity_reaction(self, activity_id, user_id, emoji):
+        """Add or update an emoji reaction to an activity"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            INSERT INTO activity_reactions (activity_id, user_id, emoji)
+            VALUES (?, ?, ?)
+            ON CONFLICT(activity_id, user_id) 
+            DO UPDATE SET emoji = ?, created_at = CURRENT_TIMESTAMP
+        ''', (activity_id, user_id, emoji, emoji))
+        conn.commit()
+        conn.close()
+    
+    def remove_activity_reaction(self, activity_id, user_id):
+        """Remove a user's reaction from an activity"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            DELETE FROM activity_reactions 
+            WHERE activity_id = ? AND user_id = ?
+        ''', (activity_id, user_id))
+        conn.commit()
+        conn.close()
+    
+    def get_activity_reactions(self, activity_id):
+        """Get all reactions for an activity grouped by emoji"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT emoji, COUNT(*) as count, GROUP_CONCAT(user_id) as user_ids
+            FROM activity_reactions
+            WHERE activity_id = ?
+            GROUP BY emoji
+            ORDER BY count DESC
+        ''', (activity_id,))
+        
+        reactions = cursor.fetchall()
+        conn.close()
+        
+        result = []
+        for row in reactions:
+            result.append({
+                'emoji': row[0],
+                'count': row[1],
+                'user_ids': [int(uid) for uid in row[2].split(',') if uid]
+            })
+        return result
+    
+    def get_user_activity_reaction(self, activity_id, user_id):
+        """Get a specific user's reaction to an activity"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT emoji FROM activity_reactions
+            WHERE activity_id = ? AND user_id = ?
+        ''', (activity_id, user_id))
+        
+        result = cursor.fetchone()
+        conn.close()
+        
+        return result[0] if result else None

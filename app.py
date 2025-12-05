@@ -37,8 +37,14 @@ app = Flask(__name__)
 # Secret key for session management (change in production!)
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY") or "dev-secret-key-change-in-production"
 
-# Custom filter
+# Custom filters
 app.jinja_env.filters["usd"] = usd
+app.jinja_env.filters["abs"] = abs
+app.jinja_env.filters["min"] = min
+app.jinja_env.filters["max"] = max
+
+# Add built-in functions to Jinja2 globals
+app.jinja_env.globals.update(abs=abs, min=min, max=max)
 
 # Configure session to use filesystem (instead of signed cookies)
 app.config["SESSION_PERMANENT"] = False
@@ -90,66 +96,25 @@ def admin_api_chat_reports():
 
 # --- Trading Event Chat Integration ---
 def send_trade_alert_to_chat(user_id, symbol, shares, price, trade_type):
+    """Send trade alerts to user's league chats"""
     user = db.get_user(user_id)
     username = user["username"] if user else "User"
     msg = f"{username} just {trade_type} {shares} shares of {symbol} at {usd(price)}."
-    # Send to General chat room
-    socketio.emit('chat_message', {
-        'id': str(uuid.uuid4()),
-        'username': 'System',
-        'message': msg,
-        'time': datetime.now().strftime('%H:%M'),
-        'reactions': {}
-    }, room='General')
-    # Optionally persist to chat history
-    db.insert_chat_message('General', 'System', msg)
-import os
-import random
-import uuid
-from flask import Flask, flash, redirect, render_template, request, session, jsonify, send_file
-from flask_session import Session
-from flask_socketio import SocketIO, emit, join_room, leave_room
-from werkzeug.security import check_password_hash, generate_password_hash
-from functools import wraps
-from helpers import apology, lookup, usd, get_chart_data, get_popular_stocks, get_market_movers, get_stock_news, get_option_price_and_greeks, analyze_sentiment, fetch_news_finnhub, get_cached_or_fetch_news
-from database.db_manager import DatabaseManager
-from dotenv import load_dotenv
-import threading
-import time
-from datetime import datetime
-from collections import defaultdict
-
-# Load environment variables
-load_dotenv()
-
-# Configure application
-app = Flask(__name__)
-
-# Secret key for session management (change in production!)
-app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY") or "dev-secret-key-change-in-production"
-
-# Custom filter
-app.jinja_env.filters["usd"] = usd
-
-# Configure session to use filesystem (instead of signed cookies)
-app.config["SESSION_PERMANENT"] = False
-app.config["SESSION_TYPE"] = "filesystem"
-Session(app)
-
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode='eventlet')
-
-# --- Login Required Decorator (move up) ---
-def login_required(f):
-    """
-    Decorate routes to require login.
-    https://flask.palletsprojects.com/en/latest/patterns/viewdecorators/
-    """
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if session.get("user_id") is None:
-            return redirect("/login")
-        return f(*args, **kwargs)
-    return decorated_function
+    
+    # Get user's leagues and send to each league chat
+    leagues = db.get_user_leagues(user_id)
+    for league in leagues:
+        league_room = f'league_{league["id"]}'
+        socketio.emit('chat_message', {
+            'id': str(uuid.uuid4()),
+            'user_id': None,
+            'username': 'System',
+            'message': msg,
+            'time': datetime.now().strftime('%H:%M'),
+            'reactions': {}
+        }, room=league_room)
+        # Persist to chat history
+        db.insert_chat_message(league_room, 'System', msg)
 
 # --- Real-Time Chat System ---
 # In-memory chat storage (replace with DB for production)
@@ -169,27 +134,79 @@ user_notifications = defaultdict(list)  # username -> list of notifications
 @app.route("/chat")
 @login_required
 def chat():
-    return render_template("chat.html")
+    user_id = session.get("user_id")
+    username = session.get("username", "User")
+    conversations = db.get_user_conversations(user_id)
+    return render_template("chat.html", conversations=conversations, username=username)
+
+@app.route("/api/conversations")
+@login_required
+def api_conversations():
+    user_id = session.get("user_id")
+    conversations = db.get_user_conversations(user_id)
+    return jsonify({"conversations": conversations})
 
 # SocketIO events
 @socketio.on('join_room')
 def handle_join_room(data):
-    room = data.get('room', 'General')
-    username = data.get('username', 'User')
-    # Prevent banned users from joining
-    if username in banned_users[room]:
-        emit('chat_notification', {'type': 'system', 'message': 'You are banned from this room.'}, room=request.sid)
+    room = data.get('room')
+    username = session.get('username', 'User')
+    user_id = session.get('user_id')
+    
+    if not room:
         return
-    # Private/group room access control
-    if room in private_rooms and private_rooms[room] and username not in private_rooms[room]:
-        emit('chat_notification', {'type': 'system', 'message': 'You are not a member of this private room.'}, room=request.sid)
-        return
+    
+    # Verify access to room
+    if room.startswith('dm_'):
+        # Direct message - verify user is part of the conversation
+        parts = room.split('_')
+        if len(parts) == 3:
+            try:
+                user1_id = int(parts[1])
+                user2_id = int(parts[2])
+                if user_id not in [user1_id, user2_id]:
+                    emit('chat_notification', {'type': 'error', 'message': 'Access denied.'}, room=request.sid)
+                    return
+            except ValueError:
+                return
+    elif room.startswith('league_'):
+        # League chat - verify user is member
+        parts = room.split('_')
+        if len(parts) == 2:
+            try:
+                league_id = int(parts[1])
+                # Check if user is league member
+                conn = db.get_connection()
+                cursor = conn.cursor()
+                cursor.execute('SELECT 1 FROM league_members WHERE league_id = ? AND user_id = ?', (league_id, user_id))
+                if not cursor.fetchone():
+                    conn.close()
+                    emit('chat_notification', {'type': 'error', 'message': 'You are not a member of this league.'}, room=request.sid)
+                    return
+                conn.close()
+            except ValueError:
+                return
+    
     join_room(room)
     chat_users[room].add(username)
     emit('user_presence', list(chat_users[room]), room=room)
     # Load chat history from DB
     history = db.get_chat_history(room, limit=100)
     emit('chat_history', history, room=request.sid)
+
+@socketio.on('leave_room')
+def handle_leave_room(data):
+    room = data.get('room')
+    username = session.get('username', 'User')
+    
+    if not room:
+        return
+    
+    leave_room(room)
+    if room in chat_users:
+        chat_users[room].discard(username)
+        emit('user_presence', list(chat_users[room]), room=room)
+
 # Create private/group room
 @socketio.on('create_private_room')
 def handle_create_private_room(data):
@@ -215,16 +232,18 @@ def handle_invite_to_room(data):
 
 @socketio.on('chat_message')
 def handle_chat_message(data):
-    room = data.get('room', 'General')
-    username = data.get('username', 'User')
+    room = data.get('room')
+    username = session.get('username', 'User')
+    user_id = session.get('user_id')
     message = data.get('message', '')
-    # Prevent muted users from sending messages
-    if username in muted_users[room]:
-        emit('chat_notification', {'type': 'system', 'message': 'You are muted in this room.'}, room=request.sid)
+    
+    if not room or not message:
         return
+    
     msg_id = str(uuid.uuid4())
     msg = {
         'id': msg_id,
+        'user_id': user_id,
         'username': username,
         'message': message,
         'time': datetime.now().strftime('%H:%M'),
@@ -232,7 +251,7 @@ def handle_chat_message(data):
     }
     chat_rooms[room].append(msg)
     # Persist to DB
-    db.insert_chat_message(room, username, message)
+    db.insert_chat_message(room, username, message, user_id=user_id)
     emit('chat_message', msg, room=room)
 # Moderation events
 @socketio.on('mute_user')
@@ -318,13 +337,19 @@ def handle_send_notification(data):
 
 @socketio.on('chat_file')
 def handle_chat_file(data):
-    room = data.get('room', 'General')
-    username = data.get('username', 'User')
+    room = data.get('room')
+    username = session.get('username', 'User')
+    user_id = session.get('user_id')
     filename = data.get('filename', 'file')
     filedata = data.get('data', '')
+    
+    if not room:
+        return
+    
     msg_id = str(uuid.uuid4())
     msg = {
         'id': msg_id,
+        'user_id': user_id,
         'username': username,
         'filename': filename,
         'data': filedata,
@@ -333,13 +358,17 @@ def handle_chat_file(data):
     }
     chat_rooms[room].append(msg)
     # Persist to DB
-    db.insert_chat_message(room, username, None, msg_type='file', filedata=filedata, filename=filename)
+    db.insert_chat_message(room, username, None, msg_type='file', filedata=filedata, filename=filename, user_id=user_id)
     emit('chat_file', msg, room=room)
 
 @socketio.on('typing')
 def handle_typing(data):
-    room = data.get('room', 'General')
-    username = data.get('username', 'User')
+    room = data.get('room')
+    username = session.get('username', 'User')
+    
+    if not room:
+        return
+    
     user_typing[room].add(username)
     emit('show_typing', {'username': username}, room=room)
     # Remove after short delay
@@ -380,19 +409,6 @@ app.config["TEMPLATES_AUTO_RELOAD"] = True
 
 # Store active stock subscriptions (symbol -> set of session_ids)
 stock_subscriptions = {}
-
-
-def login_required(f):
-    """
-    Decorate routes to require login.
-    https://flask.palletsprojects.com/en/latest/patterns/viewdecorators/
-    """
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if session.get("user_id") is None:
-            return redirect("/login")
-        return f(*args, **kwargs)
-    return decorated_function
 
 
 def create_portfolio_snapshot(user_id):
@@ -657,6 +673,31 @@ def buy():
         # Create portfolio snapshot
         create_portfolio_snapshot(user_id)
         
+        # Emit real-time portfolio update
+        user_updated = db.get_user(user_id)
+        stocks_updated = db.get_user_stocks(user_id)
+        portfolio_value = user_updated["cash"]
+        for stock in stocks_updated:
+            q = lookup(stock["symbol"])
+            if q:
+                portfolio_value += stock["shares"] * q["price"]
+        
+        socketio.emit('portfolio_update', {
+            'cash': user_updated["cash"],
+            'total_value': portfolio_value,
+            'stocks': [{'symbol': s["symbol"], 'shares': s["shares"]} for s in stocks_updated]
+        }, room=f'user_{user_id}')
+        
+        # Emit order execution notification
+        socketio.emit('order_executed', {
+            'type': 'buy',
+            'symbol': symbol,
+            'shares': shares,
+            'price': price,
+            'total': total_cost,
+            'timestamp': datetime.now().isoformat()
+        }, room=f'user_{user_id}')
+        
         # Check for achievements
         achievements = check_achievements(user_id)
         
@@ -703,9 +744,18 @@ def analytics():
     # Get performance history for chart
     performance_history = calculate_portfolio_performance_history(user_id, db, days=90)
     
+    # Format performance history for charts
+    perf_chart = []
+    if performance_history:
+        for point in performance_history:
+            perf_chart.append({
+                'date': point['date'].split()[0] if isinstance(point['date'], str) else point['date'].strftime('%Y-%m-%d'),
+                'value': float(point['total_value'])
+            })
+    
     return render_template("analytics.html", 
                          analytics=analytics_data,
-                         performance_history=performance_history)
+                         performance_history=perf_chart)
 
 
 @app.route("/api/analytics/<int:user_id>")
@@ -892,6 +942,31 @@ def sell():
         
         # Create portfolio snapshot
         create_portfolio_snapshot(user_id)
+        
+        # Emit real-time portfolio update
+        user_updated = db.get_user(user_id)
+        stocks_updated = db.get_user_stocks(user_id)
+        portfolio_value = user_updated["cash"]
+        for stock in stocks_updated:
+            q = lookup(stock["symbol"])
+            if q:
+                portfolio_value += stock["shares"] * q["price"]
+        
+        socketio.emit('portfolio_update', {
+            'cash': user_updated["cash"],
+            'total_value': portfolio_value,
+            'stocks': [{'symbol': s["symbol"], 'shares': s["shares"]} for s in stocks_updated]
+        }, room=f'user_{user_id}')
+        
+        # Emit order execution notification
+        socketio.emit('order_executed', {
+            'type': 'sell',
+            'symbol': symbol,
+            'shares': shares,
+            'price': price,
+            'total': total_value,
+            'timestamp': datetime.now().isoformat()
+        }, room=f'user_{user_id}')
         
         # Check for achievements
         achievements = check_achievements(user_id)
@@ -1772,6 +1847,38 @@ def notifications_recent():
     return {"notifications": formatted_notifications}
 
 
+@app.route("/api/portfolio/value")
+@login_required
+def api_portfolio_value():
+    """Get current portfolio value with live prices"""
+    user_id = session["user_id"]
+    user = db.get_user(user_id)
+    stocks = db.get_user_stocks(user_id)
+    
+    portfolio_value = user["cash"]
+    holdings = []
+    
+    for stock in stocks:
+        quote = lookup(stock["symbol"])
+        if quote:
+            stock_value = stock["shares"] * quote["price"]
+            portfolio_value += stock_value
+            holdings.append({
+                'symbol': stock["symbol"],
+                'shares': stock["shares"],
+                'price': quote["price"],
+                'value': stock_value,
+                'change_percent': quote.get('change_percent', 0)
+            })
+    
+    return jsonify({
+        'cash': user["cash"],
+        'total_value': portfolio_value,
+        'holdings': holdings,
+        'timestamp': datetime.now().isoformat()
+    })
+
+
 @app.route("/api/theme", methods=["POST"])
 @login_required
 def save_theme():
@@ -1904,7 +2011,56 @@ def activity_feed():
     # Get friend activity
     activities = db.get_friend_activity(user_id, limit=50)
     
+    # Get reactions for each activity
+    for activity in activities:
+        activity['reactions'] = db.get_activity_reactions(activity['id'])
+        activity['user_reaction'] = db.get_user_activity_reaction(activity['id'], user_id)
+    
     return render_template("feed.html", activities=activities)
+
+
+@app.route("/api/activity/<int:activity_id>/react", methods=["POST"])
+@login_required
+def react_to_activity(activity_id):
+    """Add or update emoji reaction to an activity"""
+    user_id = session["user_id"]
+    emoji = request.json.get("emoji")
+    
+    if not emoji:
+        return jsonify({"error": "Emoji is required"}), 400
+    
+    # Validate emoji
+    valid_emojis = ['👍', '❤️', '😂', '😮', '🔥', '🚀', '💰', '🎯']
+    if emoji not in valid_emojis:
+        return jsonify({"error": "Invalid emoji"}), 400
+    
+    # Add or update reaction
+    db.add_activity_reaction(activity_id, user_id, emoji)
+    
+    # Get updated reaction counts
+    reactions = db.get_activity_reactions(activity_id)
+    
+    return jsonify({
+        "success": True,
+        "reactions": reactions
+    })
+
+
+@app.route("/api/activity/<int:activity_id>/unreact", methods=["POST"])
+@login_required
+def unreact_to_activity(activity_id):
+    """Remove emoji reaction from an activity"""
+    user_id = session["user_id"]
+    
+    db.remove_activity_reaction(activity_id, user_id)
+    
+    # Get updated reaction counts
+    reactions = db.get_activity_reactions(activity_id)
+    
+    return jsonify({
+        "success": True,
+        "reactions": reactions
+    })
 
 
 @app.route("/compare")
@@ -2577,6 +2733,29 @@ def sell_option():
 def handle_connect():
     """Handle client connection"""
     print(f"Client connected: {request.sid}")
+    
+    # Join user-specific room for personalized updates
+    user_id = session.get('user_id')
+    if user_id:
+        join_room(f'user_{user_id}')
+        
+        # Send initial portfolio state
+        try:
+            user = db.get_user(user_id)
+            stocks = db.get_user_stocks(user_id)
+            portfolio_value = user["cash"]
+            for stock in stocks:
+                q = lookup(stock["symbol"])
+                if q:
+                    portfolio_value += stock["shares"] * q["price"]
+            
+            emit('portfolio_update', {
+                'cash': user["cash"],
+                'total_value': portfolio_value,
+                'stocks': [{'symbol': s["symbol"], 'shares': s["shares"]} for s in stocks]
+            })
+        except Exception as e:
+            print(f"Error sending initial portfolio state: {e}")
     emit('connection_response', {'status': 'connected'})
 
 
@@ -2607,14 +2786,19 @@ def handle_subscribe(data):
     # Join room for this stock
     join_room(symbol)
     
-    # Send immediate price update
+    # Send immediate price update with extended data
     quote = lookup(symbol, force_refresh=True)
     if quote:
         emit('stock_update', {
             'symbol': symbol,
             'price': quote['price'],
             'change': quote['change'],
-            'change_percent': quote['change_percent']
+            'change_percent': quote['change_percent'],
+            'volume': quote.get('volume', 0),
+            'high': quote.get('high', quote['price']),
+            'low': quote.get('low', quote['price']),
+            'open': quote.get('open', quote['price']),
+            'timestamp': datetime.now().isoformat()
         })
     
     print(f"Client {request.sid} subscribed to {symbol}")
@@ -2636,6 +2820,26 @@ def handle_unsubscribe(data):
     # Leave room
     leave_room(symbol)
     print(f"Client {request.sid} unsubscribed from {symbol}")
+
+
+@socketio.on('get_chart_data')
+def handle_get_chart_data(data):
+    """Get candlestick chart data for a symbol"""
+    symbol = data.get('symbol', '').upper()
+    timeframe = data.get('timeframe', '1D')  # 1D, 5D, 1M, 3M, 1Y
+    
+    if not symbol:
+        return
+    
+    try:
+        chart_data = get_chart_data(symbol, timeframe)
+        emit('chart_data', {
+            'symbol': symbol,
+            'timeframe': timeframe,
+            'data': chart_data
+        })
+    except Exception as e:
+        emit('chart_error', {'error': str(e)})
 
 
 def _update_user_challenge_progress(user_id):
@@ -2892,12 +3096,17 @@ def background_price_updater():
             for symbol in symbols:
                 quote = lookup(symbol, force_refresh=True)
                 if quote and symbol in stock_subscriptions:
-                    # Emit to all clients in this stock's room
+                    # Emit to all clients in this stock's room with extended data
                     socketio.emit('stock_update', {
                         'symbol': symbol,
                         'price': quote['price'],
                         'change': quote['change'],
-                        'change_percent': quote['change_percent']
+                        'change_percent': quote['change_percent'],
+                        'volume': quote.get('volume', 0),
+                        'high': quote.get('high', quote['price']),
+                        'low': quote.get('low', quote['price']),
+                        'open': quote.get('open', quote['price']),
+                        'timestamp': datetime.now().isoformat()
                     }, room=symbol)
         
         except Exception as e:

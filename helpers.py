@@ -1100,3 +1100,190 @@ def get_cached_or_fetch_news(symbol, db, force_refresh=False):
         )
     
     return articles
+
+
+def calculate_portfolio_analytics(user_id, db):
+    """
+    Calculate comprehensive portfolio analytics including risk metrics
+    """
+    import numpy as np
+    from collections import defaultdict
+    
+    # Get user data
+    user = db.get_user(user_id)
+    cash = user['cash']
+    
+    # Get holdings
+    holdings = db.get_user_stocks(user_id)
+    
+    # Initialize analytics
+    total_value = cash
+    positions = []
+    sector_allocation = defaultdict(float)
+    
+    # Map sectors (simplified - in production use real sector data)
+    sector_map = {
+        'AAPL': 'Technology', 'MSFT': 'Technology', 'GOOGL': 'Technology', 'AMZN': 'Consumer Cyclical',
+        'TSLA': 'Automotive', 'NVDA': 'Technology', 'META': 'Technology', 'JPM': 'Financial',
+        'JNJ': 'Healthcare', 'V': 'Financial', 'PG': 'Consumer Defensive', 'UNH': 'Healthcare',
+        'HD': 'Consumer Cyclical', 'BAC': 'Financial', 'MA': 'Financial', 'DIS': 'Communication',
+        'NFLX': 'Communication', 'ADBE': 'Technology', 'CRM': 'Technology', 'PFE': 'Healthcare',
+        'CSCO': 'Technology', 'INTC': 'Technology', 'AMD': 'Technology', 'ORCL': 'Technology'
+    }
+    
+    for holding in holdings:
+        quote = lookup(holding['symbol'])
+        if quote:
+            current_value = quote['price'] * holding['shares']
+            total_value += current_value
+            
+            cost_basis = holding.get('avg_cost', quote['price']) * holding['shares']
+            profit_loss = current_value - cost_basis
+            profit_loss_pct = (profit_loss / cost_basis * 100) if cost_basis > 0 else 0
+            
+            sector = sector_map.get(holding['symbol'], 'Other')
+            sector_allocation[sector] += current_value
+            
+            positions.append({
+                'symbol': holding['symbol'],
+                'shares': holding['shares'],
+                'current_price': quote['price'],
+                'current_value': current_value,
+                'cost_basis': cost_basis,
+                'profit_loss': profit_loss,
+                'profit_loss_pct': profit_loss_pct,
+                'weight': 0,  # Will calculate after we know total
+                'sector': sector
+            })
+    
+    # Calculate position weights
+    for pos in positions:
+        pos['weight'] = (pos['current_value'] / total_value * 100) if total_value > 0 else 0
+    
+    # Get historical data for risk metrics
+    snapshots = db.get_portfolio_snapshots(user_id, limit=90)
+    
+    # Calculate returns
+    daily_returns = []
+    if len(snapshots) > 1:
+        for i in range(1, len(snapshots)):
+            prev_value = snapshots[i]['total_value']
+            curr_value = snapshots[i-1]['total_value']
+            if prev_value > 0:
+                daily_return = (curr_value - prev_value) / prev_value
+                daily_returns.append(daily_return)
+    
+    # Risk Metrics
+    volatility = 0
+    sharpe_ratio = 0
+    max_drawdown = 0
+    
+    if daily_returns:
+        returns_array = np.array(daily_returns)
+        volatility = np.std(returns_array) * np.sqrt(252) * 100  # Annualized
+        
+        mean_return = np.mean(returns_array)
+        if volatility > 0:
+            risk_free_rate = 0.04 / 252  # 4% annual risk-free rate
+            sharpe_ratio = (mean_return - risk_free_rate) / np.std(returns_array) * np.sqrt(252)
+        
+        # Calculate max drawdown
+        cumulative = [10000]  # Starting value
+        for ret in daily_returns:
+            cumulative.append(cumulative[-1] * (1 + ret))
+        
+        peak = cumulative[0]
+        max_dd = 0
+        for value in cumulative:
+            if value > peak:
+                peak = value
+            dd = (peak - value) / peak
+            if dd > max_dd:
+                max_dd = dd
+        max_drawdown = max_dd * 100
+    
+    # Calculate Beta (vs SPY as benchmark)
+    beta = 1.0
+    correlation = 0.0
+    try:
+        if len(daily_returns) > 20:
+            # Get SPY returns for same period
+            spy_returns = []
+            for i in range(len(daily_returns)):
+                # Simplified - use random market return for demo
+                # In production, fetch actual SPY historical data
+                spy_returns.append(random.uniform(-0.02, 0.02))
+            
+            if len(spy_returns) == len(daily_returns):
+                portfolio_returns = np.array(daily_returns)
+                market_returns = np.array(spy_returns)
+                
+                covariance = np.cov(portfolio_returns, market_returns)[0][1]
+                market_variance = np.var(market_returns)
+                
+                if market_variance > 0:
+                    beta = covariance / market_variance
+                
+                correlation = np.corrcoef(portfolio_returns, market_returns)[0][1]
+    except:
+        pass
+    
+    # Diversification score (0-100)
+    diversification_score = 0
+    if positions:
+        # Score based on number of positions and weight distribution
+        num_positions = len(positions)
+        max_weight = max([p['weight'] for p in positions]) if positions else 100
+        
+        position_score = min(num_positions * 10, 50)  # Max 50 for 5+ positions
+        concentration_score = max(0, 50 - max_weight)  # Penalize high concentration
+        diversification_score = position_score + concentration_score
+    
+    # Total return
+    starting_cash = 10000  # Default starting cash
+    total_return = total_value - starting_cash
+    total_return_pct = (total_return / starting_cash * 100) if starting_cash > 0 else 0
+    
+    # Sector allocation percentages
+    sector_pct = {}
+    for sector, value in sector_allocation.items():
+        sector_pct[sector] = (value / total_value * 100) if total_value > 0 else 0
+    
+    return {
+        'total_value': total_value,
+        'cash': cash,
+        'invested_value': total_value - cash,
+        'total_return': total_return,
+        'total_return_pct': total_return_pct,
+        'num_positions': len(positions),
+        'positions': positions,
+        'sector_allocation': sector_pct,
+        'risk_metrics': {
+            'volatility': volatility,
+            'sharpe_ratio': sharpe_ratio,
+            'beta': beta,
+            'max_drawdown': max_drawdown,
+            'correlation': correlation,
+            'diversification_score': diversification_score
+        },
+        'benchmark': {
+            'spy_total_return': 12.5,  # Mock data
+            'spy_volatility': 18.2,
+            'alpha': (total_return_pct - 12.5) if total_return_pct else 0
+        }
+    }
+
+
+def calculate_portfolio_performance_history(user_id, db, days=90):
+    """Get portfolio performance history for charting"""
+    snapshots = db.get_portfolio_snapshots(user_id, limit=days)
+    
+    history = []
+    for snapshot in reversed(snapshots):
+        history.append({
+            'date': snapshot['timestamp'],
+            'total_value': snapshot['total_value'],
+            'cash': snapshot['cash']
+        })
+    
+    return history

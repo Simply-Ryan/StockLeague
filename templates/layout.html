@@ -18,110 +18,107 @@
 </head>
 <body>
     <!-- Navigation -->
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
-        <div class="container-fluid">
-            <a class="navbar-brand" href="/">
-                <i class="fas fa-chart-line"></i> StockLeague
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark sticky-top shadow-sm">
+        <div class="container-fluid px-3">
+            <a class="navbar-brand fw-bold" href="/">
+                <i class="fas fa-chart-line text-primary"></i> StockLeague
             </a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                 <span class="navbar-toggler-icon"></span>
             </button>
             <div class="collapse navbar-collapse" id="navbarNav">
                 {% if session["user_id"] %}
-                <ul class="navbar-nav ms-auto">
-                    <!-- Core Trading -->
+                <ul class="navbar-nav me-auto">
+                    <!-- Portfolio -->
                     <li class="nav-item">
-                        <a class="nav-link" href="/explore">
-                            <i class="fas fa-compass"></i> Explore
+                        <a class="nav-link" href="/">
+                            <i class="fas fa-home"></i> <span class="d-lg-none d-inline">Portfolio</span>
                         </a>
                     </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="/quote">
-                            <i class="fas fa-search"></i> Quote
+                    
+                    <!-- Trading Dropdown -->
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="tradingDropdown" role="button" 
+                           data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="fas fa-exchange-alt"></i> Trade
                         </a>
+                        <ul class="dropdown-menu" aria-labelledby="tradingDropdown">
+                            <li><a class="dropdown-item" href="/explore">
+                                <i class="fas fa-compass text-info"></i> Explore Stocks
+                            </a></li>
+                            <li><a class="dropdown-item" href="/quote">
+                                <i class="fas fa-search text-primary"></i> Get Quote
+                            </a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="/buy">
+                                <i class="fas fa-arrow-up text-success"></i> Buy Stocks
+                            </a></li>
+                            <li><a class="dropdown-item" href="/sell">
+                                <i class="fas fa-arrow-down text-danger"></i> Sell Stocks
+                            </a></li>
+                            <li><a class="dropdown-item" href="/options">
+                                <i class="fas fa-sliders-h text-warning"></i> Options Trading
+                            </a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="/watchlist">
+                                <i class="fas fa-star text-warning"></i> Watchlist
+                            </a></li>
+                            <li><a class="dropdown-item" href="/alerts">
+                                <i class="fas fa-bell text-info"></i> Price Alerts
+                            </a></li>
+                        </ul>
                     </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="/buy">
-                            <i class="fas fa-plus-circle"></i> Buy
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="/sell">
-                            <i class="fas fa-minus-circle"></i> Sell
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="/watchlist">
-                            <i class="fas fa-star"></i> Watchlist
-                        </a>
-                    </li>
+                    
+                    <!-- Analytics -->
                     <li class="nav-item">
                         <a class="nav-link" href="/analytics">
-                            <i class="fas fa-chart-pie"></i> Analytics
+                            <i class="fas fa-chart-bar"></i> Analytics
                         </a>
                     </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="/chat">
-                            <i class="fas fa-comments"></i> Chat
+                    
+                    <!-- Social Dropdown -->
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="socialDropdown" role="button" 
+                           data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="fas fa-users"></i> Social
                         </a>
+                        <ul class="dropdown-menu" aria-labelledby="socialDropdown">
+                            <li><a class="dropdown-item" href="/leagues">
+                                <i class="fas fa-trophy text-warning"></i> Leagues
+                            </a></li>
+                            <li><a class="dropdown-item" href="/leaderboard">
+                                <i class="fas fa-crown text-warning"></i> Leaderboard
+                            </a></li>
+                            <li><a class="dropdown-item" href="/challenges">
+                                <i class="fas fa-bullseye text-danger"></i> Challenges
+                            </a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="/friends">
+                                <i class="fas fa-user-friends text-primary"></i> Friends
+                            </a></li>
+                            <li><a class="dropdown-item" href="/chat">
+                                <i class="fas fa-comments text-success"></i> Chat
+                            </a></li>
+                            <li><a class="dropdown-item" href="/feed">
+                                <i class="fas fa-stream text-info"></i> Activity Feed
+                            </a></li>
+                        </ul>
                     </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="/options">
-                            <i class="fas fa-chart-line"></i> Options
-                        </a>
-                    </li>
+                    
+                    <!-- News -->
                     <li class="nav-item">
                         <a class="nav-link" href="/news">
                             <i class="fas fa-newspaper"></i> News
                         </a>
                     </li>
-                    
-                    <!-- Social & Competition -->
-                    <li class="nav-item">
-                        <a class="nav-link" href="/leagues">
-                            <i class="fas fa-trophy"></i> Leagues
+                </ul>
+                
+                <ul class="navbar-nav ms-auto align-items-center">
+                    <!-- Quick Action: Add Cash -->
+                    <li class="nav-item d-none d-lg-block">
+                        <a class="btn btn-sm btn-success me-2" href="/add_cash">
+                            <i class="fas fa-plus-circle"></i> Add Cash
                         </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="/challenges">
-                            <i class="fas fa-bullseye"></i> Challenges
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="/leaderboard">
-                            <i class="fas fa-crown"></i> Leaderboard
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="/friends">
-                            <i class="fas fa-user-friends"></i> Friends
-                        </a>
-                    </li>
-                    
-                    <!-- More Menu -->
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" id="moreDropdown" role="button" 
-                           data-bs-toggle="dropdown" aria-expanded="false">
-                            <i class="fas fa-ellipsis-h"></i> More
-                        </a>
-                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="moreDropdown">
-                            <li><a class="dropdown-item" href="/history">
-                                <i class="fas fa-history"></i> Transaction History
-                            </a></li>
-                            <li><a class="dropdown-item" href="/alerts">
-                                <i class="fas fa-bell"></i> Price Alerts
-                            </a></li>
-                            <li><a class="dropdown-item" href="/compare">
-                                <i class="fas fa-balance-scale"></i> Compare Portfolios
-                            </a></li>
-                            <li><a class="dropdown-item" href="/feed">
-                                <i class="fas fa-stream"></i> Activity Feed
-                            </a></li>
-                            <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item" href="/add_cash">
-                                <i class="fas fa-wallet"></i> Add Cash
-                            </a></li>
-                        </ul>
                     </li>
                     
                     <!-- Notifications -->
@@ -135,7 +132,7 @@
                             </span>
                         </a>
                         <ul class="dropdown-menu dropdown-menu-end shadow" style="width: 350px; max-height: 400px; overflow-y: auto;" id="notifications-dropdown">
-                            <li><h6 class="dropdown-header">Recent Notifications</h6></li>
+                            <li><h6 class="dropdown-header">Notifications</h6></li>
                             <li><hr class="dropdown-divider"></li>
                             <li id="notifications-list">
                                 <div class="text-center text-muted py-3">
@@ -143,44 +140,87 @@
                                 </div>
                             </li>
                             <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item text-center" href="/notifications">
-                                <i class="fas fa-eye"></i> View All Notifications
+                            <li><a class="dropdown-item text-center small" href="/notifications">
+                                View All
                             </a></li>
                         </ul>
                     </li>
                     
-                    <!-- Theme Toggle -->
-                    <li class="nav-item">
-                        <button class="nav-link btn btn-link" id="theme-toggle" title="Toggle Theme" style="border: none; background: none; padding: 0.5rem 1rem;">
-                            <i class="fas fa-moon" id="theme-icon"></i>
-                        </button>
+                    <!-- Theme Selector -->
+                    <li class="nav-item dropdown">
+                        <a class="nav-link" href="#" id="themeDropdown" role="button" 
+                           data-bs-toggle="dropdown" aria-expanded="false" title="Theme">
+                            <i class="fas fa-palette" id="theme-icon"></i>
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="themeDropdown">
+                            <li><h6 class="dropdown-header">Theme</h6></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <a class="dropdown-item theme-option d-flex align-items-center" href="#" data-theme="dark">
+                                    <i class="fas fa-moon text-primary me-2"></i> Dark
+                                    <i class="fas fa-check text-success ms-auto" id="check-dark" style="display: none;"></i>
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item theme-option d-flex align-items-center" href="#" data-theme="light">
+                                    <i class="fas fa-sun text-warning me-2"></i> Light
+                                    <i class="fas fa-check text-success ms-auto" id="check-light" style="display: none;"></i>
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item theme-option d-flex align-items-center" href="#" data-theme="auto">
+                                    <i class="fas fa-adjust text-info me-2"></i> Auto
+                                    <i class="fas fa-check text-success ms-auto" id="check-auto" style="display: none;"></i>
+                                </a>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <a class="dropdown-item theme-option d-flex align-items-center" href="#" data-theme="ocean">
+                                    <i class="fas fa-water text-info me-2"></i> Ocean
+                                    <i class="fas fa-check text-success ms-auto" id="check-ocean" style="display: none;"></i>
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item theme-option d-flex align-items-center" href="#" data-theme="forest">
+                                    <i class="fas fa-tree text-success me-2"></i> Forest
+                                    <i class="fas fa-check text-success ms-auto" id="check-forest" style="display: none;"></i>
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item theme-option d-flex align-items-center" href="#" data-theme="sunset">
+                                    <i class="fas fa-sun text-danger me-2"></i> Sunset
+                                    <i class="fas fa-check text-success ms-auto" id="check-sunset" style="display: none;"></i>
+                                </a>
+                            </li>
+                        </ul>
                     </li>
                     
                     <!-- Account Menu -->
                     <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" 
+                        <a class="nav-link dropdown-toggle" href="#" id="accountDropdown" role="button" 
                            data-bs-toggle="dropdown" aria-expanded="false">
-                            <i class="fas fa-user-circle"></i>
+                            <i class="fas fa-user-circle fa-lg"></i>
                         </a>
-                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="navbarDropdown">
+                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="accountDropdown">
+                            <li><h6 class="dropdown-header">
+                                <i class="fas fa-user"></i> {{ session.get('username', 'User') }}
+                            </h6></li>
+                            <li><hr class="dropdown-divider"></li>
                             <li><a class="dropdown-item" href="/profile/{{ session.get('username', 'me') }}">
-                                <i class="fas fa-user"></i> My Profile
+                                <i class="fas fa-id-card text-primary"></i> Profile
+                            </a></li>
+                            <li><a class="dropdown-item" href="/history">
+                                <i class="fas fa-history text-info"></i> History
                             </a></li>
                             <li><a class="dropdown-item" href="/achievements">
-                                <i class="fas fa-trophy"></i> Achievements
-                            </a></li>
-                            <li><a class="dropdown-item" href="/analytics">
-                                <i class="fas fa-chart-pie"></i> Analytics
-                            </a></li>
-                            <li><a class="dropdown-item" href="/strategies">
-                                <i class="fas fa-chess"></i> Strategies
+                                <i class="fas fa-trophy text-warning"></i> Achievements
                             </a></li>
                             <li><hr class="dropdown-divider"></li>
                             <li><a class="dropdown-item" href="/settings">
-                                <i class="fas fa-cog"></i> Settings
+                                <i class="fas fa-cog text-secondary"></i> Settings
                             </a></li>
                             <li><a class="dropdown-item" href="/logout">
-                                <i class="fas fa-sign-out-alt"></i> Logout
+                                <i class="fas fa-sign-out-alt text-danger"></i> Logout
                             </a></li>
                         </ul>
                     </li>
@@ -195,12 +235,12 @@
                 </ul>
                 <ul class="navbar-nav ms-auto">
                     <li class="nav-item">
-                        <a class="nav-link" href="/register">
+                        <a class="btn btn-outline-light btn-sm me-2" href="/register">
                             <i class="fas fa-user-plus"></i> Register
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="/login">
+                        <a class="btn btn-primary btn-sm" href="/login">
                             <i class="fas fa-sign-in-alt"></i> Login
                         </a>
                     </li>
@@ -230,36 +270,31 @@
     </main>
 
     <!-- Footer -->
-    <footer class="footer mt-5 py-4 bg-dark text-white">
+    <footer class="footer mt-4 py-2 bg-dark text-white">
         <div class="container">
-            <div class="row">
-                <div class="col-md-4 mb-3">
-                    <h5><i class="fas fa-chart-line"></i> StockLeague</h5>
-                    <p class="text-muted">Practice trading stocks risk-free and compete with friends!</p>
+            <div class="row align-items-center">
+                <div class="col-md-4 text-center text-md-start mb-2 mb-md-0">
+                    <small class="text-muted">
+                        <i class="fas fa-chart-line"></i> StockLeague &copy; 2025
+                    </small>
                 </div>
-                <div class="col-md-4 mb-3">
-                    <h5>Quick Links</h5>
-                    <ul class="list-unstyled">
-                        <li><a href="/about" class="text-muted text-decoration-none">About</a></li>
+                <div class="col-md-4 text-center mb-2 mb-md-0">
+                    <small>
                         {% if session["user_id"] %}
-                        <li><a href="/leaderboard" class="text-muted text-decoration-none">Leaderboard</a></li>
-                        <li><a href="/history" class="text-muted text-decoration-none">History</a></li>
+                        <a href="/leaderboard" class="text-muted text-decoration-none me-2"><i class="fas fa-trophy"></i> Leaderboard</a>
+                        <a href="/chat" class="text-muted text-decoration-none me-2"><i class="fas fa-comments"></i> Chat</a>
+                        <a href="/analytics" class="text-muted text-decoration-none"><i class="fas fa-chart-bar"></i> Analytics</a>
                         {% else %}
-                        <li><a href="/register" class="text-muted text-decoration-none">Register</a></li>
-                        <li><a href="/login" class="text-muted text-decoration-none">Login</a></li>
+                        <a href="/register" class="text-muted text-decoration-none me-2">Register</a>
+                        <a href="/login" class="text-muted text-decoration-none">Login</a>
                         {% endif %}
-                    </ul>
+                    </small>
                 </div>
-                <div class="col-md-4 mb-3">
-                    <h5>Data Provider</h5>
-                    <p class="text-muted">
-                        <small>Real-time stock data powered by <a href="https://finnhub.io" target="_blank" class="text-info">Finnhub API</a></small>
-                    </p>
+                <div class="col-md-4 text-center text-md-end">
+                    <small class="text-muted">
+                        <i class="fas fa-database"></i> Data by <a href="https://finnhub.io" target="_blank" class="text-info text-decoration-none">Finnhub</a>
+                    </small>
                 </div>
-            </div>
-            <hr class="bg-secondary">
-            <div class="text-center text-muted">
-                <small>&copy; 2025 StockLeague. Built with Flask, Python & Bootstrap.</small>
             </div>
         </div>
     </footer>
@@ -274,10 +309,15 @@
     <script src="{{ url_for('static', filename='js/app.js') }}"></script>
     
     {% if session.get("user_id") %}
-    <!-- Real-time Stock Updates -->
+    <!-- Real-time Trading Features -->
+    <script src="{{ url_for('static', filename='js/realtime.js') }}"></script>
+    
+    <!-- Legacy Stock Updates (for backwards compatibility) -->
     <script>
-        // Initialize Socket.IO connection
-        const socket = io();
+        // Initialize Socket.IO connection (if not already initialized)
+        if (typeof socket === 'undefined') {
+            const socket = io();
+        }
         
         // Store subscribed symbols
         const subscribedStocks = new Set();
@@ -432,40 +472,123 @@
         checkNotifications();
         setInterval(checkNotifications, 30000);
 
-        // Theme toggle functionality
-        const themeToggle = document.getElementById('theme-toggle');
-        const themeIcon = document.getElementById('theme-icon');
+        // Enhanced Theme System
         const html = document.documentElement;
+        const themeIcon = document.getElementById('theme-icon');
+        
+        // Theme configurations
+        const themes = {
+            dark: {
+                icon: 'fas fa-moon',
+                colors: {
+                    primary: '#0f172a',
+                    secondary: '#1e293b',
+                    tertiary: '#334155'
+                }
+            },
+            light: {
+                icon: 'fas fa-sun',
+                colors: {
+                    primary: '#ffffff',
+                    secondary: '#f8fafc',
+                    tertiary: '#e2e8f0'
+                }
+            },
+            auto: {
+                icon: 'fas fa-adjust'
+            },
+            ocean: {
+                icon: 'fas fa-water',
+                colors: {
+                    primary: '#0c1e3d',
+                    secondary: '#1a3a5c',
+                    tertiary: '#2b5278'
+                }
+            },
+            forest: {
+                icon: 'fas fa-tree',
+                colors: {
+                    primary: '#0f2e1a',
+                    secondary: '#1a4d2e',
+                    tertiary: '#276749'
+                }
+            },
+            sunset: {
+                icon: 'fas fa-cloud-sun',
+                colors: {
+                    primary: '#3d1e0c',
+                    secondary: '#5c2a1a',
+                    tertiary: '#784d2b'
+                }
+            }
+        };
         
         // Get saved theme or default to dark
-        const savedTheme = localStorage.getItem('theme') || 'dark';
-        html.setAttribute('data-theme', savedTheme);
-        updateThemeButton(savedTheme);
+        let savedTheme = localStorage.getItem('theme') || 'dark';
+        applyTheme(savedTheme);
         
-        function updateThemeButton(theme) {
-            if (theme === 'light') {
-                themeIcon.className = 'fas fa-sun text-warning';
-                themeToggle.title = 'Switch to Dark Mode';
+        function applyTheme(themeName) {
+            // Handle auto theme
+            if (themeName === 'auto') {
+                const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+                themeName = prefersDark ? 'dark' : 'light';
+                html.setAttribute('data-theme-mode', 'auto');
             } else {
-                themeIcon.className = 'fas fa-moon text-primary';
-                themeToggle.title = 'Switch to Light Mode';
+                html.setAttribute('data-theme-mode', themeName);
+            }
+            
+            html.setAttribute('data-theme', themeName);
+            
+            // Apply theme colors if available
+            if (themes[themeName] && themes[themeName].colors) {
+                const colors = themes[themeName].colors;
+                html.style.setProperty('--bg-primary', colors.primary);
+                html.style.setProperty('--bg-secondary', colors.secondary);
+                html.style.setProperty('--bg-tertiary', colors.tertiary);
+            }
+            
+            // Update checkmarks
+            document.querySelectorAll('[id^="check-"]').forEach(el => el.style.display = 'none');
+            const checkmark = document.getElementById('check-' + (html.getAttribute('data-theme-mode') || themeName));
+            if (checkmark) checkmark.style.display = 'inline';
+            
+            // Update icon
+            if (themeIcon && themes[themeName]) {
+                themeIcon.className = themes[themeName].icon;
             }
         }
         
-        themeToggle.addEventListener('click', function() {
-            const currentTheme = html.getAttribute('data-theme');
-            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-            
-            html.setAttribute('data-theme', newTheme);
-            localStorage.setItem('theme', newTheme);
-            updateThemeButton(newTheme);
-            
-            // Save to server
-            fetch('/api/theme', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({theme: newTheme})
-            }).catch(err => console.error('Failed to save theme:', err));
+        // Theme selection handlers
+        document.querySelectorAll('.theme-option').forEach(option => {
+            option.addEventListener('click', function(e) {
+                e.preventDefault();
+                const theme = this.getAttribute('data-theme');
+                
+                localStorage.setItem('theme', theme);
+                applyTheme(theme);
+                
+                // Save to server
+                fetch('/api/theme', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({theme: theme})
+                }).catch(err => console.error('Failed to save theme:', err));
+                
+                // Show toast notification
+                const toast = document.createElement('div');
+                toast.className = 'toast-notification';
+                toast.innerHTML = `<i class="fas fa-check-circle text-success me-2"></i>Theme changed to ${theme.charAt(0).toUpperCase() + theme.slice(1)}`;
+                toast.style.cssText = 'position: fixed; top: 20px; right: 20px; background: var(--card-bg); padding: 15px 20px; border-radius: 10px; box-shadow: 0 4px 12px var(--shadow); z-index: 9999; animation: slideIn 0.3s;';
+                document.body.appendChild(toast);
+                setTimeout(() => toast.remove(), 3000);
+            });
+        });
+        
+        // Listen for system theme changes when in auto mode
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
+            if (localStorage.getItem('theme') === 'auto') {
+                applyTheme('auto');
+            }
         });
     </script>
     {% endif %}
