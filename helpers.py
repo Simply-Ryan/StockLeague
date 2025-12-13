@@ -82,7 +82,7 @@ def lookup(symbol, force_refresh=False):
                 company_name = profile_data.get('name', symbol_upper)
                 # Cache company name permanently (doesn't change)
                 _quote_cache[cache_key] = company_name
-            except:
+            except Exception:
                 company_name = symbol_upper
                 _quote_cache[cache_key] = company_name
         
@@ -1225,7 +1225,7 @@ def calculate_portfolio_analytics(user_id, db):
                     beta = covariance / market_variance
                 
                 correlation = np.corrcoef(portfolio_returns, market_returns)[0][1]
-    except:
+    except Exception:
         pass
     
     # Diversification score (0-100)

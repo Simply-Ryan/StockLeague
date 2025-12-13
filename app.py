@@ -2,6 +2,7 @@
 import os
 import random
 import uuid
+import json
 from flask import Flask, flash, redirect, render_template, request, session, jsonify, send_file
 from flask_session import Session
 from flask_socketio import SocketIO, emit, join_room, leave_room
@@ -14,6 +15,9 @@ import threading
 import time
 from datetime import datetime
 from collections import defaultdict
+from league_modes import get_league_mode, get_available_modes, MODE_ABSOLUTE_VALUE
+from league_rules import LeagueRuleEngine
+
 
 # --- Login Required Decorator (move up) ---
 def login_required(f):
@@ -1097,18 +1101,29 @@ def create_league():
         league_type = request.form.get("league_type", "public")
         starting_cash = float(request.form.get("starting_cash", 10000))
         duration_days = int(request.form.get("duration_days", 30))
+        mode = request.form.get("mode", "absolute_value")
         
         if not name:
             return apology("must provide league name", 400)
         
         user_id = session["user_id"]
         
-        # Create league
-        import json
+        # Build settings and rules
         settings = {
             'duration_days': duration_days,
             'auto_reset': request.form.get("auto_reset") == "on"
         }
+        
+        # Build rules based on mode
+        rules = {
+            'starting_cash': starting_cash,
+        }
+        
+        # Mode-specific rules
+        if mode == 'limited_capital':
+            rules['max_positions'] = int(request.form.get("max_positions", 10))
+            rules['max_position_percent'] = float(request.form.get("max_position_percent", 25))
+            rules['transaction_fee_percent'] = float(request.form.get("fee_percent", 0.1))
         
         league_id, invite_code = db.create_league(
             name=name,
@@ -1119,13 +1134,29 @@ def create_league():
             settings_json=json.dumps(settings)
         )
         
+        # Update mode and rules
+        conn = db.get_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE leagues SET mode = ?, rules_json = ?, lifecycle_state = 'active'
+            WHERE id = ?
+        """, (mode, json.dumps(rules), league_id))
+        conn.commit()
+        conn.close()
+        
+        # Create creator's league portfolio
+        db.create_league_portfolio(league_id, user_id, starting_cash)
+        
         # Start the season
         db.start_league_season(league_id, duration_days)
         
         flash(f"League created! Invite code: {invite_code}", "success")
         return redirect(f"/leagues/{league_id}")
     
-    return render_template("create_league.html")
+    # GET - show form with mode options
+    modes = get_available_modes()
+    return render_template("create_league.html", available_modes=modes)
+
 
 
 @app.route("/leagues/<int:league_id>")
@@ -1175,9 +1206,27 @@ def join_league():
     elif not league_id:
         return apology("must provide league ID or invite code", 400)
     
-    success = db.join_league(int(league_id), user_id)
+    league_id = int(league_id)
+    league = db.get_league(league_id)
+    
+    if not league:
+        return apology("league not found", 404)
+    
+    # Check lifecycle state - can only join during draft, open, or active states
+    lifecycle_state = league.get('lifecycle_state', 'active')
+    if lifecycle_state == 'finished':
+        return apology("cannot join a finished league", 400)
+    if lifecycle_state == 'locked':
+        return apology("league registration is locked", 400)
+    
+    # Join the league membership
+    success = db.join_league(league_id, user_id)
     
     if success:
+        # Create isolated league portfolio with starting cash
+        starting_cash = league.get('starting_cash', 10000.0)
+        db.create_league_portfolio(league_id, user_id, starting_cash)
+        
         flash("Successfully joined league!", "success")
         return redirect(f"/leagues/{league_id}")
     else:
@@ -1233,6 +1282,265 @@ def restart_league_season(league_id):
     
     flash(f"New season started! Duration: {duration_days} days", "success")
     return redirect(f"/leagues/{league_id}")
+
+
+@app.route("/leagues/<int:league_id>/trade", methods=["GET", "POST"])
+@login_required
+def league_trade(league_id):
+    """Trade stocks within a league context"""
+    user_id = session["user_id"]
+    
+    league = db.get_league(league_id)
+    if not league:
+        return apology("league not found", 404)
+    
+    # Check if user is a member
+    members = db.get_league_members(league_id)
+    is_member = any(m['id'] == user_id for m in members)
+    if not is_member:
+        return apology("you must join this league to trade", 403)
+    
+    # Check lifecycle state - can only trade when active
+    lifecycle_state = league.get('lifecycle_state', 'active')
+    if lifecycle_state != 'active':
+        return apology(f"trading is not allowed in {lifecycle_state} state", 400)
+    
+    # Check if portfolio is locked
+    if db.is_league_portfolio_locked(league_id, user_id):
+        return apology("your portfolio is locked", 400)
+    
+    # Get league portfolio
+    portfolio = db.get_league_portfolio(league_id, user_id)
+    if not portfolio:
+        # Create portfolio if missing (migration case)
+        db.create_league_portfolio(league_id, user_id, league.get('starting_cash', 10000.0))
+        portfolio = db.get_league_portfolio(league_id, user_id)
+    
+    # Get current holdings
+    holdings = db.get_league_holdings(league_id, user_id)
+    
+    # Get mode and rules
+    mode_name = league.get('mode') or 'absolute_value'
+    rules_config = None
+    if league.get('rules_json'):
+        try:
+            rules_config = json.loads(league['rules_json'])
+        except (json.JSONDecodeError, TypeError):
+            pass
+    
+    mode = get_league_mode(mode_name, rules_config)
+    rule_engine = LeagueRuleEngine(rules_config)
+    
+    if request.method == "POST":
+        symbol = request.form.get("symbol", "").upper()
+        shares_str = request.form.get("shares", "")
+        trade_type = request.form.get("trade_type", "buy")
+        
+        if not symbol:
+            return apology("must provide symbol", 400)
+        if not shares_str or not shares_str.isdigit() or int(shares_str) <= 0:
+            return apology("must provide positive number of shares", 400)
+        
+        shares = int(shares_str)
+        
+        # Get current price
+        quote = lookup(symbol)
+        if not quote:
+            return apology("invalid symbol", 400)
+        
+        price = quote["price"]
+        trade_value = shares * price
+        
+        # Validate trade using rule engine
+        is_valid, error = rule_engine.validate_order(
+            symbol, shares, price, trade_type, 
+            portfolio, holdings
+        )
+        if not is_valid:
+            return apology(error, 400)
+        
+        # Also validate using mode-specific rules
+        is_valid, error = mode.validate_trade(
+            symbol, shares, price, trade_type,
+            portfolio, holdings
+        )
+        if not is_valid:
+            return apology(error, 400)
+        
+        # Calculate fee
+        fee = rule_engine.calculate_fee(trade_value)
+        
+        if trade_type == "buy":
+            total_cost = trade_value + fee
+            if total_cost > portfolio['cash']:
+                return apology("insufficient funds", 400)
+            
+            # Update league portfolio
+            new_cash = portfolio['cash'] - total_cost
+            db.update_league_cash(league_id, user_id, new_cash)
+            db.update_league_holding(league_id, user_id, symbol, shares, price)
+            db.record_league_transaction(league_id, user_id, symbol, shares, price, "buy", fee)
+            
+            flash(f"Bought {shares} shares of {symbol} for {usd(trade_value)} (fee: {usd(fee)})", "success")
+            
+        elif trade_type == "sell":
+            # Check if user has enough shares
+            holding = next((h for h in holdings if h['symbol'] == symbol), None)
+            current_shares = holding['shares'] if holding else 0
+            if shares > current_shares:
+                return apology("not enough shares", 400)
+            
+            # Update league portfolio
+            proceeds = trade_value - fee
+            new_cash = portfolio['cash'] + proceeds
+            db.update_league_cash(league_id, user_id, new_cash)
+            db.update_league_holding(league_id, user_id, symbol, -shares, price)
+            db.record_league_transaction(league_id, user_id, symbol, -shares, price, "sell", fee)
+            
+            flash(f"Sold {shares} shares of {symbol} for {usd(proceeds)} (after {usd(fee)} fee)", "success")
+        
+        # Update league scores after trade
+        db.update_league_scores_v2(league_id, lambda s: lookup(s).get('price') if lookup(s) else None)
+        
+        # Emit real-time update
+        socketio.emit('league_score_update', {
+            'league_id': league_id,
+            'user_id': user_id
+        }, room=f'league_{league_id}')
+        
+        return redirect(f"/leagues/{league_id}/trade")
+    
+    # GET - show trade form
+    # Enrich holdings with current prices
+    for h in holdings:
+        quote = lookup(h['symbol'])
+        if quote:
+            h['price'] = quote['price']
+            h['value'] = h['shares'] * quote['price']
+            h['gain_loss'] = (quote['price'] - h['avg_cost']) * h['shares']
+    
+    # Calculate total portfolio value
+    total_value = portfolio['cash']
+    for h in holdings:
+        total_value += h.get('value', 0)
+    
+    return render_template("league_trade.html",
+                         league=league,
+                         portfolio=portfolio,
+                         holdings=holdings,
+                         total_value=total_value,
+                         mode=mode,
+                         rule_summary=rule_engine.get_rule_summary(),
+                         allowed_symbols=mode.get_allowed_symbols())
+
+
+@app.route("/leagues/<int:league_id>/activate", methods=["POST"])
+@login_required
+def activate_league(league_id):
+    """Activate the league for trading (admin only)"""
+    user_id = session["user_id"]
+    
+    # Check if user is admin
+    members = db.get_league_members(league_id)
+    is_admin = any(m['id'] == user_id and m['is_admin'] for m in members)
+    
+    if not is_admin:
+        return apology("only league admins can activate the league", 403)
+    
+    league = db.get_league(league_id)
+    if not league:
+        return apology("league not found", 404)
+    
+    current_state = league.get('lifecycle_state', 'draft')
+    
+    # Can only activate from draft, open, or locked states
+    if current_state not in ['draft', 'open', 'locked']:
+        return apology(f"cannot activate from {current_state} state", 400)
+    
+    # Set to active
+    db.set_league_lifecycle_state(league_id, 'active')
+    
+    # Also update season start if not already set
+    if not league.get('season_start'):
+        db.start_league_season(league_id, 30)  # Default 30 days
+    
+    flash("League activated! Trading is now open.", "success")
+    return redirect(f"/leagues/{league_id}")
+
+
+@app.route("/leagues/<int:league_id>/dashboard")
+@login_required
+def league_dashboard(league_id):
+    """Enhanced league dashboard with rankings and analytics"""
+    user_id = session["user_id"]
+    
+    league = db.get_league(league_id)
+    if not league:
+        return apology("league not found", 404)
+    
+    # Check if user is a member
+    members = db.get_league_members(league_id)
+    is_member = any(m['id'] == user_id for m in members)
+    
+    if not is_member and league.get('league_type') != 'public':
+        return apology("you must be a member to view this dashboard", 403)
+    
+    # Update scores
+    db.update_league_scores_v2(league_id, lambda s: lookup(s).get('price') if lookup(s) else None)
+    
+    # Get leaderboard with enriched data
+    leaderboard = db.get_league_leaderboard(league_id)
+    
+    # Enrich leaderboard with additional data
+    starting_cash = league.get('starting_cash', 10000.0)
+    for entry in leaderboard:
+        portfolio = db.get_league_portfolio(league_id, entry['id'])
+        if portfolio:
+            entry['cash'] = portfolio['cash']
+            # Calculate total value
+            holdings = db.get_league_holdings(league_id, entry['id'])
+            total_value = portfolio['cash']
+            for h in holdings:
+                quote = lookup(h['symbol'])
+                if quote:
+                    total_value += h['shares'] * quote['price']
+            entry['total_value'] = total_value
+            entry['return_pct'] = ((total_value - starting_cash) / starting_cash * 100) if starting_cash > 0 else 0
+        else:
+            entry['total_value'] = starting_cash
+            entry['return_pct'] = 0
+    
+    # Get recent transactions
+    recent_transactions = db.get_league_transactions(league_id, limit=20)
+    
+    # Get user's portfolio if member
+    user_portfolio = None
+    user_holdings = []
+    if is_member:
+        user_portfolio = db.get_league_portfolio(league_id, user_id)
+        user_holdings = db.get_league_holdings(league_id, user_id)
+        for h in user_holdings:
+            quote = lookup(h['symbol'])
+            if quote:
+                h['price'] = quote['price']
+                h['value'] = h['shares'] * quote['price']
+    
+    # Get mode info
+    mode_name = league.get('mode') or 'absolute_value'
+    mode = get_league_mode(mode_name)
+    
+    return render_template("league_dashboard.html",
+                         league=league,
+                         leaderboard=leaderboard,
+                         recent_transactions=recent_transactions,
+                         user_portfolio=user_portfolio,
+                         user_holdings=user_holdings,
+                         is_member=is_member,
+                         mode_description=mode.get_description(),
+                         starting_cash=starting_cash)
+
+
+
 
 
 @app.route("/challenges")
@@ -1647,12 +1955,13 @@ def send_friend_request():
     
     # Create notification for recipient
     sender = db.get_user(user_id)
+    import json
     db.create_notification(
         friend_id,
         "friend_request",
         "New Friend Request",
         f"{sender['username']} sent you a friend request!",
-        f"/friends"
+        json.dumps({"from_user_id": user_id, "username": sender["username"]})
     )
     
     flash("Friend request sent!")
@@ -1664,7 +1973,18 @@ def send_friend_request():
 def accept_friend():
     """Accept friend request"""
     request_id = request.form.get("request_id")
-    
+    # Also support getting ID from URL path var if refactoring to RESTful
+    if not request_id:
+        # Fallback for old forms
+        pass
+
+    if not request_id:
+        # Try to find friend request from user_id if passed
+        # This is needed because the notification button passes the user_id, not request_id!
+        # We need to find the pending request_id between current user and the friend_id
+        friend_id = request.view_args.get('friend_id') if request.view_args else None
+        # Actually simplest is to handle it here if we change the route signature or params
+        
     if not request_id:
         return apology("must provide request id", 400)
     
@@ -1690,16 +2010,77 @@ def accept_friend():
         
         # Create notification for sender
         receiver = db.get_user(receiver_id)
+        import json
         db.create_notification(
             sender_id,
             "friend_accepted",
             "Friend Request Accepted",
             f"{receiver['username']} accepted your friend request!",
-            f"/profile/{receiver['username']}"
+            json.dumps({"from_user_id": receiver_id, "username": receiver["username"]})
         )
     
     flash("Friend request accepted!")
     return redirect("/friends")
+
+# New routes for handling accept/decline via user_id (from notification)
+@app.route("/friends/accept/<int:friend_id>", methods=["POST"])
+@login_required
+def accept_friend_by_id(friend_id):
+    """Accept friend request by user id"""
+    user_id = session["user_id"]
+    conn = db.get_connection()
+    cursor = conn.cursor()
+    
+    # Find the pending request
+    request_row = cursor.execute("""
+        SELECT id FROM friends 
+        WHERE user_id = ? AND friend_id = ? AND status = 'pending'
+    """, (friend_id, user_id)).fetchone()
+    conn.close()
+    
+    if not request_row:
+        flash("Friend request not found or already handled.")
+        return redirect("/notifications")
+        
+    # Call existing accept logic or duplicate it (simpler to call DB directly here)
+    db.accept_friend_request_by_id(request_row['id'])
+    
+    # Notify sender
+    receiver = db.get_user(user_id)
+    import json
+    db.create_notification(
+        friend_id,
+        "friend_accepted",
+        "Friend Request Accepted",
+        f"{receiver['username']} accepted your friend request!",
+        json.dumps({"from_user_id": user_id, "username": receiver["username"]})
+    )
+    
+    flash(f"Friend request accepted!")
+    return redirect("/notifications")
+
+@app.route("/friends/decline/<int:friend_id>", methods=["POST"])
+@login_required
+def decline_friend_by_id(friend_id):
+    """Decline friend request by user id"""
+    user_id = session["user_id"]
+    conn = db.get_connection()
+    cursor = conn.cursor()
+    
+    # Find the pending request
+    request_row = cursor.execute("""
+        SELECT id FROM friends 
+        WHERE user_id = ? AND friend_id = ? AND status = 'pending'
+    """, (friend_id, user_id)).fetchone()
+    conn.close()
+    
+    if request_row:
+        db.decline_friend_request_by_id(request_row['id'])
+        flash("Friend request declined.")
+    else:
+        flash("Request not found.")
+        
+    return redirect("/notifications")
 
 
 @app.route("/decline_friend", methods=["POST"])
@@ -1750,10 +2131,47 @@ def remove_friend():
 def notifications():
     """Show user notifications"""
     user_id = session["user_id"]
+    import json
     
     # Get notifications
     notifications_list = db.get_notifications(user_id, limit=20)
     
+    # Process notifications content and related_data
+    for notif in notifications_list:
+        # Standardize fields if they're missing or named differently in dict
+        if 'content' not in notif and 'message' in notif:
+            notif['content'] = notif['message']
+        if 'notification_type' not in notif and 'type' in notif:
+            notif['notification_type'] = notif['type']
+            
+        # Parse JSON related_data
+        if notif.get('related_data'):
+            try:
+                # If it looks like JSON, parse it
+                if notif['related_data'].strip().startswith('{'):
+                    data = json.loads(notif['related_data'])
+                    notif['related_data_json'] = data
+                    # Extract ID for template convenience
+                    if 'from_user_id' in data:
+                        notif['related_data'] = data['from_user_id']
+                    elif 'league_id' in data:
+                        notif['related_data'] = data['league_id']
+                    elif 'challenge_id' in data:
+                        notif['related_data'] = data['challenge_id']
+                    elif 'trader_id' in data:
+                        notif['related_data'] = data['trader_id']
+                    elif 'achievement_id' in data:
+                        notif['related_data'] = data['achievement_id']
+                else:
+                    # Legacy: it might be a URL or ID string
+                    # Leave is as is, or try to extract ID?
+                    # If it's "/friends", related_data stays "/friends".
+                    # Our new template expects an ID for friend_request.
+                    # This might break old notifications, but new ones will work.
+                    notif['related_data_json'] = {}
+            except (json.JSONDecodeError, TypeError):
+                notif['related_data_json'] = {}
+        
     # Count unread
     unread_count = sum(1 for n in notifications_list if not n["is_read"])
     
@@ -1805,8 +2223,9 @@ def notifications_count():
 @app.route("/api/notifications/recent")
 @login_required
 def notifications_recent():
-    """Get recent notifications for dropdown"""
+    """Get recent notifications for dropdown with action support"""
     from datetime import datetime
+    import json as json_module
     user_id = session["user_id"]
     notifications_list = db.get_notifications(user_id, limit=5)
     
@@ -1829,19 +2248,79 @@ def notifications_recent():
                     time_ago = f"{diff.seconds // 60}m ago"
                 else:
                     time_ago = "Just now"
-            except:
+            except (ValueError, TypeError):
                 time_ago = created_at
         else:
             time_ago = ""
         
+        # Parse related_data if present
+        related_data = None
+        action_url = ""
+        
+        if notif.get("related_data"):
+            try:
+                # Try parsing as JSON
+                if notif["related_data"].strip().startswith('{'):
+                    related_data = json_module.loads(notif["related_data"])
+                else:
+                    # Legacy: treat as direct URL
+                    action_url = notif["related_data"]
+                    related_data = {"raw": notif["related_data"]}
+            except (json_module.JSONDecodeError, TypeError):
+                # Fallback
+                action_url = notif["related_data"]
+                related_data = {"raw": notif["related_data"]}
+        
+        # Determine notification type and actions
+        notif_type = notif.get("notification_type", "")
+        actions = []
+        
+        # Add actions based on notification type
+        if notif_type == "friend_request":
+            if related_data and "from_user_id" in related_data:
+                actions = [
+                    {"type": "accept", "label": "Accept", "url": f"/friends/accept/{related_data['from_user_id']}", "style": "success"},
+                    {"type": "decline", "label": "Decline", "url": f"/friends/decline/{related_data['from_user_id']}", "style": "danger"}
+                ]
+        elif notif_type == "league_invite":
+            if related_data and "league_id" in related_data:
+                actions = [
+                    {"type": "join", "label": "Join League", "url": f"/leagues/{related_data['league_id']}", "style": "primary"}
+                ]
+        elif notif_type == "challenge_invite":
+            if related_data and "challenge_id" in related_data:
+                actions = [
+                    {"type": "join", "label": "Join Challenge", "url": f"/challenges/{related_data['challenge_id']}", "style": "primary"}
+                ]
+        elif notif_type == "trade_copy":
+            if related_data and "from_user_id" in related_data:
+                actions = [
+                    {"type": "view", "label": "View Profile", "url": f"/profile/{related_data['from_user_id']}", "style": "info"}
+                ]
+            elif related_data and "trader_id" in related_data: # Legacy support
+                actions = [
+                     {"type": "view", "label": "View Trader", "url": f"/profile/{related_data['trader_id']}", "style": "info"}
+                ]
+        
+        # Determine action_url from type if not legacy
+        if not action_url and related_data:
+            if notif_type == "league_result" and "league_id" in related_data:
+                action_url = f"/leagues/{related_data['league_id']}"
+            elif notif_type == "challenge_complete" and "challenge_id" in related_data:
+                action_url = f"/challenges/{related_data['challenge_id']}"
+            elif notif_type == "new_follower" and "from_user_id" in related_data:
+                action_url = f"/profile/{related_data['from_user_id']}"
+        
         formatted_notifications.append({
             "id": notif.get("id"),
-            "type": notif.get("type", ""),
+            "type": notif_type,
             "title": notif.get("title", ""),
-            "message": notif.get("message", ""),
+            "message": notif.get("content", ""),
             "created_at": time_ago,
             "is_read": notif.get("is_read", 0),
-            "action_url": notif.get("action_url", "")
+            "related_data": related_data,
+            "actions": actions,
+            "action_url": action_url
         })
     
     return {"notifications": formatted_notifications}

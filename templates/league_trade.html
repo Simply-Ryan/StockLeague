@@ -1,0 +1,188 @@
+{% extends "layout.html" %}
+
+{% block title %}Trade - {{ league.name }} | StockLeague{% endblock %}
+
+{% block main %}
+<div class="container mt-4">
+    <!-- League Header -->
+    <div class="card mb-4 border-primary">
+        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+            <div>
+                <h4 class="mb-0">
+                    <i class="fas fa-exchange-alt"></i> Trading: {{ league.name }}
+                </h4>
+            </div>
+            <div>
+                <a href="/leagues/{{ league.id }}" class="btn btn-outline-light btn-sm">
+                    <i class="fas fa-arrow-left"></i> Back to League
+                </a>
+                <a href="/leagues/{{ league.id }}/dashboard" class="btn btn-outline-light btn-sm ms-2">
+                    <i class="fas fa-chart-line"></i> Dashboard
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Portfolio Summary -->
+        <div class="col-md-4">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-wallet"></i> League Portfolio</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="text-muted small">Total Value</label>
+                        <h3 class="text-success mb-0">{{ total_value | usd }}</h3>
+                    </div>
+                    <div class="mb-3">
+                        <label class="text-muted small">Cash Available</label>
+                        <h4 class="text-info mb-0">{{ portfolio.cash | usd }}</h4>
+                    </div>
+                    <div>
+                        <label class="text-muted small">Return</label>
+                        {% set return_val = total_value - league.starting_cash %}
+                        {% set return_pct = (return_val / league.starting_cash * 100) if league.starting_cash > 0 else 0 %}
+                        <h5 class="{% if return_val >= 0 %}text-success{% else %}text-danger{% endif %} mb-0">
+                            {{ return_val | usd }} ({{ "%.2f"|format(return_pct) }}%)
+                        </h5>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Rules Summary -->
+            {% if rule_summary %}
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h6 class="mb-0"><i class="fas fa-gavel"></i> League Rules</h6>
+                </div>
+                <div class="card-body">
+                    <ul class="list-unstyled mb-0">
+                        {% for rule, value in rule_summary.items() %}
+                        <li class="mb-2">
+                            <span class="badge bg-secondary">{{ rule }}</span>
+                            <span class="ms-2">{{ value }}</span>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Mode Info -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h6 class="mb-0"><i class="fas fa-gamepad"></i> Competition Mode</h6>
+                </div>
+                <div class="card-body">
+                    <p class="mb-0">{{ mode.get_description() }}</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Trade Form & Holdings -->
+        <div class="col-md-8">
+            <!-- Trade Form -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-plus-circle"></i> Place Trade</h5>
+                </div>
+                <div class="card-body">
+                    <form action="/leagues/{{ league.id }}/trade" method="post">
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <label class="form-label">Symbol</label>
+                                <input type="text" class="form-control" name="symbol" placeholder="e.g., AAPL" required 
+                                    {% if allowed_symbols %}list="allowed-symbols"{% endif %}>
+                                {% if allowed_symbols %}
+                                <datalist id="allowed-symbols">
+                                    {% for sym in allowed_symbols %}
+                                    <option value="{{ sym }}">
+                                    {% endfor %}
+                                </datalist>
+                                <small class="text-muted">{{ allowed_symbols|length }} symbols allowed</small>
+                                {% endif %}
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Shares</label>
+                                <input type="number" class="form-control" name="shares" min="1" required>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Action</label>
+                                <select class="form-select" name="trade_type" required>
+                                    <option value="buy">Buy</option>
+                                    <option value="sell">Sell</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2 d-flex align-items-end">
+                                <button type="submit" class="btn btn-primary w-100">Execute</button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Current Holdings -->
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="fas fa-briefcase"></i> Holdings</h5>
+                    <span class="badge bg-primary">{{ holdings|length }} positions</span>
+                </div>
+                <div class="card-body">
+                    {% if holdings %}
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Symbol</th>
+                                    <th class="text-end">Shares</th>
+                                    <th class="text-end">Avg Cost</th>
+                                    <th class="text-end">Price</th>
+                                    <th class="text-end">Value</th>
+                                    <th class="text-end">Gain/Loss</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for h in holdings %}
+                                <tr>
+                                    <td><strong>{{ h.symbol }}</strong></td>
+                                    <td class="text-end">{{ h.shares }}</td>
+                                    <td class="text-end">{{ h.avg_cost | usd }}</td>
+                                    <td class="text-end">{{ h.price | usd if h.price else 'N/A' }}</td>
+                                    <td class="text-end">{{ h.value | usd if h.value else 'N/A' }}</td>
+                                    <td class="text-end {% if h.gain_loss and h.gain_loss >= 0 %}text-success{% elif h.gain_loss %}text-danger{% endif %}">
+                                        {% if h.gain_loss %}
+                                        {{ h.gain_loss | usd }}
+                                        {% else %}
+                                        N/A
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <form action="/leagues/{{ league.id }}/trade" method="post" class="d-inline">
+                                            <input type="hidden" name="symbol" value="{{ h.symbol }}">
+                                            <input type="hidden" name="shares" value="{{ h.shares }}">
+                                            <input type="hidden" name="trade_type" value="sell">
+                                            <button type="submit" class="btn btn-sm btn-outline-danger" 
+                                                onclick="return confirm('Sell all {{ h.shares }} shares of {{ h.symbol }}?');">
+                                                Sell All
+                                            </button>
+                                        </form>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="text-center text-muted py-4">
+                        <i class="fas fa-inbox fa-3x mb-3"></i>
+                        <p>No holdings yet. Make your first trade above!</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

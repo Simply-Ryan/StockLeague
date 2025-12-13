@@ -1,0 +1,244 @@
+{% extends "layout.html" %}
+
+{% block title %}{{ league.name }} Dashboard | StockLeague{% endblock %}
+
+{% block main %}
+<div class="container mt-4">
+    <!-- Dashboard Header -->
+    <div class="card mb-4 border-primary">
+        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+            <div>
+                <h4 class="mb-0">
+                    <i class="fas fa-chart-line"></i> {{ league.name }} Dashboard
+                </h4>
+                <small>{{ mode_description }}</small>
+            </div>
+            <div>
+                <a href="/leagues/{{ league.id }}" class="btn btn-outline-light btn-sm">
+                    <i class="fas fa-arrow-left"></i> Back to League
+                </a>
+                {% if is_member %}
+                <a href="/leagues/{{ league.id }}/trade" class="btn btn-success btn-sm ms-2">
+                    <i class="fas fa-exchange-alt"></i> Trade
+                </a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Main Content -->
+        <div class="col-lg-8">
+            <!-- Leaderboard -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-trophy"></i> Leaderboard</h5>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th style="width: 50px">Rank</th>
+                                    <th>Trader</th>
+                                    <th class="text-end">Portfolio Value</th>
+                                    <th class="text-end">Return</th>
+                                    <th class="text-end">Score</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for entry in leaderboard %}
+                                <tr class="{% if entry.current_rank == 1 %}table-warning{% elif entry.current_rank == 2 %}table-secondary{% elif entry.current_rank == 3 %}table-info{% endif %}">
+                                    <td>
+                                        {% if entry.current_rank == 1 %}
+                                        <span class="fs-4">🥇</span>
+                                        {% elif entry.current_rank == 2 %}
+                                        <span class="fs-4">🥈</span>
+                                        {% elif entry.current_rank == 3 %}
+                                        <span class="fs-4">🥉</span>
+                                        {% else %}
+                                        <span class="badge bg-secondary">{{ entry.current_rank }}</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            {% if entry.avatar_url %}
+                                            <img src="{{ entry.avatar_url }}" class="rounded-circle me-2" width="32" height="32">
+                                            {% else %}
+                                            <div class="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center me-2" 
+                                                 style="width: 32px; height: 32px; font-size: 14px;">
+                                                {{ entry.username[0].upper() }}
+                                            </div>
+                                            {% endif %}
+                                            <a href="/profile/{{ entry.username }}" class="text-decoration-none">
+                                                {{ entry.username }}
+                                            </a>
+                                        </div>
+                                    </td>
+                                    <td class="text-end">
+                                        <strong>{{ entry.total_value | usd if entry.total_value else starting_cash | usd }}</strong>
+                                    </td>
+                                    <td class="text-end">
+                                        {% set ret = entry.return_pct if entry.return_pct else 0 %}
+                                        <span class="{% if ret >= 0 %}text-success{% else %}text-danger{% endif %}">
+                                            {% if ret >= 0 %}+{% endif %}{{ "%.2f"|format(ret) }}%
+                                        </span>
+                                    </td>
+                                    <td class="text-end">
+                                        <span class="badge bg-primary fs-6">{{ "%.2f"|format(entry.score) if entry.score else 0 }}</span>
+                                    </td>
+                                </tr>
+                                {% else %}
+                                <tr>
+                                    <td colspan="5" class="text-center text-muted py-4">
+                                        No participants yet
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recent Activity -->
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-history"></i> Recent Trades</h5>
+                </div>
+                <div class="card-body p-0">
+                    {% if recent_transactions %}
+                    <div class="list-group list-group-flush">
+                        {% for txn in recent_transactions %}
+                        <div class="list-group-item d-flex justify-content-between align-items-center">
+                            <div>
+                                <span class="badge {% if txn.type == 'buy' %}bg-success{% else %}bg-danger{% endif %} me-2">
+                                    {{ txn.type|upper }}
+                                </span>
+                                <strong>{{ txn.username }}</strong>
+                                {{ txn.type }}{{ 'd' if txn.type == 'buy' else 'd' }} 
+                                <span class="text-primary">{{ abs(txn.shares) }} {{ txn.symbol }}</span>
+                                @ {{ txn.price | usd }}
+                            </div>
+                            <small class="text-muted">
+                                {{ txn.timestamp.split('.')[0] if txn.timestamp else 'Unknown' }}
+                            </small>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="text-center text-muted py-4">
+                        <i class="fas fa-inbox fa-2x mb-2"></i>
+                        <p class="mb-0">No trades yet</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Sidebar -->
+        <div class="col-lg-4">
+            <!-- Your Portfolio (if member) -->
+            {% if is_member and user_portfolio %}
+            <div class="card mb-4">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0"><i class="fas fa-user"></i> Your Portfolio</h5>
+                </div>
+                <div class="card-body">
+                    {% set user_total = user_portfolio.cash %}
+                    {% for h in user_holdings %}
+                        {% set user_total = user_total + (h.value if h.value else 0) %}
+                    {% endfor %}
+                    
+                    <div class="mb-3">
+                        <label class="text-muted small">Total Value</label>
+                        <h4 class="text-success mb-0">{{ user_total | usd }}</h4>
+                    </div>
+                    <div class="mb-3">
+                        <label class="text-muted small">Cash</label>
+                        <h5 class="mb-0">{{ user_portfolio.cash | usd }}</h5>
+                    </div>
+                    <div class="mb-3">
+                        <label class="text-muted small">Return</label>
+                        {% set user_return = user_total - starting_cash %}
+                        {% set user_return_pct = (user_return / starting_cash * 100) if starting_cash > 0 else 0 %}
+                        <h5 class="{% if user_return >= 0 %}text-success{% else %}text-danger{% endif %} mb-0">
+                            {{ user_return | usd }} ({{ "%.2f"|format(user_return_pct) }}%)
+                        </h5>
+                    </div>
+                    
+                    <hr>
+                    
+                    <h6 class="mb-2">Holdings</h6>
+                    {% if user_holdings %}
+                    <ul class="list-unstyled mb-0">
+                        {% for h in user_holdings %}
+                        <li class="mb-2 d-flex justify-content-between">
+                            <span><strong>{{ h.symbol }}</strong> × {{ h.shares }}</span>
+                            <span>{{ h.value | usd if h.value else 'N/A' }}</span>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                    {% else %}
+                    <p class="text-muted mb-0">No holdings</p>
+                    {% endif %}
+                    
+                    <a href="/leagues/{{ league.id }}/trade" class="btn btn-primary w-100 mt-3">
+                        <i class="fas fa-exchange-alt"></i> Trade Now
+                    </a>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- League Info -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-info-circle"></i> League Info</h5>
+                </div>
+                <div class="card-body">
+                    <ul class="list-unstyled mb-0">
+                        <li class="mb-2">
+                            <strong>Starting Cash:</strong> {{ starting_cash | usd }}
+                        </li>
+                        <li class="mb-2">
+                            <strong>Participants:</strong> {{ leaderboard|length }}
+                        </li>
+                        <li class="mb-2">
+                            <strong>Status:</strong>
+                            {% set state = league.lifecycle_state or 'active' %}
+                            <span class="badge 
+                                {% if state == 'active' %}bg-success
+                                {% elif state == 'draft' %}bg-warning
+                                {% elif state == 'open' %}bg-info
+                                {% elif state == 'locked' %}bg-secondary
+                                {% else %}bg-dark{% endif %}">
+                                {{ state|capitalize }}
+                            </span>
+                        </li>
+                        {% if league.season_start %}
+                        <li class="mb-2">
+                            <strong>Started:</strong> {{ league.season_start.split('.')[0] }}
+                        </li>
+                        {% endif %}
+                        {% if league.season_end %}
+                        <li class="mb-2">
+                            <strong>Ends:</strong> {{ league.season_end.split('.')[0] }}
+                        </li>
+                        {% endif %}
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Mode Description -->
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-gamepad"></i> Competition Mode</h5>
+                </div>
+                <div class="card-body">
+                    <p class="mb-0">{{ mode_description }}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

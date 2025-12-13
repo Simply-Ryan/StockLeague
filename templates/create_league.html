@@ -59,6 +59,61 @@
                             </div>
                         </div>
 
+                        <!-- Competition Mode Selection -->
+                        <div class="mb-3">
+                            <label for="mode" class="form-label">Competition Mode</label>
+                            <select class="form-select" id="mode" name="mode" onchange="toggleModeOptions()">
+                                {% if available_modes %}
+                                    {% for m in available_modes %}
+                                    <option value="{{ m.id }}" {% if m.id == 'absolute_value' %}selected{% endif %}>
+                                        {{ m.name }}
+                                    </option>
+                                    {% endfor %}
+                                {% else %}
+                                    <option value="absolute_value" selected>Absolute Value</option>
+                                    <option value="percentage_return">Percentage Return</option>
+                                    <option value="risk_adjusted">Risk-Adjusted (Sharpe)</option>
+                                    <option value="limited_capital">Limited Capital</option>
+                                    <option value="sector_restricted">Sector Restricted</option>
+                                {% endif %}
+                            </select>
+                            <div class="form-text" id="mode-description">
+                                {% if available_modes %}
+                                    {{ available_modes[0].description }}
+                                {% else %}
+                                    Ranked by total portfolio value - simple and straightforward
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <!-- Limited Capital Mode Options (hidden by default) -->
+                        <div id="limited-capital-options" class="mb-3" style="display: none;">
+                            <div class="card border-secondary">
+                                <div class="card-header bg-secondary text-white">
+                                    <small>Limited Capital Settings</small>
+                                </div>
+                                <div class="card-body">
+                                    <div class="row">
+                                        <div class="col-md-4 mb-2">
+                                            <label class="form-label small">Max Positions</label>
+                                            <input type="number" class="form-control form-control-sm" 
+                                                   name="max_positions" value="10" min="1" max="50">
+                                        </div>
+                                        <div class="col-md-4 mb-2">
+                                            <label class="form-label small">Max % per Stock</label>
+                                            <input type="number" class="form-control form-control-sm" 
+                                                   name="max_position_percent" value="25" min="5" max="100">
+                                        </div>
+                                        <div class="col-md-4 mb-2">
+                                            <label class="form-label small">Fee %</label>
+                                            <input type="number" class="form-control form-control-sm" 
+                                                   name="fee_percent" value="0.1" min="0" max="5" step="0.1">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
                         <div class="mb-3 form-check">
                             <input type="checkbox" class="form-check-input" id="auto_reset" name="auto_reset">
                             <label class="form-check-label" for="auto_reset">
@@ -68,11 +123,11 @@
                         </div>
 
                         <div class="alert alert-info">
-                            <h6><i class="fas fa-info-circle"></i> How Leagues Work</h6>
+                            <h6><i class="fas fa-info-circle"></i> How Competition Leagues Work</h6>
                             <ul class="mb-0">
-                                <li>Members trade with virtual cash starting from the same amount</li>
-                                <li>Rankings are based on total portfolio value (cash + stocks)</li>
-                                <li>Seasons run for the specified duration</li>
+                                <li>Each member gets an <strong>isolated portfolio</strong> within the league</li>
+                                <li>Trade independently from your main account - league trades don't affect your global portfolio</li>
+                                <li>Rankings are calculated based on the selected competition mode</li>
                                 <li>Top performers are notified when season ends</li>
                                 <li>You'll receive an invite code to share with others</li>
                             </ul>
@@ -90,4 +145,38 @@
         </div>
     </div>
 </div>
+
+<script>
+// Mode descriptions
+const modeDescriptions = {
+    'absolute_value': 'Ranked by total portfolio value - simple and straightforward',
+    'percentage_return': 'Ranked by % gain from starting cash - levels the playing field',
+    'risk_adjusted': 'Ranked by Sharpe ratio - rewards consistent returns',
+    'limited_capital': 'Position limits and trading fees - tests discipline',
+    'sector_restricted': 'Trade only in specific sectors or stocks',
+    'draft': 'Draft stocks before trading begins - fantasy sports style'
+};
+
+function toggleModeOptions() {
+    const mode = document.getElementById('mode').value;
+    const limitedOptions = document.getElementById('limited-capital-options');
+    const description = document.getElementById('mode-description');
+    
+    // Update description
+    if (modeDescriptions[mode]) {
+        description.textContent = modeDescriptions[mode];
+    }
+    
+    // Show/hide limited capital options
+    if (mode === 'limited_capital') {
+        limitedOptions.style.display = 'block';
+    } else {
+        limitedOptions.style.display = 'none';
+    }
+}
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', toggleModeOptions);
+</script>
 {% endblock %}
+

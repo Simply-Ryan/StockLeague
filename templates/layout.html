@@ -1,598 +1,822 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>{% block title %}StockLeague{% endblock %}</title>
-    
+
     <!-- Bootstrap CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+
     <!-- Font Awesome -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
+
     <!-- Custom CSS -->
-    <link href="{{ url_for('static', filename='css/styles.css') }}?v=11" rel="stylesheet">
-    
+    <link
+      href="{{ url_for('static', filename='css/styles.css') }}?v=11"
+      rel="stylesheet"
+    />
+
     {% block head %}{% endblock %}
-</head>
-<body>
+  </head>
+  <body>
     <!-- Navigation -->
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark sticky-top shadow-sm">
-        <div class="container-fluid px-3">
-            <a class="navbar-brand fw-bold" href="/">
-                <i class="fas fa-chart-line text-primary"></i> StockLeague
-            </a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                {% if session["user_id"] %}
-                <ul class="navbar-nav me-auto">
-                    <!-- Portfolio -->
-                    <li class="nav-item">
-                        <a class="nav-link" href="/">
-                            <i class="fas fa-home"></i> <span class="d-lg-none d-inline">Portfolio</span>
-                        </a>
-                    </li>
-                    
-                    <!-- Trading Dropdown -->
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" id="tradingDropdown" role="button" 
-                           data-bs-toggle="dropdown" aria-expanded="false">
-                            <i class="fas fa-exchange-alt"></i> Trade
-                        </a>
-                        <ul class="dropdown-menu" aria-labelledby="tradingDropdown">
-                            <li><a class="dropdown-item" href="/explore">
-                                <i class="fas fa-compass text-info"></i> Explore Stocks
-                            </a></li>
-                            <li><a class="dropdown-item" href="/quote">
-                                <i class="fas fa-search text-primary"></i> Get Quote
-                            </a></li>
-                            <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item" href="/buy">
-                                <i class="fas fa-arrow-up text-success"></i> Buy Stocks
-                            </a></li>
-                            <li><a class="dropdown-item" href="/sell">
-                                <i class="fas fa-arrow-down text-danger"></i> Sell Stocks
-                            </a></li>
-                            <li><a class="dropdown-item" href="/options">
-                                <i class="fas fa-sliders-h text-warning"></i> Options Trading
-                            </a></li>
-                            <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item" href="/watchlist">
-                                <i class="fas fa-star text-warning"></i> Watchlist
-                            </a></li>
-                            <li><a class="dropdown-item" href="/alerts">
-                                <i class="fas fa-bell text-info"></i> Price Alerts
-                            </a></li>
-                        </ul>
-                    </li>
-                    
-                    <!-- Analytics -->
-                    <li class="nav-item">
-                        <a class="nav-link" href="/analytics">
-                            <i class="fas fa-chart-bar"></i> Analytics
-                        </a>
-                    </li>
-                    
-                    <!-- Social Dropdown -->
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" id="socialDropdown" role="button" 
-                           data-bs-toggle="dropdown" aria-expanded="false">
-                            <i class="fas fa-users"></i> Social
-                        </a>
-                        <ul class="dropdown-menu" aria-labelledby="socialDropdown">
-                            <li><a class="dropdown-item" href="/leagues">
-                                <i class="fas fa-trophy text-warning"></i> Leagues
-                            </a></li>
-                            <li><a class="dropdown-item" href="/leaderboard">
-                                <i class="fas fa-crown text-warning"></i> Leaderboard
-                            </a></li>
-                            <li><a class="dropdown-item" href="/challenges">
-                                <i class="fas fa-bullseye text-danger"></i> Challenges
-                            </a></li>
-                            <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item" href="/friends">
-                                <i class="fas fa-user-friends text-primary"></i> Friends
-                            </a></li>
-                            <li><a class="dropdown-item" href="/chat">
-                                <i class="fas fa-comments text-success"></i> Chat
-                            </a></li>
-                            <li><a class="dropdown-item" href="/feed">
-                                <i class="fas fa-stream text-info"></i> Activity Feed
-                            </a></li>
-                        </ul>
-                    </li>
-                    
-                    <!-- News -->
-                    <li class="nav-item">
-                        <a class="nav-link" href="/news">
-                            <i class="fas fa-newspaper"></i> News
-                        </a>
-                    </li>
-                </ul>
-                
-                <ul class="navbar-nav ms-auto align-items-center">
-                    <!-- Quick Action: Add Cash -->
-                    <li class="nav-item d-none d-lg-block">
-                        <a class="btn btn-sm btn-success me-2" href="/add_cash">
-                            <i class="fas fa-plus-circle"></i> Add Cash
-                        </a>
-                    </li>
-                    
-                    <!-- Notifications -->
-                    <li class="nav-item dropdown">
-                        <a class="nav-link position-relative" href="#" id="notificationsDropdown" 
-                           role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                            <i class="fas fa-bell"></i>
-                            <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" 
-                                  id="notif-badge" style="display: none; font-size: 0.6rem;">
-                                0
-                            </span>
-                        </a>
-                        <ul class="dropdown-menu dropdown-menu-end shadow" style="width: 350px; max-height: 400px; overflow-y: auto;" id="notifications-dropdown">
-                            <li><h6 class="dropdown-header">Notifications</h6></li>
-                            <li><hr class="dropdown-divider"></li>
-                            <li id="notifications-list">
-                                <div class="text-center text-muted py-3">
-                                    <i class="fas fa-spinner fa-spin"></i> Loading...
-                                </div>
-                            </li>
-                            <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item text-center small" href="/notifications">
-                                View All
-                            </a></li>
-                        </ul>
-                    </li>
-                    
-                    <!-- Theme Selector -->
-                    <li class="nav-item dropdown">
-                        <a class="nav-link" href="#" id="themeDropdown" role="button" 
-                           data-bs-toggle="dropdown" aria-expanded="false" title="Theme">
-                            <i class="fas fa-palette" id="theme-icon"></i>
-                        </a>
-                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="themeDropdown">
-                            <li><h6 class="dropdown-header">Theme</h6></li>
-                            <li><hr class="dropdown-divider"></li>
-                            <li>
-                                <a class="dropdown-item theme-option d-flex align-items-center" href="#" data-theme="dark">
-                                    <i class="fas fa-moon text-primary me-2"></i> Dark
-                                    <i class="fas fa-check text-success ms-auto" id="check-dark" style="display: none;"></i>
-                                </a>
-                            </li>
-                            <li>
-                                <a class="dropdown-item theme-option d-flex align-items-center" href="#" data-theme="light">
-                                    <i class="fas fa-sun text-warning me-2"></i> Light
-                                    <i class="fas fa-check text-success ms-auto" id="check-light" style="display: none;"></i>
-                                </a>
-                            </li>
-                            <li>
-                                <a class="dropdown-item theme-option d-flex align-items-center" href="#" data-theme="auto">
-                                    <i class="fas fa-adjust text-info me-2"></i> Auto
-                                    <i class="fas fa-check text-success ms-auto" id="check-auto" style="display: none;"></i>
-                                </a>
-                            </li>
-                            <li><hr class="dropdown-divider"></li>
-                            <li>
-                                <a class="dropdown-item theme-option d-flex align-items-center" href="#" data-theme="ocean">
-                                    <i class="fas fa-water text-info me-2"></i> Ocean
-                                    <i class="fas fa-check text-success ms-auto" id="check-ocean" style="display: none;"></i>
-                                </a>
-                            </li>
-                            <li>
-                                <a class="dropdown-item theme-option d-flex align-items-center" href="#" data-theme="forest">
-                                    <i class="fas fa-tree text-success me-2"></i> Forest
-                                    <i class="fas fa-check text-success ms-auto" id="check-forest" style="display: none;"></i>
-                                </a>
-                            </li>
-                            <li>
-                                <a class="dropdown-item theme-option d-flex align-items-center" href="#" data-theme="sunset">
-                                    <i class="fas fa-sun text-danger me-2"></i> Sunset
-                                    <i class="fas fa-check text-success ms-auto" id="check-sunset" style="display: none;"></i>
-                                </a>
-                            </li>
-                        </ul>
-                    </li>
-                    
-                    <!-- Account Menu -->
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" id="accountDropdown" role="button" 
-                           data-bs-toggle="dropdown" aria-expanded="false">
-                            <i class="fas fa-user-circle fa-lg"></i>
-                        </a>
-                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="accountDropdown">
-                            <li><h6 class="dropdown-header">
-                                <i class="fas fa-user"></i> {{ session.get('username', 'User') }}
-                            </h6></li>
-                            <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item" href="/profile/{{ session.get('username', 'me') }}">
-                                <i class="fas fa-id-card text-primary"></i> Profile
-                            </a></li>
-                            <li><a class="dropdown-item" href="/history">
-                                <i class="fas fa-history text-info"></i> History
-                            </a></li>
-                            <li><a class="dropdown-item" href="/achievements">
-                                <i class="fas fa-trophy text-warning"></i> Achievements
-                            </a></li>
-                            <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item" href="/settings">
-                                <i class="fas fa-cog text-secondary"></i> Settings
-                            </a></li>
-                            <li><a class="dropdown-item" href="/logout">
-                                <i class="fas fa-sign-out-alt text-danger"></i> Logout
-                            </a></li>
-                        </ul>
-                    </li>
-                </ul>
-                {% else %}
-                <ul class="navbar-nav me-auto">
-                    <li class="nav-item">
-                        <a class="nav-link" href="/about">
-                            <i class="fas fa-info-circle"></i> About
-                        </a>
-                    </li>
-                </ul>
-                <ul class="navbar-nav ms-auto">
-                    <li class="nav-item">
-                        <a class="btn btn-outline-light btn-sm me-2" href="/register">
-                            <i class="fas fa-user-plus"></i> Register
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="btn btn-primary btn-sm" href="/login">
-                            <i class="fas fa-sign-in-alt"></i> Login
-                        </a>
-                    </li>
-                </ul>
-                {% endif %}
-            </div>
+    <nav
+      class="navbar navbar-expand-lg navbar-dark bg-dark sticky-top shadow-sm"
+    >
+      <div class="container-fluid px-3">
+        <a class="navbar-brand fw-bold" href="/">
+          <i class="fas fa-chart-line text-primary"></i> StockLeague
+        </a>
+        <button
+          class="navbar-toggler"
+          type="button"
+          data-bs-toggle="collapse"
+          data-bs-target="#navbarNav"
+        >
+          <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+          {% if session["user_id"] %}
+          <ul class="navbar-nav me-auto">
+            <!-- Portfolio -->
+            <li class="nav-item">
+              <a class="nav-link" href="/">
+                <i class="fas fa-home"></i>
+                <span class="d-lg-none d-inline">Portfolio</span>
+              </a>
+            </li>
+
+            <!-- Trading Dropdown -->
+            <li class="nav-item dropdown">
+              <a
+                class="nav-link dropdown-toggle"
+                href="#"
+                id="tradingDropdown"
+                role="button"
+                data-bs-toggle="dropdown"
+                aria-expanded="false"
+              >
+                <i class="fas fa-exchange-alt"></i> Trade
+              </a>
+              <ul class="dropdown-menu" aria-labelledby="tradingDropdown">
+                <li>
+                  <a class="dropdown-item" href="/explore">
+                    <i class="fas fa-compass text-info"></i> Explore Stocks
+                  </a>
+                </li>
+                <li>
+                  <a class="dropdown-item" href="/quote">
+                    <i class="fas fa-search text-primary"></i> Get Quote
+                  </a>
+                </li>
+                <li><hr class="dropdown-divider" /></li>
+                <li>
+                  <a class="dropdown-item" href="/buy">
+                    <i class="fas fa-arrow-up text-success"></i> Buy Stocks
+                  </a>
+                </li>
+                <li>
+                  <a class="dropdown-item" href="/sell">
+                    <i class="fas fa-arrow-down text-danger"></i> Sell Stocks
+                  </a>
+                </li>
+                <li>
+                  <a class="dropdown-item" href="/options">
+                    <i class="fas fa-sliders-h text-warning"></i> Options
+                    Trading
+                  </a>
+                </li>
+                <li><hr class="dropdown-divider" /></li>
+                <li>
+                  <a class="dropdown-item" href="/watchlist">
+                    <i class="fas fa-star text-warning"></i> Watchlist
+                  </a>
+                </li>
+                <li>
+                  <a class="dropdown-item" href="/alerts">
+                    <i class="fas fa-bell text-info"></i> Price Alerts
+                  </a>
+                </li>
+              </ul>
+            </li>
+
+            <!-- Analytics -->
+            <li class="nav-item">
+              <a class="nav-link" href="/analytics">
+                <i class="fas fa-chart-bar"></i> Analytics
+              </a>
+            </li>
+
+            <!-- Social Dropdown -->
+            <li class="nav-item dropdown">
+              <a
+                class="nav-link dropdown-toggle"
+                href="#"
+                id="socialDropdown"
+                role="button"
+                data-bs-toggle="dropdown"
+                aria-expanded="false"
+              >
+                <i class="fas fa-users"></i> Social
+              </a>
+              <ul class="dropdown-menu" aria-labelledby="socialDropdown">
+                <li>
+                  <a class="dropdown-item" href="/leagues">
+                    <i class="fas fa-trophy text-warning"></i> Leagues
+                  </a>
+                </li>
+                <li>
+                  <a class="dropdown-item" href="/leaderboard">
+                    <i class="fas fa-crown text-warning"></i> Leaderboard
+                  </a>
+                </li>
+                <li>
+                  <a class="dropdown-item" href="/challenges">
+                    <i class="fas fa-bullseye text-danger"></i> Challenges
+                  </a>
+                </li>
+                <li><hr class="dropdown-divider" /></li>
+                <li>
+                  <a class="dropdown-item" href="/friends">
+                    <i class="fas fa-user-friends text-primary"></i> Friends
+                  </a>
+                </li>
+                <li>
+                  <a class="dropdown-item" href="/chat">
+                    <i class="fas fa-comments text-success"></i> Chat
+                  </a>
+                </li>
+                <li>
+                  <a class="dropdown-item" href="/feed">
+                    <i class="fas fa-stream text-info"></i> Activity Feed
+                  </a>
+                </li>
+              </ul>
+            </li>
+
+            <!-- News -->
+            <li class="nav-item">
+              <a class="nav-link" href="/news">
+                <i class="fas fa-newspaper"></i> News
+              </a>
+            </li>
+          </ul>
+
+          <ul class="navbar-nav ms-auto align-items-center">
+            <!-- Quick Action: Add Cash -->
+            <li class="nav-item d-none d-lg-block">
+              <a class="btn btn-sm btn-success me-2" href="/add_cash">
+                <i class="fas fa-plus-circle"></i> Add Cash
+              </a>
+            </li>
+
+            <!-- Notifications -->
+            <li class="nav-item dropdown">
+              <a
+                class="nav-link position-relative"
+                href="#"
+                id="notificationsDropdown"
+                role="button"
+                data-bs-toggle="dropdown"
+                aria-expanded="false"
+              >
+                <i class="fas fa-bell"></i>
+                <span
+                  class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger"
+                  id="notif-badge"
+                  style="display: none; font-size: 0.6rem"
+                >
+                  0
+                </span>
+              </a>
+              <ul
+                class="dropdown-menu dropdown-menu-end shadow"
+                style="width: 350px; max-height: 400px; overflow-y: auto"
+                id="notifications-dropdown"
+              >
+                <li><h6 class="dropdown-header">Notifications</h6></li>
+                <li><hr class="dropdown-divider" /></li>
+                <li id="notifications-list">
+                  <div class="text-center text-muted py-3">
+                    <i class="fas fa-spinner fa-spin"></i> Loading...
+                  </div>
+                </li>
+                <li><hr class="dropdown-divider" /></li>
+                <li>
+                  <a
+                    class="dropdown-item text-center small"
+                    href="/notifications"
+                  >
+                    View All
+                  </a>
+                </li>
+              </ul>
+            </li>
+
+            <!-- Theme Selector -->
+            <li class="nav-item dropdown">
+              <a
+                class="nav-link"
+                href="#"
+                id="themeDropdown"
+                role="button"
+                data-bs-toggle="dropdown"
+                aria-expanded="false"
+                title="Theme"
+              >
+                <i class="fas fa-palette" id="theme-icon"></i>
+              </a>
+              <ul
+                class="dropdown-menu dropdown-menu-end"
+                aria-labelledby="themeDropdown"
+              >
+                <li><h6 class="dropdown-header">Theme</h6></li>
+                <li><hr class="dropdown-divider" /></li>
+                <li>
+                  <a
+                    class="dropdown-item theme-option d-flex align-items-center"
+                    href="#"
+                    data-theme="dark"
+                  >
+                    <i class="fas fa-moon text-primary me-2"></i> Dark
+                    <i
+                      class="fas fa-check text-success ms-auto"
+                      id="check-dark"
+                      style="display: none"
+                    ></i>
+                  </a>
+                </li>
+                <li>
+                  <a
+                    class="dropdown-item theme-option d-flex align-items-center"
+                    href="#"
+                    data-theme="light"
+                  >
+                    <i class="fas fa-sun text-warning me-2"></i> Light
+                    <i
+                      class="fas fa-check text-success ms-auto"
+                      id="check-light"
+                      style="display: none"
+                    ></i>
+                  </a>
+                </li>
+                <li>
+                  <a
+                    class="dropdown-item theme-option d-flex align-items-center"
+                    href="#"
+                    data-theme="auto"
+                  >
+                    <i class="fas fa-adjust text-info me-2"></i> Auto
+                    <i
+                      class="fas fa-check text-success ms-auto"
+                      id="check-auto"
+                      style="display: none"
+                    ></i>
+                  </a>
+                </li>
+                <li><hr class="dropdown-divider" /></li>
+                <li>
+                  <a
+                    class="dropdown-item theme-option d-flex align-items-center"
+                    href="#"
+                    data-theme="ocean"
+                  >
+                    <i class="fas fa-water text-info me-2"></i> Ocean
+                    <i
+                      class="fas fa-check text-success ms-auto"
+                      id="check-ocean"
+                      style="display: none"
+                    ></i>
+                  </a>
+                </li>
+                <li>
+                  <a
+                    class="dropdown-item theme-option d-flex align-items-center"
+                    href="#"
+                    data-theme="forest"
+                  >
+                    <i class="fas fa-tree text-success me-2"></i> Forest
+                    <i
+                      class="fas fa-check text-success ms-auto"
+                      id="check-forest"
+                      style="display: none"
+                    ></i>
+                  </a>
+                </li>
+                <li>
+                  <a
+                    class="dropdown-item theme-option d-flex align-items-center"
+                    href="#"
+                    data-theme="sunset"
+                  >
+                    <i class="fas fa-sun text-danger me-2"></i> Sunset
+                    <i
+                      class="fas fa-check text-success ms-auto"
+                      id="check-sunset"
+                      style="display: none"
+                    ></i>
+                  </a>
+                </li>
+              </ul>
+            </li>
+
+            <!-- Account Menu -->
+            <li class="nav-item dropdown">
+              <a
+                class="nav-link dropdown-toggle"
+                href="#"
+                id="accountDropdown"
+                role="button"
+                data-bs-toggle="dropdown"
+                aria-expanded="false"
+              >
+                <i class="fas fa-user-circle fa-lg"></i>
+              </a>
+              <ul
+                class="dropdown-menu dropdown-menu-end"
+                aria-labelledby="accountDropdown"
+              >
+                <li>
+                  <h6 class="dropdown-header">
+                    <i class="fas fa-user"></i> {{ session.get('username',
+                    'User') }}
+                  </h6>
+                </li>
+                <li><hr class="dropdown-divider" /></li>
+                <li>
+                  <a
+                    class="dropdown-item"
+                    href="/profile/{{ session.get('username', 'me') }}"
+                  >
+                    <i class="fas fa-id-card text-primary"></i> Profile
+                  </a>
+                </li>
+                <li>
+                  <a class="dropdown-item" href="/history">
+                    <i class="fas fa-history text-info"></i> History
+                  </a>
+                </li>
+                <li>
+                  <a class="dropdown-item" href="/achievements">
+                    <i class="fas fa-trophy text-warning"></i> Achievements
+                  </a>
+                </li>
+                <li><hr class="dropdown-divider" /></li>
+                <li>
+                  <a class="dropdown-item" href="/settings">
+                    <i class="fas fa-cog text-secondary"></i> Settings
+                  </a>
+                </li>
+                <li>
+                  <a class="dropdown-item" href="/logout">
+                    <i class="fas fa-sign-out-alt text-danger"></i> Logout
+                  </a>
+                </li>
+              </ul>
+            </li>
+          </ul>
+          {% else %}
+          <ul class="navbar-nav me-auto">
+            <li class="nav-item">
+              <a class="nav-link" href="/about">
+                <i class="fas fa-info-circle"></i> About
+              </a>
+            </li>
+          </ul>
+          <ul class="navbar-nav ms-auto">
+            <li class="nav-item">
+              <a class="btn btn-outline-light btn-sm me-2" href="/register">
+                <i class="fas fa-user-plus"></i> Register
+              </a>
+            </li>
+            <li class="nav-item">
+              <a class="btn btn-primary btn-sm" href="/login">
+                <i class="fas fa-sign-in-alt"></i> Login
+              </a>
+            </li>
+          </ul>
+          {% endif %}
         </div>
+      </div>
     </nav>
 
     <!-- Flash Messages -->
-    {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-            <div class="container mt-3">
-                {% for category, message in messages %}
-                    <div class="alert alert-{{ category if category != 'message' else 'info' }} alert-dismissible fade show" role="alert">
-                        {{ message }}
-                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                    </div>
-                {% endfor %}
-            </div>
-        {% endif %}
-    {% endwith %}
+    {% with messages = get_flashed_messages(with_categories=true) %} {% if
+    messages %}
+    <div class="container mt-3">
+      {% for category, message in messages %}
+      <div
+        class="alert alert-{{ category if category != 'message' else 'info' }} alert-dismissible fade show"
+        role="alert"
+      >
+        {{ message }}
+        <button
+          type="button"
+          class="btn-close"
+          data-bs-dismiss="alert"
+        ></button>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %} {% endwith %}
 
     <!-- Main Content -->
-    <main class="container mt-4">
-        {% block main %}{% endblock %}
-    </main>
+    <main class="container mt-4">{% block main %}{% endblock %}</main>
 
     <!-- Footer -->
     <footer class="footer mt-4 py-2 bg-dark text-white">
-        <div class="container">
-            <div class="row align-items-center">
-                <div class="col-md-4 text-center text-md-start mb-2 mb-md-0">
-                    <small class="text-muted">
-                        <i class="fas fa-chart-line"></i> StockLeague &copy; 2025
-                    </small>
-                </div>
-                <div class="col-md-4 text-center mb-2 mb-md-0">
-                    <small>
-                        {% if session["user_id"] %}
-                        <a href="/leaderboard" class="text-muted text-decoration-none me-2"><i class="fas fa-trophy"></i> Leaderboard</a>
-                        <a href="/chat" class="text-muted text-decoration-none me-2"><i class="fas fa-comments"></i> Chat</a>
-                        <a href="/analytics" class="text-muted text-decoration-none"><i class="fas fa-chart-bar"></i> Analytics</a>
-                        {% else %}
-                        <a href="/register" class="text-muted text-decoration-none me-2">Register</a>
-                        <a href="/login" class="text-muted text-decoration-none">Login</a>
-                        {% endif %}
-                    </small>
-                </div>
-                <div class="col-md-4 text-center text-md-end">
-                    <small class="text-muted">
-                        <i class="fas fa-database"></i> Data by <a href="https://finnhub.io" target="_blank" class="text-info text-decoration-none">Finnhub</a>
-                    </small>
-                </div>
-            </div>
+      <div class="container">
+        <div class="row align-items-center">
+          <div class="col-md-4 text-center text-md-start mb-2 mb-md-0">
+            <small class="text-muted">
+              <i class="fas fa-chart-line"></i> StockLeague &copy; 2025
+            </small>
+          </div>
+          <div class="col-md-4 text-center mb-2 mb-md-0">
+            <small>
+              {% if session["user_id"] %}
+              <a
+                href="/leaderboard"
+                class="text-muted text-decoration-none me-2"
+                ><i class="fas fa-trophy"></i> Leaderboard</a
+              >
+              <a href="/chat" class="text-muted text-decoration-none me-2"
+                ><i class="fas fa-comments"></i> Chat</a
+              >
+              <a href="/analytics" class="text-muted text-decoration-none"
+                ><i class="fas fa-chart-bar"></i> Analytics</a
+              >
+              {% else %}
+              <a href="/register" class="text-muted text-decoration-none me-2"
+                >Register</a
+              >
+              <a href="/login" class="text-muted text-decoration-none">Login</a>
+              {% endif %}
+            </small>
+          </div>
+          <div class="col-md-4 text-center text-md-end">
+            <small class="text-muted">
+              <i class="fas fa-database"></i> Data by
+              <a
+                href="https://finnhub.io"
+                target="_blank"
+                class="text-info text-decoration-none"
+                >Finnhub</a
+              >
+            </small>
+          </div>
         </div>
+      </div>
     </footer>
 
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    
+
     <!-- Socket.IO Client -->
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
-    
+
     <!-- Custom JS -->
     <script src="{{ url_for('static', filename='js/app.js') }}"></script>
-    
+
     {% if session.get("user_id") %}
     <!-- Real-time Trading Features -->
     <script src="{{ url_for('static', filename='js/realtime.js') }}"></script>
-    
+
     <!-- Legacy Stock Updates (for backwards compatibility) -->
     <script>
-        // Initialize Socket.IO connection (if not already initialized)
-        if (typeof socket === 'undefined') {
-            const socket = io();
+      // Initialize Socket.IO connection (if not already initialized)
+      if (typeof socket === "undefined") {
+        const socket = io();
+      }
+
+      // Store subscribed symbols
+      const subscribedStocks = new Set();
+
+      socket.on("connect", function () {
+        console.log("Connected to real-time updates");
+      });
+
+      socket.on("disconnect", function () {
+        console.log("Disconnected from real-time updates");
+      });
+
+      socket.on("stock_update", function (data) {
+        console.log("Stock update received:", data);
+        updateStockPrice(data);
+      });
+
+      function subscribeToStock(symbol) {
+        if (!subscribedStocks.has(symbol)) {
+          socket.emit("subscribe_stock", { symbol: symbol });
+          subscribedStocks.add(symbol);
+          console.log("Subscribed to", symbol);
         }
-        
-        // Store subscribed symbols
-        const subscribedStocks = new Set();
-        
-        socket.on('connect', function() {
-            console.log('Connected to real-time updates');
-        });
-        
-        socket.on('disconnect', function() {
-            console.log('Disconnected from real-time updates');
-        });
-        
-        socket.on('stock_update', function(data) {
-            console.log('Stock update received:', data);
-            updateStockPrice(data);
-        });
-        
-        function subscribeToStock(symbol) {
-            if (!subscribedStocks.has(symbol)) {
-                socket.emit('subscribe_stock', {symbol: symbol});
-                subscribedStocks.add(symbol);
-                console.log('Subscribed to', symbol);
+      }
+
+      function unsubscribeFromStock(symbol) {
+        if (subscribedStocks.has(symbol)) {
+          socket.emit("unsubscribe_stock", { symbol: symbol });
+          subscribedStocks.delete(symbol);
+          console.log("Unsubscribed from", symbol);
+        }
+      }
+
+      function updateStockPrice(data) {
+        const symbol = data.symbol;
+
+        // Update price elements with data-symbol attribute
+        document.querySelectorAll(`[data-symbol="${symbol}"]`).forEach((el) => {
+          if (el.classList.contains("stock-price")) {
+            el.textContent = "$" + data.price.toFixed(2);
+
+            // Add flash effect
+            el.classList.add("price-updated");
+            setTimeout(() => el.classList.remove("price-updated"), 500);
+          }
+
+          if (el.classList.contains("stock-change")) {
+            const changeText =
+              (data.change >= 0 ? "+" : "") + data.change.toFixed(2);
+            const changePercent =
+              (data.change_percent >= 0 ? "+" : "") +
+              data.change_percent.toFixed(2) +
+              "%";
+            el.textContent = `${changeText} (${changePercent})`;
+
+            // Update color
+            el.classList.remove("text-success", "text-danger");
+            el.classList.add(data.change >= 0 ? "text-success" : "text-danger");
+          }
+
+          if (el.classList.contains("stock-value")) {
+            // Recalculate value if shares are available
+            const sharesEl = el.closest("tr")?.querySelector("[data-shares]");
+            if (sharesEl) {
+              const shares = parseFloat(sharesEl.dataset.shares);
+              const value = shares * data.price;
+              el.textContent = "$" + value.toFixed(2);
             }
-        }
-        
-        function unsubscribeFromStock(symbol) {
-            if (subscribedStocks.has(symbol)) {
-                socket.emit('unsubscribe_stock', {symbol: symbol});
-                subscribedStocks.delete(symbol);
-                console.log('Unsubscribed from', symbol);
-            }
-        }
-        
-        function updateStockPrice(data) {
-            const symbol = data.symbol;
-            
-            // Update price elements with data-symbol attribute
-            document.querySelectorAll(`[data-symbol="${symbol}"]`).forEach(el => {
-                if (el.classList.contains('stock-price')) {
-                    el.textContent = '$' + data.price.toFixed(2);
-                    
-                    // Add flash effect
-                    el.classList.add('price-updated');
-                    setTimeout(() => el.classList.remove('price-updated'), 500);
-                }
-                
-                if (el.classList.contains('stock-change')) {
-                    const changeText = (data.change >= 0 ? '+' : '') + data.change.toFixed(2);
-                    const changePercent = (data.change_percent >= 0 ? '+' : '') + data.change_percent.toFixed(2) + '%';
-                    el.textContent = `${changeText} (${changePercent})`;
-                    
-                    // Update color
-                    el.classList.remove('text-success', 'text-danger');
-                    el.classList.add(data.change >= 0 ? 'text-success' : 'text-danger');
-                }
-                
-                if (el.classList.contains('stock-value')) {
-                    // Recalculate value if shares are available
-                    const sharesEl = el.closest('tr')?.querySelector('[data-shares]');
-                    if (sharesEl) {
-                        const shares = parseFloat(sharesEl.dataset.shares);
-                        const value = shares * data.price;
-                        el.textContent = '$' + value.toFixed(2);
-                    }
-                }
-            });
-        }
-        
-        // Auto-subscribe to stocks on page
-        window.addEventListener('DOMContentLoaded', function() {
-            // Find all elements with data-symbol and subscribe
-            const symbols = new Set();
-            document.querySelectorAll('[data-symbol]').forEach(el => {
-                const symbol = el.dataset.symbol;
-                if (symbol && symbol.length > 0) {
-                    symbols.add(symbol);
-                }
-            });
-            
-            symbols.forEach(symbol => subscribeToStock(symbol));
+          }
         });
-        
-        // Cleanup on page unload
-        window.addEventListener('beforeunload', function() {
-            subscribedStocks.forEach(symbol => unsubscribeFromStock(symbol));
+      }
+
+      // Auto-subscribe to stocks on page
+      window.addEventListener("DOMContentLoaded", function () {
+        // Find all elements with data-symbol and subscribe
+        const symbols = new Set();
+        document.querySelectorAll("[data-symbol]").forEach((el) => {
+          const symbol = el.dataset.symbol;
+          if (symbol && symbol.length > 0) {
+            symbols.add(symbol);
+          }
         });
+
+        symbols.forEach((symbol) => subscribeToStock(symbol));
+      });
+
+      // Cleanup on page unload
+      window.addEventListener("beforeunload", function () {
+        subscribedStocks.forEach((symbol) => unsubscribeFromStock(symbol));
+      });
     </script>
-    {% endif %}
-    
-    {% if session.get("user_id") %}
+    {% endif %} {% if session.get("user_id") %}
     <!-- Notification checker -->
     <script>
-        function checkNotifications() {
-            fetch('/api/notifications/count')
-                .then(response => response.json())
-                .then(data => {
-                    const badge = document.getElementById('notif-badge');
-                    if (data.count > 0) {
-                        badge.textContent = data.count;
-                        badge.style.display = 'inline-block';
-                    } else {
-                        badge.style.display = 'none';
-                    }
-                })
-                .catch(err => console.error('Error checking notifications:', err));
-        }
+      function checkNotifications() {
+        fetch("/api/notifications/count")
+          .then((response) => response.json())
+          .then((data) => {
+            const badge = document.getElementById("notif-badge");
+            if (data.count > 0) {
+              badge.textContent = data.count;
+              badge.style.display = "inline-block";
+            } else {
+              badge.style.display = "none";
+            }
+          })
+          .catch((err) => console.error("Error checking notifications:", err));
+      }
 
-        function loadRecentNotifications() {
-            fetch('/api/notifications/recent')
-                .then(response => response.json())
-                .then(data => {
-                    const list = document.getElementById('notifications-list');
-                    if (data.notifications && data.notifications.length > 0) {
-                        list.innerHTML = data.notifications.map(notif => {
-                            const iconMap = {
-                                'friend_request': '<i class="fas fa-user-plus text-primary"></i>',
-                                'friend_accepted': '<i class="fas fa-user-check text-success"></i>',
-                                'achievement': '<i class="fas fa-trophy text-warning"></i>',
-                                'milestone': '<i class="fas fa-flag-checkered text-info"></i>',
-                                'alert': '<i class="fas fa-bell text-danger"></i>'
-                            };
-                            const icon = iconMap[notif.type] || '<i class="fas fa-info-circle text-secondary"></i>';
-                            const unreadClass = notif.is_read ? '' : 'bg-light';
-                            const actionBtn = notif.action_url ? 
-                                `<a href="${notif.action_url}" class="btn btn-sm btn-primary mt-2">View</a>` : '';
-                            
-                            return `
-                                <div class="dropdown-item ${unreadClass}" style="white-space: normal;">
+      function loadRecentNotifications() {
+        fetch("/api/notifications/recent")
+          .then((response) => response.json())
+          .then((data) => {
+            const list = document.getElementById("notifications-list");
+            if (data.notifications && data.notifications.length > 0) {
+              list.innerHTML = data.notifications
+                .map((notif) => {
+                  const iconMap = {
+                    friend_request:
+                      '<i class="fas fa-user-plus text-primary"></i>',
+                    friend_accepted:
+                      '<i class="fas fa-user-check text-success"></i>',
+                    achievement: '<i class="fas fa-trophy text-warning"></i>',
+                    milestone:
+                      '<i class="fas fa-flag-checkered text-info"></i>',
+                    alert: '<i class="fas fa-bell text-danger"></i>',
+                    league_invite: '<i class="fas fa-trophy text-warning"></i>',
+                    league_result: '<i class="fas fa-medal text-warning"></i>',
+                    challenge_invite:
+                      '<i class="fas fa-bullseye text-danger"></i>',
+                    challenge_complete:
+                      '<i class="fas fa-check-circle text-success"></i>',
+                    new_follower: '<i class="fas fa-user-plus text-info"></i>',
+                    trade_copy: '<i class="fas fa-copy text-secondary"></i>',
+                  };
+                  const icon =
+                    iconMap[notif.type] ||
+                    '<i class="fas fa-info-circle text-secondary"></i>';
+                  const unreadClass = notif.is_read ? "" : "bg-light";
+
+                  // Generate action buttons from actions array
+                  let actionButtons = "";
+                  if (notif.actions && notif.actions.length > 0) {
+                    actionButtons =
+                      '<div class="mt-2 d-flex gap-1">' +
+                      notif.actions
+                        .map((action) => {
+                          const btnStyle =
+                            {
+                              success: "btn-success",
+                              danger: "btn-outline-danger",
+                              primary: "btn-primary",
+                              info: "btn-outline-info",
+                            }[action.style] || "btn-secondary";
+                          return `<a href="${action.url}" class="btn btn-sm ${btnStyle}" onclick="event.stopPropagation();">${action.label}</a>`;
+                        })
+                        .join("") +
+                      "</div>";
+                  }
+
+                  return `
+                                <div class="dropdown-item ${unreadClass}" style="white-space: normal; cursor: default;">
                                     <div class="d-flex align-items-start">
                                         <div class="me-2">${icon}</div>
                                         <div class="flex-grow-1">
                                             <strong>${notif.title}</strong>
                                             <p class="mb-0 small">${notif.message}</p>
                                             <small class="text-muted">${notif.created_at}</small>
-                                            ${actionBtn}
+                                            ${actionButtons}
                                         </div>
                                     </div>
                                 </div>
                             `;
-                        }).join('');
-                    } else {
-                        list.innerHTML = '<div class="text-center text-muted py-3">No new notifications</div>';
-                    }
                 })
-                .catch(err => console.error('Error loading notifications:', err));
-        }
-
-        // Load notifications when dropdown is opened
-        document.getElementById('notificationsDropdown').addEventListener('click', loadRecentNotifications);
-        
-        // Check immediately and then every 30 seconds
-        checkNotifications();
-        setInterval(checkNotifications, 30000);
-
-        // Enhanced Theme System
-        const html = document.documentElement;
-        const themeIcon = document.getElementById('theme-icon');
-        
-        // Theme configurations
-        const themes = {
-            dark: {
-                icon: 'fas fa-moon',
-                colors: {
-                    primary: '#0f172a',
-                    secondary: '#1e293b',
-                    tertiary: '#334155'
-                }
-            },
-            light: {
-                icon: 'fas fa-sun',
-                colors: {
-                    primary: '#ffffff',
-                    secondary: '#f8fafc',
-                    tertiary: '#e2e8f0'
-                }
-            },
-            auto: {
-                icon: 'fas fa-adjust'
-            },
-            ocean: {
-                icon: 'fas fa-water',
-                colors: {
-                    primary: '#0c1e3d',
-                    secondary: '#1a3a5c',
-                    tertiary: '#2b5278'
-                }
-            },
-            forest: {
-                icon: 'fas fa-tree',
-                colors: {
-                    primary: '#0f2e1a',
-                    secondary: '#1a4d2e',
-                    tertiary: '#276749'
-                }
-            },
-            sunset: {
-                icon: 'fas fa-cloud-sun',
-                colors: {
-                    primary: '#3d1e0c',
-                    secondary: '#5c2a1a',
-                    tertiary: '#784d2b'
-                }
-            }
-        };
-        
-        // Get saved theme or default to dark
-        let savedTheme = localStorage.getItem('theme') || 'dark';
-        applyTheme(savedTheme);
-        
-        function applyTheme(themeName) {
-            // Handle auto theme
-            if (themeName === 'auto') {
-                const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-                themeName = prefersDark ? 'dark' : 'light';
-                html.setAttribute('data-theme-mode', 'auto');
+                .join("");
             } else {
-                html.setAttribute('data-theme-mode', themeName);
+              list.innerHTML =
+                '<div class="text-center text-muted py-3">No new notifications</div>';
             }
-            
-            html.setAttribute('data-theme', themeName);
-            
-            // Apply theme colors if available
-            if (themes[themeName] && themes[themeName].colors) {
-                const colors = themes[themeName].colors;
-                html.style.setProperty('--bg-primary', colors.primary);
-                html.style.setProperty('--bg-secondary', colors.secondary);
-                html.style.setProperty('--bg-tertiary', colors.tertiary);
-            }
-            
-            // Update checkmarks
-            document.querySelectorAll('[id^="check-"]').forEach(el => el.style.display = 'none');
-            const checkmark = document.getElementById('check-' + (html.getAttribute('data-theme-mode') || themeName));
-            if (checkmark) checkmark.style.display = 'inline';
-            
-            // Update icon
-            if (themeIcon && themes[themeName]) {
-                themeIcon.className = themes[themeName].icon;
-            }
+          })
+          .catch((err) => console.error("Error loading notifications:", err));
+      }
+
+      // Load notifications when dropdown is opened
+      document
+        .getElementById("notificationsDropdown")
+        .addEventListener("click", loadRecentNotifications);
+
+      // Check immediately and then every 30 seconds
+      checkNotifications();
+      setInterval(checkNotifications, 30000);
+
+      // Enhanced Theme System
+      const html = document.documentElement;
+      const themeIcon = document.getElementById("theme-icon");
+
+      // Theme configurations
+      const themes = {
+        dark: {
+          icon: "fas fa-moon",
+          colors: {
+            primary: "#0f172a",
+            secondary: "#1e293b",
+            tertiary: "#334155",
+          },
+        },
+        light: {
+          icon: "fas fa-sun",
+          colors: {
+            primary: "#ffffff",
+            secondary: "#f8fafc",
+            tertiary: "#e2e8f0",
+          },
+        },
+        auto: {
+          icon: "fas fa-adjust",
+        },
+        ocean: {
+          icon: "fas fa-water",
+          colors: {
+            primary: "#0c1e3d",
+            secondary: "#1a3a5c",
+            tertiary: "#2b5278",
+          },
+        },
+        forest: {
+          icon: "fas fa-tree",
+          colors: {
+            primary: "#0f2e1a",
+            secondary: "#1a4d2e",
+            tertiary: "#276749",
+          },
+        },
+        sunset: {
+          icon: "fas fa-cloud-sun",
+          colors: {
+            primary: "#3d1e0c",
+            secondary: "#5c2a1a",
+            tertiary: "#784d2b",
+          },
+        },
+      };
+
+      // Get saved theme or default to dark
+      let savedTheme = localStorage.getItem("theme") || "dark";
+      applyTheme(savedTheme);
+
+      function applyTheme(themeName) {
+        // Handle auto theme
+        if (themeName === "auto") {
+          const prefersDark = window.matchMedia(
+            "(prefers-color-scheme: dark)"
+          ).matches;
+          themeName = prefersDark ? "dark" : "light";
+          html.setAttribute("data-theme-mode", "auto");
+        } else {
+          html.setAttribute("data-theme-mode", themeName);
         }
-        
-        // Theme selection handlers
-        document.querySelectorAll('.theme-option').forEach(option => {
-            option.addEventListener('click', function(e) {
-                e.preventDefault();
-                const theme = this.getAttribute('data-theme');
-                
-                localStorage.setItem('theme', theme);
-                applyTheme(theme);
-                
-                // Save to server
-                fetch('/api/theme', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({theme: theme})
-                }).catch(err => console.error('Failed to save theme:', err));
-                
-                // Show toast notification
-                const toast = document.createElement('div');
-                toast.className = 'toast-notification';
-                toast.innerHTML = `<i class="fas fa-check-circle text-success me-2"></i>Theme changed to ${theme.charAt(0).toUpperCase() + theme.slice(1)}`;
-                toast.style.cssText = 'position: fixed; top: 20px; right: 20px; background: var(--card-bg); padding: 15px 20px; border-radius: 10px; box-shadow: 0 4px 12px var(--shadow); z-index: 9999; animation: slideIn 0.3s;';
-                document.body.appendChild(toast);
-                setTimeout(() => toast.remove(), 3000);
-            });
+
+        html.setAttribute("data-theme", themeName);
+
+        // Apply theme colors if available
+        if (themes[themeName] && themes[themeName].colors) {
+          const colors = themes[themeName].colors;
+          html.style.setProperty("--bg-primary", colors.primary);
+          html.style.setProperty("--bg-secondary", colors.secondary);
+          html.style.setProperty("--bg-tertiary", colors.tertiary);
+        }
+
+        // Update checkmarks
+        document
+          .querySelectorAll('[id^="check-"]')
+          .forEach((el) => (el.style.display = "none"));
+        const checkmark = document.getElementById(
+          "check-" + (html.getAttribute("data-theme-mode") || themeName)
+        );
+        if (checkmark) checkmark.style.display = "inline";
+
+        // Update icon
+        if (themeIcon && themes[themeName]) {
+          themeIcon.className = themes[themeName].icon;
+        }
+      }
+
+      // Theme selection handlers
+      document.querySelectorAll(".theme-option").forEach((option) => {
+        option.addEventListener("click", function (e) {
+          e.preventDefault();
+          const theme = this.getAttribute("data-theme");
+
+          localStorage.setItem("theme", theme);
+          applyTheme(theme);
+
+          // Save to server
+          fetch("/api/theme", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ theme: theme }),
+          }).catch((err) => console.error("Failed to save theme:", err));
+
+          // Show toast notification
+          const toast = document.createElement("div");
+          toast.className = "toast-notification";
+          toast.innerHTML = `<i class="fas fa-check-circle text-success me-2"></i>Theme changed to ${
+            theme.charAt(0).toUpperCase() + theme.slice(1)
+          }`;
+          toast.style.cssText =
+            "position: fixed; top: 20px; right: 20px; background: var(--card-bg); padding: 15px 20px; border-radius: 10px; box-shadow: 0 4px 12px var(--shadow); z-index: 9999; animation: slideIn 0.3s;";
+          document.body.appendChild(toast);
+          setTimeout(() => toast.remove(), 3000);
         });
-        
-        // Listen for system theme changes when in auto mode
-        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
-            if (localStorage.getItem('theme') === 'auto') {
-                applyTheme('auto');
-            }
+      });
+
+      // Listen for system theme changes when in auto mode
+      window
+        .matchMedia("(prefers-color-scheme: dark)")
+        .addEventListener("change", (e) => {
+          if (localStorage.getItem("theme") === "auto") {
+            applyTheme("auto");
+          }
         });
     </script>
-    {% endif %}
-    
-    {% block scripts %}{% endblock %}
-</body>
+    {% endif %} {% block scripts %}{% endblock %}
+  </body>
 </html>

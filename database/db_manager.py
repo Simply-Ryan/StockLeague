@@ -343,6 +343,72 @@ class DatabaseManager:
             )
         """)
         
+        # ============ LEAGUE COMPETITION TABLES ============
+        
+        # League portfolios - isolated cash balance per league member
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS league_portfolios (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                league_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                cash NUMERIC NOT NULL DEFAULT 10000.00,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                locked_at TIMESTAMP,
+                FOREIGN KEY (league_id) REFERENCES leagues(id),
+                FOREIGN KEY (user_id) REFERENCES users(id),
+                UNIQUE(league_id, user_id)
+            )
+        """)
+        
+        # League holdings - stock positions per league member
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS league_holdings (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                league_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                symbol TEXT NOT NULL,
+                shares INTEGER NOT NULL DEFAULT 0,
+                avg_cost NUMERIC NOT NULL DEFAULT 0,
+                FOREIGN KEY (league_id) REFERENCES leagues(id),
+                FOREIGN KEY (user_id) REFERENCES users(id),
+                UNIQUE(league_id, user_id, symbol)
+            )
+        """)
+        
+        # League transactions - trade history per league
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS league_transactions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                league_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                symbol TEXT NOT NULL,
+                shares INTEGER NOT NULL,
+                price NUMERIC NOT NULL,
+                type TEXT NOT NULL,
+                fee NUMERIC DEFAULT 0,
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (league_id) REFERENCES leagues(id),
+                FOREIGN KEY (user_id) REFERENCES users(id)
+            )
+        """)
+        
+        # League portfolio snapshots - for historical rankings and audits
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS league_portfolio_snapshots (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                league_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                total_value NUMERIC NOT NULL,
+                cash NUMERIC NOT NULL,
+                holdings_json TEXT,
+                snapshot_date DATE NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (league_id) REFERENCES leagues(id),
+                FOREIGN KEY (user_id) REFERENCES users(id),
+                UNIQUE(league_id, user_id, snapshot_date)
+            )
+        """)
+        
         # ============ GAME MODE TABLES ============
         
         # Challenges
@@ -649,6 +715,14 @@ class DatabaseManager:
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_messages_receiver ON messages(receiver_id)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_portfolio_snapshots ON portfolio_snapshots(user_id, timestamp)")
         
+        # League competition indexes
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_league_portfolios ON league_portfolios(league_id, user_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_league_holdings ON league_holdings(league_id, user_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_league_holdings_symbol ON league_holdings(league_id, symbol)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_league_transactions ON league_transactions(league_id, user_id)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_league_transactions_time ON league_transactions(league_id, timestamp)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_league_snapshots ON league_portfolio_snapshots(league_id, user_id, snapshot_date)")
+        
         # ============ MIGRATIONS ============
         # Add strategy and notes columns to transactions if they don't exist
         try:
@@ -665,6 +739,28 @@ class DatabaseManager:
             cursor.execute("ALTER TABLE users ADD COLUMN theme TEXT DEFAULT 'dark'")
         except sqlite3.OperationalError:
             pass  # Column already exists
+        
+        # League competition migrations
+        try:
+            cursor.execute("ALTER TABLE leagues ADD COLUMN lifecycle_state TEXT DEFAULT 'active'")
+        except sqlite3.OperationalError:
+            pass  # Column already exists
+        
+        try:
+            cursor.execute("ALTER TABLE leagues ADD COLUMN mode TEXT DEFAULT 'absolute_value'")
+        except sqlite3.OperationalError:
+            pass  # Column already exists
+        
+        try:
+            cursor.execute("ALTER TABLE leagues ADD COLUMN rules_json TEXT")
+        except sqlite3.OperationalError:
+            pass  # Column already exists
+        
+        # Create index on lifecycle_state column (after migration adds it)
+        try:
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_leagues_state ON leagues(lifecycle_state)")
+        except sqlite3.OperationalError:
+            pass  # Index or column might not exist yet
         
         conn.commit()
         conn.close()
@@ -1420,6 +1516,370 @@ class DatabaseManager:
         
         return [dict(w) for w in winners]
     
+    # ============ LEAGUE PORTFOLIO METHODS ============
+    
+    def get_league_portfolio(self, league_id, user_id):
+        """Get a user's portfolio within a specific league."""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            SELECT * FROM league_portfolios
+            WHERE league_id = ? AND user_id = ?
+        """, (league_id, user_id))
+        
+        portfolio = cursor.fetchone()
+        conn.close()
+        
+        return dict(portfolio) if portfolio else None
+    
+    def create_league_portfolio(self, league_id, user_id, starting_cash):
+        """Create a new league portfolio for a user when joining."""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        try:
+            cursor.execute("""
+                INSERT INTO league_portfolios (league_id, user_id, cash)
+                VALUES (?, ?, ?)
+            """, (league_id, user_id, starting_cash))
+            conn.commit()
+            return True
+        except sqlite3.IntegrityError:
+            return False  # Already exists
+        finally:
+            conn.close()
+    
+    def update_league_cash(self, league_id, user_id, new_cash):
+        """Update a user's cash balance within a league."""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            UPDATE league_portfolios
+            SET cash = ?
+            WHERE league_id = ? AND user_id = ?
+        """, (new_cash, league_id, user_id))
+        
+        conn.commit()
+        conn.close()
+    
+    def get_league_holdings(self, league_id, user_id):
+        """Get all stock holdings for a user within a league."""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            SELECT symbol, shares, avg_cost
+            FROM league_holdings
+            WHERE league_id = ? AND user_id = ? AND shares > 0
+        """, (league_id, user_id))
+        
+        holdings = cursor.fetchall()
+        conn.close()
+        
+        return [dict(h) for h in holdings]
+    
+    def get_league_holding(self, league_id, user_id, symbol):
+        """Get a specific stock holding within a league."""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            SELECT symbol, shares, avg_cost
+            FROM league_holdings
+            WHERE league_id = ? AND user_id = ? AND symbol = ?
+        """, (league_id, user_id, symbol))
+        
+        holding = cursor.fetchone()
+        conn.close()
+        
+        return dict(holding) if holding else None
+    
+    def update_league_holding(self, league_id, user_id, symbol, shares_delta, price):
+        """Update or create a stock holding within a league.
+        
+        Args:
+            league_id: League ID
+            user_id: User ID
+            symbol: Stock symbol
+            shares_delta: Positive for buy, negative for sell
+            price: Price per share for this transaction
+        """
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        # Get current holding
+        cursor.execute("""
+            SELECT shares, avg_cost FROM league_holdings
+            WHERE league_id = ? AND user_id = ? AND symbol = ?
+        """, (league_id, user_id, symbol))
+        
+        existing = cursor.fetchone()
+        
+        if existing:
+            old_shares = existing['shares']
+            old_avg = existing['avg_cost']
+            new_shares = old_shares + shares_delta
+            
+            # Calculate new average cost (only on buys)
+            if shares_delta > 0:
+                total_old_value = old_shares * old_avg
+                total_new_value = shares_delta * price
+                new_avg = (total_old_value + total_new_value) / new_shares if new_shares > 0 else 0
+            else:
+                new_avg = old_avg  # Keep avg cost on sells
+            
+            if new_shares > 0:
+                cursor.execute("""
+                    UPDATE league_holdings
+                    SET shares = ?, avg_cost = ?
+                    WHERE league_id = ? AND user_id = ? AND symbol = ?
+                """, (new_shares, new_avg, league_id, user_id, symbol))
+            else:
+                # Remove holding if shares = 0
+                cursor.execute("""
+                    DELETE FROM league_holdings
+                    WHERE league_id = ? AND user_id = ? AND symbol = ?
+                """, (league_id, user_id, symbol))
+        else:
+            # Create new holding
+            if shares_delta > 0:
+                cursor.execute("""
+                    INSERT INTO league_holdings (league_id, user_id, symbol, shares, avg_cost)
+                    VALUES (?, ?, ?, ?, ?)
+                """, (league_id, user_id, symbol, shares_delta, price))
+        
+        conn.commit()
+        conn.close()
+    
+    def record_league_transaction(self, league_id, user_id, symbol, shares, price, txn_type, fee=0):
+        """Record a transaction within a league."""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            INSERT INTO league_transactions (league_id, user_id, symbol, shares, price, type, fee)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (league_id, user_id, symbol, shares, price, txn_type, fee))
+        
+        txn_id = cursor.lastrowid
+        conn.commit()
+        conn.close()
+        
+        return txn_id
+    
+    def get_league_transactions(self, league_id, user_id=None, limit=100):
+        """Get transactions for a league, optionally filtered by user."""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        if user_id:
+            cursor.execute("""
+                SELECT lt.*, u.username
+                FROM league_transactions lt
+                JOIN users u ON lt.user_id = u.id
+                WHERE lt.league_id = ? AND lt.user_id = ?
+                ORDER BY lt.timestamp DESC
+                LIMIT ?
+            """, (league_id, user_id, limit))
+        else:
+            cursor.execute("""
+                SELECT lt.*, u.username
+                FROM league_transactions lt
+                JOIN users u ON lt.user_id = u.id
+                WHERE lt.league_id = ?
+                ORDER BY lt.timestamp DESC
+                LIMIT ?
+            """, (league_id, limit))
+        
+        transactions = cursor.fetchall()
+        conn.close()
+        
+        return [dict(t) for t in transactions]
+    
+    def create_league_portfolio_snapshot(self, league_id, user_id, total_value, cash, holdings_json):
+        """Create a daily snapshot of a user's league portfolio."""
+        from datetime import date
+        
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        today = date.today().isoformat()
+        
+        try:
+            cursor.execute("""
+                INSERT OR REPLACE INTO league_portfolio_snapshots 
+                (league_id, user_id, total_value, cash, holdings_json, snapshot_date)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (league_id, user_id, total_value, cash, holdings_json, today))
+            conn.commit()
+        except sqlite3.IntegrityError:
+            pass  # Snapshot already exists for today
+        finally:
+            conn.close()
+    
+    def get_league_portfolio_snapshots(self, league_id, user_id, limit=30):
+        """Get historical portfolio snapshots for a user in a league."""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            SELECT * FROM league_portfolio_snapshots
+            WHERE league_id = ? AND user_id = ?
+            ORDER BY snapshot_date DESC
+            LIMIT ?
+        """, (league_id, user_id, limit))
+        
+        snapshots = cursor.fetchall()
+        conn.close()
+        
+        return [dict(s) for s in snapshots]
+    
+    def set_league_lifecycle_state(self, league_id, new_state):
+        """Update the lifecycle state of a league.
+        
+        Valid states: draft, open, locked, active, finished
+        """
+        valid_states = ['draft', 'open', 'locked', 'active', 'finished']
+        if new_state not in valid_states:
+            raise ValueError(f"Invalid state: {new_state}. Must be one of {valid_states}")
+        
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            UPDATE leagues
+            SET lifecycle_state = ?
+            WHERE id = ?
+        """, (new_state, league_id))
+        
+        # Also update is_active for backwards compatibility
+        is_active = 1 if new_state in ['open', 'active'] else 0
+        cursor.execute("""
+            UPDATE leagues SET is_active = ? WHERE id = ?
+        """, (is_active, league_id))
+        
+        conn.commit()
+        conn.close()
+    
+    def get_leagues_by_state(self, state, limit=50):
+        """Get leagues by lifecycle state."""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            SELECT l.*, u.username as creator_name,
+                   COUNT(lm.id) as member_count
+            FROM leagues l
+            JOIN users u ON l.creator_id = u.id
+            LEFT JOIN league_members lm ON l.id = lm.league_id
+            WHERE l.lifecycle_state = ?
+            GROUP BY l.id
+            ORDER BY l.created_at DESC
+            LIMIT ?
+        """, (state, limit))
+        
+        leagues = cursor.fetchall()
+        conn.close()
+        
+        return [dict(l) for l in leagues]
+    
+    def lock_league_portfolios(self, league_id):
+        """Lock all portfolios in a league (when it finishes)."""
+        from datetime import datetime
+        
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            UPDATE league_portfolios
+            SET locked_at = ?
+            WHERE league_id = ?
+        """, (datetime.now(), league_id))
+        
+        conn.commit()
+        conn.close()
+    
+    def is_league_portfolio_locked(self, league_id, user_id):
+        """Check if a user's league portfolio is locked."""
+        portfolio = self.get_league_portfolio(league_id, user_id)
+        return portfolio and portfolio.get('locked_at') is not None
+    
+    def calculate_league_portfolio_value(self, league_id, user_id, price_lookup_func):
+        """Calculate total portfolio value for a user in a league.
+        
+        Args:
+            league_id: League ID
+            user_id: User ID  
+            price_lookup_func: Function that takes a symbol and returns current price
+        
+        Returns:
+            Total portfolio value (cash + stocks)
+        """
+        portfolio = self.get_league_portfolio(league_id, user_id)
+        if not portfolio:
+            return 0
+        
+        total = portfolio['cash']
+        holdings = self.get_league_holdings(league_id, user_id)
+        
+        for holding in holdings:
+            price = price_lookup_func(holding['symbol'])
+            if price:
+                total += holding['shares'] * price
+        
+        return total
+    
+    def update_league_scores_v2(self, league_id, price_lookup_func):
+        """Update scores and ranks for all members using league portfolios.
+        
+        This version uses league-isolated portfolios instead of global portfolios.
+        """
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        # Get league to check mode
+        league = self.get_league(league_id)
+        mode = league.get('mode', 'absolute_value') if league else 'absolute_value'
+        starting_cash = league.get('starting_cash', 10000.0) if league else 10000.0
+        
+        # Get all members
+        cursor.execute("""
+            SELECT user_id FROM league_members WHERE league_id = ?
+        """, (league_id,))
+        
+        members = cursor.fetchall()
+        scores = []
+        
+        for member in members:
+            user_id = member['user_id']
+            total_value = self.calculate_league_portfolio_value(league_id, user_id, price_lookup_func)
+            
+            # Calculate score based on mode
+            if mode == 'percentage_return':
+                # Percentage return from starting cash
+                score = ((total_value - starting_cash) / starting_cash) * 100 if starting_cash > 0 else 0
+            else:
+                # absolute_value (default) - just use total value
+                score = total_value
+            
+            scores.append((score, total_value, user_id))
+        
+        # Sort by score descending, then by total_value as tiebreaker
+        scores.sort(key=lambda x: (x[0], x[1]), reverse=True)
+        
+        # Update ranks
+        for rank, (score, total_value, user_id) in enumerate(scores, 1):
+            cursor.execute("""
+                UPDATE league_members
+                SET score = ?, current_rank = ?
+                WHERE league_id = ? AND user_id = ?
+            """, (score, rank, league_id, user_id))
+        
+        conn.commit()
+        conn.close()
+    
     def get_active_leagues(self, limit=20):
         """Get all active public leagues."""
         conn = self.get_connection()
@@ -2063,7 +2523,7 @@ class DatabaseManager:
             conn.commit()
             conn.close()
             return True
-        except:
+        except sqlite3.Error:
             conn.close()
             return False
     
@@ -2267,12 +2727,13 @@ class DatabaseManager:
         # Notify top 3 winners
         for i, winner in enumerate(winners[:3], 1):
             rank_names = {1: '1st', 2: '2nd', 3: '3rd'}
-            self.add_notification(
+            import json
+            self.create_notification(
                 winner['user_id'],
                 'challenge_complete',
                 f'Challenge Complete!',
                 f'You finished {rank_names[i]} in "{challenge["name"]}"! Score: {winner["score"]:.2f}',
-                f'/challenges/{challenge_id}'
+                json.dumps({'challenge_id': challenge_id})
             )
         
         conn.commit()
@@ -2580,7 +3041,7 @@ class DatabaseManager:
                           position['contracts'], intrinsic_value, proceeds))
                     
                     # Send notification
-                    self.add_notification(
+                    self.create_notification(
                         position['user_id'],
                         'options_exercise',
                         'Options Exercised',
@@ -2766,7 +3227,7 @@ class DatabaseManager:
             
             conn.commit()
             success = True
-        except:
+        except sqlite3.Error:
             success = False
         finally:
             conn.close()
@@ -2821,18 +3282,19 @@ class DatabaseManager:
             
             conn.commit()
             
+            import json
             # Send notification
-            self.add_notification(
+            self.create_notification(
                 trader_id,
                 'new_follower',
                 'New Follower',
                 f'Someone started following your trades!',
-                f'/profile/{follower_id}'
+                json.dumps({'from_user_id': follower_id})
             )
             
             success = True
             message = "Now following trader"
-        except:
+        except sqlite3.Error:
             success = False
             message = "Already following this trader"
         finally:
@@ -2933,12 +3395,13 @@ class DatabaseManager:
             self.follow_trader(follower_id, trader_id)
             
             # Send notification
-            self.add_notification(
+            import json
+            self.create_notification(
                 trader_id,
-                'copy_trading',
+                'trade_copy',
                 'New Copy Trader',
                 f'Someone is now copying your trades!',
-                f'/profile/{follower_id}'
+                json.dumps({'from_user_id': follower_id})
             )
             
             success = True

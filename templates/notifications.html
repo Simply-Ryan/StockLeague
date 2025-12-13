@@ -1,99 +1,189 @@
-{% extends "layout.html" %}
-
-{% block title %}Notifications - StockLeague{% endblock %}
-
-{% block main %}
+{% extends "layout.html" %} {% block title %}Notifications - StockLeague{%
+endblock %} {% block main %}
 <div class="container">
-    <div class="row justify-content-center">
-        <div class="col-lg-8">
-            <div class="d-flex justify-content-between align-items-center mb-4">
-                <h1>
-                    <i class="fas fa-bell"></i> Notifications
-                </h1>
-                {% if unread_count > 0 %}
-                <form action="/notifications/mark_all_read" method="post">
-                    <button type="submit" class="btn btn-sm btn-outline-primary">
-                        <i class="fas fa-check-double"></i> Mark All Read
-                    </button>
-                </form>
+  <div class="row justify-content-center">
+    <div class="col-lg-8">
+      <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1><i class="fas fa-bell"></i> Notifications</h1>
+        {% if unread_count > 0 %}
+        <form action="/notifications/mark_all_read" method="post">
+          <button type="submit" class="btn btn-sm btn-outline-primary">
+            <i class="fas fa-check-double"></i> Mark All Read
+          </button>
+        </form>
+        {% endif %}
+      </div>
+
+      {% if notifications %}
+      <div class="list-group shadow">
+        {% for notif in notifications %}
+        <div
+          class="list-group-item {% if not notif.is_read %}list-group-item-primary{% endif %}"
+        >
+          <div class="d-flex justify-content-between align-items-start">
+            <div class="flex-grow-1">
+              <div class="d-flex align-items-center mb-2">
+                {% if notif.notification_type == 'friend_request' %}
+                <i class="fas fa-user-plus fa-2x text-primary me-3"></i>
+                {% elif notif.notification_type == 'friend_accepted' %}
+                <i class="fas fa-user-check fa-2x text-success me-3"></i>
+                {% elif notif.notification_type == 'achievement' %}
+                <i class="fas fa-trophy fa-2x text-warning me-3"></i>
+                {% elif notif.notification_type == 'milestone' %}
+                <i class="fas fa-flag-checkered fa-2x text-info me-3"></i>
+                {% elif notif.notification_type == 'league_invite' %}
+                <i class="fas fa-trophy fa-2x text-warning me-3"></i>
+                {% elif notif.notification_type == 'league_result' %}
+                <i class="fas fa-medal fa-2x text-warning me-3"></i>
+                {% elif notif.notification_type == 'challenge_invite' %}
+                <i class="fas fa-bullseye fa-2x text-danger me-3"></i>
+                {% elif notif.notification_type == 'challenge_complete' %}
+                <i class="fas fa-check-circle fa-2x text-success me-3"></i>
+                {% elif notif.notification_type == 'new_follower' %}
+                <i class="fas fa-user-plus fa-2x text-info me-3"></i>
+                {% elif notif.notification_type == 'trade_copy' %}
+                <i class="fas fa-copy fa-2x text-secondary me-3"></i>
+                {% elif notif.notification_type == 'alert' %}
+                <i class="fas fa-bell fa-2x text-danger me-3"></i>
+                {% else %}
+                <i class="fas fa-info-circle fa-2x text-secondary me-3"></i>
                 {% endif %}
-            </div>
-
-            {% if notifications %}
-            <div class="list-group shadow">
-                {% for notif in notifications %}
-                <div class="list-group-item {% if not notif.is_read %}list-group-item-primary{% endif %}">
-                    <div class="d-flex justify-content-between align-items-start">
-                        <div class="flex-grow-1">
-                            <div class="d-flex align-items-center mb-2">
-                                {% if notif.type == 'friend_request' %}
-                                <i class="fas fa-user-plus fa-2x text-primary me-3"></i>
-                                {% elif notif.type == 'friend_accepted' %}
-                                <i class="fas fa-user-check fa-2x text-success me-3"></i>
-                                {% elif notif.type == 'achievement' %}
-                                <i class="fas fa-trophy fa-2x text-warning me-3"></i>
-                                {% elif notif.type == 'milestone' %}
-                                <i class="fas fa-flag-checkered fa-2x text-info me-3"></i>
-                                {% else %}
-                                <i class="fas fa-info-circle fa-2x text-secondary me-3"></i>
-                                {% endif %}
-                                <div>
-                                    <h5 class="mb-1">{{ notif.title }}</h5>
-                                    <p class="mb-1">{{ notif.message }}</p>
-                                    <small class="text-muted">
-                                        <i class="fas fa-clock"></i> {{ notif.created_at.split('.')[0] }}
-                                    </small>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="ms-3">
-                            {% if not notif.is_read %}
-                            <form action="/notifications/mark_read/{{ notif.id }}" method="post" class="d-inline">
-                                <button type="submit" class="btn btn-sm btn-outline-secondary" title="Mark as read">
-                                    <i class="fas fa-check"></i>
-                                </button>
-                            </form>
-                            {% endif %}
-                            <form action="/notifications/delete/{{ notif.id }}" method="post" class="d-inline">
-                                <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete">
-                                    <i class="fas fa-trash"></i>
-                                </button>
-                            </form>
-                        </div>
-                    </div>
-                    
-                    {% if notif.action_url %}
-                    <div class="mt-2">
-                        <a href="{{ notif.action_url }}" class="btn btn-sm btn-primary">
-                            View <i class="fas fa-arrow-right"></i>
-                        </a>
-                    </div>
-                    {% endif %}
+                <div>
+                  <h5 class="mb-1">{{ notif.title }}</h5>
+                  <p class="mb-1">{{ notif.content }}</p>
+                  <small class="text-muted">
+                    <i class="fas fa-clock"></i> {{
+                    notif.created_at.split('.')[0] }}
+                  </small>
                 </div>
-                {% endfor %}
-            </div>
+              </div>
 
-            <!-- Pagination -->
-            {% if notifications | length >= 20 %}
-            <div class="text-center mt-3">
-                <p class="text-muted">Showing latest 20 notifications</p>
+              {# Interactive action buttons based on notification type #} {% if
+              notif.notification_type == 'friend_request' and notif.related_data
+              %}
+              <div class="mt-2 d-flex gap-2">
+                <form
+                  action="/friends/accept/{{ notif.related_data }}"
+                  method="post"
+                  class="d-inline"
+                >
+                  <button type="submit" class="btn btn-sm btn-success">
+                    <i class="fas fa-check"></i> Accept
+                  </button>
+                </form>
+                <form
+                  action="/friends/decline/{{ notif.related_data }}"
+                  method="post"
+                  class="d-inline"
+                >
+                  <button type="submit" class="btn btn-sm btn-outline-danger">
+                    <i class="fas fa-times"></i> Decline
+                  </button>
+                </form>
+              </div>
+              {% elif notif.notification_type == 'league_invite' and
+              notif.related_data %}
+              <div class="mt-2">
+                <a
+                  href="/leagues/{{ notif.related_data }}"
+                  class="btn btn-sm btn-primary"
+                >
+                  <i class="fas fa-trophy"></i> View League
+                </a>
+              </div>
+              {% elif notif.notification_type == 'challenge_invite' and
+              notif.related_data %}
+              <div class="mt-2">
+                <a
+                  href="/challenges/{{ notif.related_data }}"
+                  class="btn btn-sm btn-primary"
+                >
+                  <i class="fas fa-bullseye"></i> Join Challenge
+                </a>
+              </div>
+              {% elif notif.notification_type == 'new_follower' and
+              notif.related_data %}
+              <div class="mt-2">
+                <a
+                  href="/profile/{{ notif.related_data }}"
+                  class="btn btn-sm btn-outline-info"
+                >
+                  <i class="fas fa-user"></i> View Profile
+                </a>
+              </div>
+              {% elif notif.notification_type == 'league_result' and
+              notif.related_data %}
+              <div class="mt-2">
+                <a
+                  href="/leagues/{{ notif.related_data }}"
+                  class="btn btn-sm btn-outline-warning"
+                >
+                  <i class="fas fa-trophy"></i> View Results
+                </a>
+              </div>
+              {% elif notif.notification_type == 'achievement' %}
+              <div class="mt-2">
+                <a href="/achievements" class="btn btn-sm btn-outline-warning">
+                  <i class="fas fa-trophy"></i> View Achievements
+                </a>
+              </div>
+              {% endif %}
             </div>
-            {% endif %}
-            {% else %}
-            <div class="card shadow">
-                <div class="card-body text-center py-5">
-                    <i class="fas fa-bell-slash fa-4x text-muted mb-3"></i>
-                    <h4 class="text-muted">No notifications yet</h4>
-                    <p class="text-muted">You'll see notifications here when you:</p>
-                    <ul class="list-unstyled text-muted">
-                        <li>Receive friend requests</li>
-                        <li>Unlock achievements</li>
-                        <li>Reach portfolio milestones</li>
-                    </ul>
-                </div>
+            <div class="ms-3">
+              {% if not notif.is_read %}
+              <form
+                action="/notifications/mark_read/{{ notif.id }}"
+                method="post"
+                class="d-inline"
+              >
+                <button
+                  type="submit"
+                  class="btn btn-sm btn-outline-secondary"
+                  title="Mark as read"
+                >
+                  <i class="fas fa-check"></i>
+                </button>
+              </form>
+              {% endif %}
+              <form
+                action="/notifications/delete/{{ notif.id }}"
+                method="post"
+                class="d-inline"
+              >
+                <button
+                  type="submit"
+                  class="btn btn-sm btn-outline-danger"
+                  title="Delete"
+                >
+                  <i class="fas fa-trash"></i>
+                </button>
+              </form>
             </div>
-            {% endif %}
+          </div>
         </div>
+        {% endfor %}
+      </div>
+
+      <!-- Pagination -->
+      {% if notifications | length >= 20 %}
+      <div class="text-center mt-3">
+        <p class="text-muted">Showing latest 20 notifications</p>
+      </div>
+      {% endif %} {% else %}
+      <div class="card shadow">
+        <div class="card-body text-center py-5">
+          <i class="fas fa-bell-slash fa-4x text-muted mb-3"></i>
+          <h4 class="text-muted">No notifications yet</h4>
+          <p class="text-muted">You'll see notifications here when you:</p>
+          <ul class="list-unstyled text-muted">
+            <li>Receive friend requests</li>
+            <li>Unlock achievements</li>
+            <li>Reach portfolio milestones</li>
+          </ul>
+        </div>
+      </div>
+      {% endif %}
     </div>
+  </div>
 </div>
 {% endblock %}
