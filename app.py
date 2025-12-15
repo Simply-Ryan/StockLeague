@@ -687,6 +687,7 @@ def index():
     
     # Get cash balance from active portfolio
     cash = get_portfolio_cash(user_id, context)
+    print(f"DEBUG: Rendering index with cash=${cash} for user {user_id} in context {context}")
     
     # Calculate grand total and overall performance
     grand_total = cash + total_value
@@ -1178,7 +1179,10 @@ def sell():
 @app.route("/add_cash", methods=["GET", "POST"])
 @login_required
 def add_cash():
-    """Add cash to account"""
+    """Set portfolio cash to specific amount"""
+    user_id = session["user_id"]
+    context = get_active_portfolio_context()
+    
     if request.method == "POST":
         amount = request.form.get("amount")
         
@@ -1187,20 +1191,59 @@ def add_cash():
         
         try:
             amount = float(amount)
-            if amount <= 0:
-                return apology("must provide positive amount", 400)
+            if amount < 0:
+                return apology("amount cannot be negative", 400)
         except ValueError:
             return apology("invalid amount", 400)
         
-        user_id = session["user_id"]
-        user = db.get_user(user_id)
-        db.update_cash(user_id, user["cash"] + amount)
+        # Update cash based on portfolio context
+        if context["type"] == "personal":
+            # Debugging: Check before
+            old_cash = get_portfolio_cash(user_id, context)
+            print(f"DEBUG: Setting personal cash from ${old_cash} to ${amount} for user {user_id}")
+            
+            db.update_cash(user_id, amount)
+            
+            # Verify it worked
+            new_cash = get_portfolio_cash(user_id, context)
+            print(f"DEBUG: After update, cash is ${new_cash}")
+            
+            context_str = "personal portfolio"
+        else:
+            # League portfolio
+            league_id = context["league_id"]
+            
+            # Debugging: Check before
+            old_cash = get_portfolio_cash(user_id, context)
+            print(f"DEBUG: Setting league {league_id} cash from ${old_cash} to ${amount} for user {user_id}")
+            
+            # Ensure league portfolio exists
+            portfolio = db.get_league_portfolio(league_id, user_id)
+            if not portfolio:
+                # Create portfolio if it doesn't exist
+                league = db.get_league(league_id)
+                starting_cash = league.get('starting_cash', 10000.0) if league else 10000.0
+                db.create_league_portfolio(league_id, user_id, starting_cash)
+                print(f"DEBUG: Created league portfolio with ${starting_cash}")
+            
+            db.update_league_cash(league_id, user_id, amount)
+            
+            # Verify it worked
+            new_cash = get_portfolio_cash(user_id, context)
+            print(f"DEBUG: After update, league cash is ${new_cash}")
+            
+            context_str = f"{context['league_name']} portfolio"
         
-        flash(f"Added {usd(amount)} to your account!")
+        # Clear any potential caching issues by forcing session update
+        session.modified = True
+        
+        flash(f"Successfully set {context_str} cash to {usd(amount)}!", "success")
         return redirect("/")
     
     else:
-        return render_template("add_cash.html")
+        # Get current cash for display
+        current_cash = get_portfolio_cash(user_id, context)
+        return render_template("add_cash.html", current_cash=current_cash, active_context=context)
 
 
 @app.route("/leaderboard")
@@ -1260,8 +1303,14 @@ def leaderboard():
 def switch_portfolio_context():
     """Switch active portfolio context."""
     user_id = session["user_id"]
-    context_type = request.form.get("context_type") or request.json.get("context_type")
-    league_id = request.form.get("league_id") or request.json.get("league_id")
+    
+    # Handle both form data and JSON
+    if request.is_json:
+        context_type = request.json.get("context_type")
+        league_id = request.json.get("league_id")
+    else:
+        context_type = request.form.get("context_type")
+        league_id = request.form.get("league_id")
     
     if context_type == "personal":
         set_portfolio_context("personal")

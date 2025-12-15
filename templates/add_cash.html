@@ -5,23 +5,43 @@
 {% block main %}
 <div class="row justify-content-center">
     <div class="col-md-8">
+        <!-- Portfolio Context Indicator -->
+        {% if active_context.type == 'league' %}
+        <div class="alert alert-info alert-dismissible fade show mb-3" role="alert">
+            <i class="fas fa-trophy"></i> <strong>Modifying League Portfolio:</strong> {{ active_context.league_name }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+        {% else %}
+        <div class="alert alert-primary alert-dismissible fade show mb-3" role="alert">
+            <i class="fas fa-user"></i> <strong>Modifying Personal Portfolio</strong>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+        {% endif %}
+        
         <div class="card shadow">
             <div class="card-body">
                 <h2 class="card-title text-center mb-4">
-                    <i class="fas fa-wallet text-success"></i> Add Cash
+                    <i class="fas fa-wallet text-success"></i> Set Portfolio Cash
                 </h2>
+                
+                {% if current_cash is defined %}
+                <div class="alert alert-info text-center mb-4">
+                    <strong>Current Balance:</strong> {{ current_cash | usd }}
+                </div>
+                {% endif %}
+                
                 <form action="/add_cash" method="post">
                     <div class="mb-3">
-                        <label for="amount" class="form-label">Amount (USD)</label>
+                        <label for="amount" class="form-label">New Cash Balance (USD)</label>
                         <div class="input-group">
                             <span class="input-group-text">$</span>
                             <input type="number" class="form-control" id="amount" name="amount" 
-                                   min="0.01" step="0.01" placeholder="0.00" required autofocus>
+                                   min="0" step="0.01" placeholder="10000.00" {% if current_cash is defined %}value="{{ current_cash }}"{% endif %} required autofocus>
                         </div>
-                        <div class="form-text">Enter the amount of cash you want to add to your account</div>
+                        <div class="form-text">Enter the total cash amount for this portfolio (will replace current balance)</div>
                     </div>
                     <button type="submit" class="btn btn-success w-100">
-                        <i class="fas fa-plus-circle"></i> Add Cash
+                        <i class="fas fa-check-circle"></i> Set Cash Balance
                     </button>
                 </form>
             </div>
@@ -31,14 +51,14 @@
         <div class="card mt-3">
             <div class="card-body">
                 <h5 class="card-title">
-                    <i class="fas fa-bolt text-warning"></i> Quick Add
+                    <i class="fas fa-bolt text-warning"></i> Quick Set
                 </h5>
                 <div class="d-flex flex-wrap gap-2">
-                    <button class="btn btn-outline-success quick-amount" data-amount="100">$100</button>
-                    <button class="btn btn-outline-success quick-amount" data-amount="500">$500</button>
                     <button class="btn btn-outline-success quick-amount" data-amount="1000">$1,000</button>
                     <button class="btn btn-outline-success quick-amount" data-amount="5000">$5,000</button>
                     <button class="btn btn-outline-success quick-amount" data-amount="10000">$10,000</button>
+                    <button class="btn btn-outline-success quick-amount" data-amount="50000">$50,000</button>
+                    <button class="btn btn-outline-success quick-amount" data-amount="100000">$100,000</button>
                 </div>
             </div>
         </div>
