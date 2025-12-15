@@ -32,6 +32,81 @@ def login_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
+
+# ============ PORTFOLIO CONTEXT HELPERS ============
+
+def get_active_portfolio_context():
+    """Get the active portfolio context from session."""
+    context = session.get("portfolio_context")
+    if not context:
+        # Default to personal portfolio
+        context = {"type": "personal", "league_id": None, "league_name": None}
+        session["portfolio_context"] = context
+    return context
+
+
+def set_portfolio_context(context_type, league_id=None, league_name=None):
+    """Set the active portfolio context."""
+    session["portfolio_context"] = {
+        "type": context_type,
+        "league_id": league_id,
+        "league_name": league_name
+    }
+
+
+def get_portfolio_cash(user_id, context):
+    """Get cash for the active portfolio context."""
+    if context["type"] == "personal":
+        user = db.get_user(user_id)
+        return user["cash"]
+    else:
+        # League portfolio uses separate cash from league_portfolios table
+        league_id = context.get("league_id")
+        if not league_id:
+            return 0
+        portfolio = db.get_league_portfolio(league_id, user_id)
+        return portfolio["cash"] if portfolio else 0
+
+
+def get_portfolio_stocks(user_id, context):
+    """Get stocks for the active portfolio context."""
+    if context["type"] == "personal":
+        return db.get_user_stocks(user_id)
+    else:
+        # League stocks are stored in league_holdings table
+        league_id = context.get("league_id")
+        if not league_id:
+            return []
+        return db.get_league_holdings(league_id, user_id)
+
+
+def validate_portfolio_context(user_id, context):
+    """Validate that user can trade in the current portfolio context."""
+    if context["type"] == "personal":
+        return True, None
+    
+    league_id = context.get("league_id")
+    if not league_id:
+        return False, "No league selected"
+    
+    # Check if user is member of league
+    league = db.get_league(league_id)
+    if not league:
+        return False, "League not found"
+    
+    # Check if league is active
+    if league.get("status") != "active":
+        return False, f"League is {league.get('status', 'inactive')}"
+    
+    # Check if user is member
+    members = db.get_league_members(league_id)
+    member_ids = [m["id"] for m in members]
+    if user_id not in member_ids:
+        return False, "You are not a member of this league"
+    
+    return True, None
+
+
 # Load environment variables
 load_dotenv()
 
@@ -56,6 +131,24 @@ app.config["SESSION_TYPE"] = "filesystem"
 Session(app)
 
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='eventlet')
+
+
+# Context processor for portfolio context
+@app.context_processor
+def inject_portfolio_context():
+    """Make portfolio context and user leagues available to all templates."""
+    if session.get("user_id"):
+        context = get_active_portfolio_context()
+        user_leagues = db.get_user_leagues(session["user_id"])
+        return {
+            "active_context": context,
+            "get_user_leagues": lambda user_id: db.get_user_leagues(user_id)
+        }
+    return {
+        "active_context": {"type": "personal", "league_id": None, "league_name": None},
+        "get_user_leagues": lambda user_id: []
+    }
+
 
 # --- Chat Settings (Themes/Dark Mode) ---
 @app.route("/chat/settings")
@@ -533,11 +626,18 @@ def index():
     """Show portfolio of stocks"""
     user_id = session["user_id"]
     
-    # Get user's stocks
-    stocks = db.get_user_stocks(user_id)
+    # Get active portfolio context
+    context = get_active_portfolio_context()
     
-    # Get all transactions to calculate cost basis
-    transactions = db.get_transactions(user_id)
+    # Get stocks and transactions based on active portfolio
+    stocks = get_portfolio_stocks(user_id, context)
+    
+    # Get transactions based on context
+    if context["type"] == "personal":
+        transactions = db.get_transactions(user_id)
+    else:
+        league_id = context["league_id"]
+        transactions = db.get_league_transactions(league_id, user_id)
     
     # Calculate cost basis for each stock
     cost_basis = {}
@@ -585,13 +685,17 @@ def index():
             stock["gain_loss"] = 0
             stock["gain_loss_percent"] = 0
     
-    # Get user's cash balance
-    user = db.get_user(user_id)
-    cash = user["cash"]
+    # Get cash balance from active portfolio
+    cash = get_portfolio_cash(user_id, context)
     
     # Calculate grand total and overall performance
     grand_total = cash + total_value
-    starting_cash = 10000.00  # Default starting amount
+    # Get starting cash based on context
+    if context["type"] == "personal":
+        starting_cash = 10000.00  # Default starting amount
+    else:
+        league = db.get_league(context["league_id"])
+        starting_cash = league.get("starting_cash", 10000.00) if league else 10000.00
     total_return = grand_total - starting_cash
     total_return_percent = (total_return / starting_cash) * 100 if starting_cash > 0 else 0
     
@@ -606,8 +710,11 @@ def index():
     # Get watchlist count only (don't fetch prices for speed)
     watchlist = db.get_watchlist(user_id)
     
-    # Get portfolio history for chart
-    portfolio_history = db.get_portfolio_history(user_id, days=30)
+    # Get portfolio history for chart (personal only for now)
+    if context["type"] == "personal":
+        portfolio_history = db.get_portfolio_history(user_id, days=30)
+    else:
+        portfolio_history = []  # TODO: Implement league portfolio history
     
     return render_template("index.html", 
                          stocks=stocks, 
@@ -619,14 +726,23 @@ def index():
                          total_return_percent=total_return_percent,
                          popular_stocks=popular_stocks,
                          watchlist_count=len(watchlist),
-                         portfolio_history=portfolio_history)
+                         portfolio_history=portfolio_history,
+                         active_context=context)
 
 
 @app.route("/buy", methods=["GET", "POST"])
 @login_required
 def buy():
     """Buy shares of stock"""
+    user_id = session["user_id"]
+    context = get_active_portfolio_context()
+    
     if request.method == "POST":
+        # Validate portfolio context
+        valid, error_msg = validate_portfolio_context(user_id, context)
+        if not valid:
+            return apology(error_msg, 403)
+        
         symbol = request.form.get("symbol")
         shares = request.form.get("shares")
         
@@ -650,10 +766,9 @@ def buy():
         price = quote["price"]
         total_cost = price * shares
         
-        # Get user's cash
-        user_id = session["user_id"]
+        # Get user's cash from active portfolio
+        cash = get_portfolio_cash(user_id, context)
         user = db.get_user(user_id)
-        cash = user["cash"]
         
         # Check if user can afford
         if cash < total_cost:
@@ -663,34 +778,58 @@ def buy():
         strategy = request.form.get("strategy") or None
         notes = request.form.get("notes") or None
         
-        # Record transaction
-        txn_id = db.record_transaction(user_id, symbol, shares, price, "buy", strategy, notes)
-        # Send trade alert to chat
+        # Handle transaction based on portfolio context
+        if context["type"] == "personal":
+            # Personal portfolio - use personal tables
+            txn_id = db.record_transaction(user_id, symbol, shares, price, "buy", strategy, notes)
+            db.update_cash(user_id, cash - total_cost)
+            # Execute copy trades for any followers
+            _execute_copy_trades(user_id, symbol, shares, price, 'buy', txn_id)
+        else:
+            # League portfolio - use league tables
+            league_id = context["league_id"]
+            txn_id = db.record_league_transaction(league_id, user_id, symbol, shares, price, "buy")
+            db.update_league_cash(league_id, user_id, cash - total_cost)
+            db.update_league_holding(league_id, user_id, symbol, shares, price)
+        
+        # Send trade alert to chat (for both contexts)
         send_trade_alert_to_chat(user_id, symbol, shares, price, 'bought')
         
-        # Update user's cash
-        db.update_cash(user_id, cash - total_cost)
+        # Create portfolio snapshot (personal only for now)
+        if context["type"] == "personal":
+            create_portfolio_snapshot(user_id)
         
-        # Execute copy trades for any followers
-        _execute_copy_trades(user_id, symbol, shares, price, 'buy', txn_id)
-        
-        # Create portfolio snapshot
-        create_portfolio_snapshot(user_id)
-        
-        # Emit real-time portfolio update
-        user_updated = db.get_user(user_id)
-        stocks_updated = db.get_user_stocks(user_id)
-        portfolio_value = user_updated["cash"]
-        for stock in stocks_updated:
-            q = lookup(stock["symbol"])
-            if q:
-                portfolio_value += stock["shares"] * q["price"]
-        
-        socketio.emit('portfolio_update', {
-            'cash': user_updated["cash"],
-            'total_value': portfolio_value,
-            'stocks': [{'symbol': s["symbol"], 'shares': s["shares"]} for s in stocks_updated]
-        }, room=f'user_{user_id}')
+        # Emit real-time portfolio update based on context
+        if context["type"] == "personal":
+            user_updated = db.get_user(user_id)
+            stocks_updated = db.get_user_stocks(user_id)
+            portfolio_value = user_updated["cash"]
+            for stock in stocks_updated:
+                q = lookup(stock["symbol"])
+                if q:
+                    portfolio_value += stock["shares"] * q["price"]
+            
+            socketio.emit('portfolio_update', {
+                'cash': user_updated["cash"],
+                'total_value': portfolio_value,
+                'stocks': [{'symbol': s["symbol"], 'shares': s["shares"]} for s in stocks_updated]
+            }, room=f'user_{user_id}')
+        else:
+            # League portfolio update
+            league_id = context["league_id"]
+            league_portfolio = db.get_league_portfolio(league_id, user_id)
+            league_holdings = db.get_league_holdings(league_id, user_id)
+            portfolio_value = league_portfolio["cash"] if league_portfolio else 0
+            for holding in league_holdings:
+                q = lookup(holding["symbol"])
+                if q:
+                    portfolio_value += holding["shares"] * q["price"]
+            
+            socketio.emit('portfolio_update', {
+                'cash': league_portfolio["cash"] if league_portfolio else 0,
+                'total_value': portfolio_value,
+                'stocks': [{'symbol': h["symbol"], 'shares': h["shares"]} for h in league_holdings]
+            }, room=f'user_{user_id}')
         
         # Emit order execution notification
         socketio.emit('order_executed', {
@@ -702,16 +841,20 @@ def buy():
             'timestamp': datetime.now().isoformat()
         }, room=f'user_{user_id}')
         
-        # Check for achievements
-        achievements = check_achievements(user_id)
+        # Check for achievements (personal only)
+        if context["type"] == "personal":
+            achievements = check_achievements(user_id)
+        else:
+            achievements = []
         
-        # Update challenge progress
-        _update_user_challenge_progress(user_id)
+        # Update challenge progress and stats (personal only)
+        if context["type"] == "personal":
+            _update_user_challenge_progress(user_id)
+            db.update_trader_stats(user_id)
         
-        # Update trader stats
-        db.update_trader_stats(user_id)
-        
-        flash(f"Bought {shares} shares of {symbol} for {usd(total_cost)}!")
+        # Flash success message
+        context_str = f" in {context['league_name']}" if context["type"] == "league" else ""
+        flash(f"Bought {shares} shares of {symbol} for {usd(total_cost)}{context_str}!")
         if achievements:
             for achievement in achievements:
                 flash(f"🏆 Achievement Unlocked: {achievement}!", "success")
@@ -721,7 +864,8 @@ def buy():
     else:
         # Pre-fill symbol if provided in query string
         symbol = request.args.get("symbol", "").upper()
-        return render_template("buy.html", symbol=symbol)
+        stocks = get_portfolio_stocks(user_id, context)
+        return render_template("buy.html", symbol=symbol, active_context=context, stocks=stocks)
 
 
 @app.route("/history")
@@ -901,8 +1045,14 @@ def register():
 def sell():
     """Sell shares of stock"""
     user_id = session["user_id"]
+    context = get_active_portfolio_context()
     
     if request.method == "POST":
+        # Validate portfolio context
+        valid, error_msg = validate_portfolio_context(user_id, context)
+        if not valid:
+            return apology(error_msg, 403)
+        
         symbol = request.form.get("symbol")
         shares = request.form.get("shares")
         
@@ -915,8 +1065,13 @@ def sell():
         
         shares = int(shares)
         
-        # Check if user owns enough shares
-        stock = db.get_user_stock(user_id, symbol)
+        # Check if user owns enough shares in active portfolio
+        if context["type"] == "personal":
+            stock = db.get_user_stock(user_id, symbol)
+        else:
+            league_id = context["league_id"]
+            stock = db.get_league_holding(league_id, user_id, symbol)
+        
         if not stock or stock["shares"] < shares:
             return apology("not enough shares", 400)
         
@@ -932,35 +1087,60 @@ def sell():
         strategy = request.form.get("strategy") or None
         notes = request.form.get("notes") or None
         
-        # Record transaction
-        txn_id = db.record_transaction(user_id, symbol, -shares, price, "sell", strategy, notes)
+        # Handle transaction based on portfolio context
+        if context["type"] == "personal":
+            # Personal portfolio
+            txn_id = db.record_transaction(user_id, symbol, -shares, price, "sell", strategy, notes)
+            user = db.get_user(user_id)
+            db.update_cash(user_id, user["cash"] + total_value)
+            # Execute copy trades for any followers
+            _execute_copy_trades(user_id, symbol, shares, price, 'sell', txn_id)
+        else:
+            # League portfolio
+            league_id = context["league_id"]
+            txn_id = db.record_league_transaction(league_id, user_id, symbol, shares, price, "sell")
+            cash = get_portfolio_cash(user_id, context)
+            db.update_league_cash(league_id, user_id, cash + total_value)
+            db.update_league_holding(league_id, user_id, symbol, -shares, price)
+        
         # Send trade alert to chat
         send_trade_alert_to_chat(user_id, symbol, shares, price, 'sold')
         
-        # Update user's cash
-        user = db.get_user(user_id)
-        db.update_cash(user_id, user["cash"] + total_value)
+        # Create portfolio snapshot (personal only for now)
+        if context["type"] == "personal":
+            create_portfolio_snapshot(user_id)
         
-        # Execute copy trades for any followers
-        _execute_copy_trades(user_id, symbol, shares, price, 'sell', txn_id)
-        
-        # Create portfolio snapshot
-        create_portfolio_snapshot(user_id)
-        
-        # Emit real-time portfolio update
-        user_updated = db.get_user(user_id)
-        stocks_updated = db.get_user_stocks(user_id)
-        portfolio_value = user_updated["cash"]
-        for stock in stocks_updated:
-            q = lookup(stock["symbol"])
-            if q:
-                portfolio_value += stock["shares"] * q["price"]
-        
-        socketio.emit('portfolio_update', {
-            'cash': user_updated["cash"],
-            'total_value': portfolio_value,
-            'stocks': [{'symbol': s["symbol"], 'shares': s["shares"]} for s in stocks_updated]
-        }, room=f'user_{user_id}')
+        # Emit real-time portfolio update based on context
+        if context["type"] == "personal":
+            user_updated = db.get_user(user_id)
+            stocks_updated = db.get_user_stocks(user_id)
+            portfolio_value = user_updated["cash"]
+            for stock in stocks_updated:
+                q = lookup(stock["symbol"])
+                if q:
+                    portfolio_value += stock["shares"] * q["price"]
+            
+            socketio.emit('portfolio_update', {
+                'cash': user_updated["cash"],
+                'total_value': portfolio_value,
+                'stocks': [{'symbol': s["symbol"], 'shares': s["shares"]} for s in stocks_updated]
+            }, room=f'user_{user_id}')
+        else:
+            # League portfolio update
+            league_id = context["league_id"]
+            league_portfolio = db.get_league_portfolio(league_id, user_id)
+            league_holdings = db.get_league_holdings(league_id, user_id)
+            portfolio_value = league_portfolio["cash"] if league_portfolio else 0
+            for holding in league_holdings:
+                q = lookup(holding["symbol"])
+                if q:
+                    portfolio_value += holding["shares"] * q["price"]
+            
+            socketio.emit('portfolio_update', {
+                'cash': league_portfolio["cash"] if league_portfolio else 0,
+                'total_value': portfolio_value,
+                'stocks': [{'symbol': h["symbol"], 'shares': h["shares"]} for h in league_holdings]
+            }, room=f'user_{user_id}')
         
         # Emit order execution notification
         socketio.emit('order_executed', {
@@ -972,16 +1152,17 @@ def sell():
             'timestamp': datetime.now().isoformat()
         }, room=f'user_{user_id}')
         
-        # Check for achievements
-        achievements = check_achievements(user_id)
+        # Check for achievements and update stats (personal only)
+        if context["type"] == "personal":
+            achievements = check_achievements(user_id)
+            _update_user_challenge_progress(user_id)
+            db.update_trader_stats(user_id)
+        else:
+            achievements = []
         
-        # Update challenge progress
-        _update_user_challenge_progress(user_id)
-        
-        # Update trader stats
-        db.update_trader_stats(user_id)
-        
-        flash(f"Sold {shares} shares of {symbol} for {usd(total_value)}!")
+        # Flash success message
+        context_str = f" in {context['league_name']}" if context["type"] == "league" else ""
+        flash(f"Sold {shares} shares of {symbol} for {usd(total_value)}{context_str}!")
         if achievements:
             for achievement in achievements:
                 flash(f"🏆 Achievement Unlocked: {achievement}!", "success")
@@ -989,9 +1170,9 @@ def sell():
         return redirect("/")
     
     else:
-        # Get user's stocks for dropdown
-        stocks = db.get_user_stocks(user_id)
-        return render_template("sell.html", stocks=stocks)
+        # Get user's stocks for dropdown from active portfolio
+        stocks = get_portfolio_stocks(user_id, context)
+        return render_template("sell.html", stocks=stocks, active_context=context)
 
 
 @app.route("/add_cash", methods=["GET", "POST"])
@@ -1074,6 +1255,52 @@ def leaderboard():
                          current_user=current_username)
 
 
+@app.route("/portfolio/switch", methods=["POST"])
+@login_required
+def switch_portfolio_context():
+    """Switch active portfolio context."""
+    user_id = session["user_id"]
+    context_type = request.form.get("context_type") or request.json.get("context_type")
+    league_id = request.form.get("league_id") or request.json.get("league_id")
+    
+    if context_type == "personal":
+        set_portfolio_context("personal")
+        if request.is_json:
+            return jsonify({"success": True, "context": "personal", "name": "Personal Portfolio"})
+        flash("Switched to Personal Portfolio", "success")
+        return redirect(request.referrer or "/")
+    
+    elif context_type == "league" and league_id:
+        league_id = int(league_id)
+        league = db.get_league(league_id)
+        
+        if not league:
+            if request.is_json:
+                return jsonify({"success": False, "error": "League not found"}), 404
+            flash("League not found", "danger")
+            return redirect("/leagues")
+        
+        # Verify user is member
+        members = db.get_league_members(league_id)
+        member_ids = [m["id"] for m in members]
+        
+        if user_id not in member_ids:
+            if request.is_json:
+                return jsonify({"success": False, "error": "Not a member"}), 403
+            flash("You are not a member of this league", "danger")
+            return redirect("/leagues")
+        
+        set_portfolio_context("league", league_id, league["name"])
+        if request.is_json:
+            return jsonify({"success": True, "context": "league", "name": league["name"]})
+        flash(f"Switched to {league['name']} portfolio", "success")
+        return redirect(request.referrer or "/")
+    
+    if request.is_json:
+        return jsonify({"success": False, "error": "Invalid request"}), 400
+    return redirect("/")
+
+
 @app.route("/leagues")
 @login_required
 def leagues():
@@ -1086,9 +1313,13 @@ def leagues():
     # Get active public leagues
     public_leagues = db.get_active_leagues(limit=20)
     
+    # Get active context
+    context = get_active_portfolio_context()
+    
     return render_template("leagues.html",
                          user_leagues=user_leagues,
-                         public_leagues=public_leagues)
+                         public_leagues=public_leagues,
+                         active_context=context)
 
 
 @app.route("/leagues/create", methods=["GET", "POST"])

@@ -170,6 +170,79 @@
           </ul>
 
           <ul class="navbar-nav ms-auto align-items-center">
+            <!-- Portfolio Context Switcher -->
+            <li class="nav-item dropdown me-2">
+              <a
+                class="nav-link dropdown-toggle portfolio-switcher"
+                href="#"
+                id="portfolioSwitcher"
+                role="button"
+                data-bs-toggle="dropdown"
+                aria-expanded="false"
+                title="Active Portfolio"
+              >
+                {% if active_context and active_context.type == 'league' %}
+                  <i class="fas fa-trophy text-warning"></i>
+                  <span class="d-none d-md-inline">{{ active_context.league_name }}</span>
+                  <span class="badge bg-warning text-dark ms-1">League</span>
+                {% else %}
+                  <i class="fas fa-user text-primary"></i>
+                  <span class="d-none d-md-inline">Personal</span>
+                  <span class="badge bg-primary ms-1">Personal</span>
+                {% endif %}
+              </a>
+              <ul class="dropdown-menu dropdown-menu-end shadow" aria-labelledby="portfolioSwitcher" style="min-width: 250px;">
+                <li><h6 class="dropdown-header"><i class="fas fa-exchange-alt"></i> Switch Portfolio</h6></li>
+                <li><hr class="dropdown-divider" /></li>
+                
+                <!-- Personal Portfolio -->
+                <li>
+                  <form action="/portfolio/switch" method="POST" style="margin: 0;">
+                    <input type="hidden" name="context_type" value="personal">
+                    <button type="submit" class="dropdown-item d-flex align-items-center {% if not active_context or active_context.type == 'personal' %}active{% endif %}">
+                      <i class="fas fa-user text-primary me-2"></i>
+                      <span>Personal Portfolio</span>
+                      {% if not active_context or active_context.type == 'personal' %}
+                        <i class="fas fa-check text-success ms-auto"></i>
+                      {% endif %}
+                    </button>
+                  </form>
+                </li>
+                
+                <li><hr class="dropdown-divider" /></li>
+                <li><h6 class="dropdown-header text-muted small">Your Leagues</h6></li>
+                
+                <!-- User's Leagues -->
+                {% set user_leagues = get_user_leagues(session.user_id) if session.user_id else [] %}
+                {% if user_leagues %}
+                  {% for league in user_leagues %}
+                    <li>
+                      <form action="/portfolio/switch" method="POST" style="margin: 0;">
+                        <input type="hidden" name="context_type" value="league">
+                        <input type="hidden" name="league_id" value="{{ league.id }}">
+                        <button type="submit" class="dropdown-item d-flex align-items-center {% if active_context and active_context.type == 'league' and active_context.league_id == league.id %}active{% endif %}">
+                          <i class="fas fa-trophy text-warning me-2"></i>
+                          <span>{{ league.name }}</span>
+                          {% if active_context and active_context.type == 'league' and active_context.league_id == league.id %}
+                            <i class="fas fa-check text-success ms-auto"></i>
+                          {% endif %}
+                        </button>
+                      </form>
+                    </li>
+                  {% endfor %}
+                {% else %}
+                  <li><span class="dropdown-item-text text-muted small">No leagues joined</span></li>
+                {% endif %}
+                
+                <li><hr class="dropdown-divider" /></li>
+                <li>
+                  <a class="dropdown-item text-center" href="/leagues">
+                    <i class="fas fa-plus-circle"></i> Join a League
+                  </a>
+                </li>
+              </ul>
+            </li>
+            
             <!-- Quick Action: Add Cash -->
             <li class="nav-item d-none d-lg-block">
               <a class="btn btn-sm btn-success me-2" href="/add_cash">
