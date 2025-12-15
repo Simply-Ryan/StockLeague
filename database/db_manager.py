@@ -127,9 +127,12 @@ class DatabaseManager:
         return [dict(row) for row in snapshots]
 
     def get_connection(self):
-        """Get a database connection."""
-        conn = sqlite3.connect(self.db_path)
+        """Get a database connection with proper configuration."""
+        conn = sqlite3.connect(self.db_path, timeout=30.0)
         conn.row_factory = sqlite3.Row
+        # Enable foreign keys and WAL mode for better concurrency
+        conn.execute('PRAGMA foreign_keys = ON')
+        conn.execute('PRAGMA journal_mode = WAL')
         return conn
 
     def init_db(self):

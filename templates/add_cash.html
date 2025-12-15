@@ -6,17 +6,11 @@
 <div class="row justify-content-center">
     <div class="col-md-8">
         <!-- Portfolio Context Indicator -->
-        {% if active_context.type == 'league' %}
-        <div class="alert alert-info alert-dismissible fade show mb-3" role="alert">
-            <i class="fas fa-trophy"></i> <strong>Modifying League Portfolio:</strong> {{ active_context.league_name }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-        </div>
-        {% else %}
         <div class="alert alert-primary alert-dismissible fade show mb-3" role="alert">
-            <i class="fas fa-user"></i> <strong>Modifying Personal Portfolio</strong>
+            <i class="fas fa-user"></i> <strong>Personal Portfolio Only</strong>
+            <p class="mb-0 small">League portfolio cash cannot be modified directly - it can only change through trading.</p>
             <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
         </div>
-        {% endif %}
         
         <div class="card shadow">
             <div class="card-body">

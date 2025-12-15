@@ -243,12 +243,14 @@
               </ul>
             </li>
             
-            <!-- Quick Action: Set Cash -->
+            <!-- Quick Action: Set Cash (Personal Portfolio Only) -->
+            {% if active_context.type == 'personal' %}
             <li class="nav-item d-none d-lg-block">
-              <a class="btn btn-sm btn-success me-2" href="/add_cash">
-                <i class="fas fa-cog"></i> Set Cash
+              <a class="btn btn-sm btn-success me-2" href="/add_cash" title="Set personal portfolio cash (demo/testing only)">
+                <i class="fas fa-wallet"></i> Set Cash
               </a>
             </li>
+            {% endif %}
 
             <!-- Notifications -->
             <li class="nav-item dropdown">

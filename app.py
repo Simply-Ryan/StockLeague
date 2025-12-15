@@ -1,20 +1,24 @@
-
+# Standard library imports
 import os
-import random
-import uuid
 import json
+import time
+import uuid
+import random
+import threading
+from datetime import datetime, timedelta
+from collections import defaultdict
+from functools import wraps
+
+# Third-party imports
 from flask import Flask, flash, redirect, render_template, request, session, jsonify, send_file
 from flask_session import Session
 from flask_socketio import SocketIO, emit, join_room, leave_room
 from werkzeug.security import check_password_hash, generate_password_hash
-from functools import wraps
+from dotenv import load_dotenv
+
+# Local imports
 from helpers import apology, lookup, usd, get_chart_data, get_popular_stocks, get_market_movers, get_stock_news, get_option_price_and_greeks, analyze_sentiment, fetch_news_finnhub, get_cached_or_fetch_news
 from database.db_manager import DatabaseManager
-from dotenv import load_dotenv
-import threading
-import time
-from datetime import datetime
-from collections import defaultdict
 from league_modes import get_league_mode, get_available_modes, MODE_ABSOLUTE_VALUE
 from league_rules import LeagueRuleEngine
 
@@ -42,30 +46,39 @@ def get_active_portfolio_context():
         # Default to personal portfolio
         context = {"type": "personal", "league_id": None, "league_name": None}
         session["portfolio_context"] = context
+        session.modified = True
     return context
 
 
 def set_portfolio_context(context_type, league_id=None, league_name=None):
     """Set the active portfolio context."""
-    session["portfolio_context"] = {
+    context = {
         "type": context_type,
         "league_id": league_id,
         "league_name": league_name
     }
+    session["portfolio_context"] = context
+    session.modified = True
+    print(f"DEBUG set_portfolio_context: Set context to {context}")
 
 
 def get_portfolio_cash(user_id, context):
     """Get cash for the active portfolio context."""
     if context["type"] == "personal":
         user = db.get_user(user_id)
-        return user["cash"]
+        cash = user["cash"]
+        print(f"DEBUG get_portfolio_cash: Personal portfolio - user_id={user_id}, cash=${cash}")
+        return cash
     else:
         # League portfolio uses separate cash from league_portfolios table
         league_id = context.get("league_id")
         if not league_id:
+            print(f"DEBUG get_portfolio_cash: No league_id in context!")
             return 0
         portfolio = db.get_league_portfolio(league_id, user_id)
-        return portfolio["cash"] if portfolio else 0
+        cash = portfolio["cash"] if portfolio else 0
+        print(f"DEBUG get_portfolio_cash: League portfolio - league_id={league_id}, user_id={user_id}, cash=${cash}")
+        return cash
 
 
 def get_portfolio_stocks(user_id, context):
@@ -753,10 +766,15 @@ def buy():
         
         symbol = symbol.upper().strip()
         
-        if not shares or not shares.isdigit() or int(shares) <= 0:
-            return apology("must provide positive number of shares", 400)
+        if not shares:
+            return apology("must provide number of shares", 400)
         
-        shares = int(shares)
+        try:
+            shares = int(shares)
+            if shares <= 0:
+                return apology("must provide positive number of shares", 400)
+        except ValueError:
+            return apology("shares must be a valid number", 400)
         
         # Look up stock quote
         quote = lookup(symbol)
@@ -771,9 +789,9 @@ def buy():
         cash = get_portfolio_cash(user_id, context)
         user = db.get_user(user_id)
         
-        # Check if user can afford
-        if cash < total_cost:
-            return apology("can't afford", 400)
+        # Check if user can afford (with small epsilon for floating point comparison)
+        if cash < total_cost - 0.01:
+            return apology(f"can't afford: need {usd(total_cost)}, have {usd(cash)}", 400)
         
         # Get optional strategy and notes
         strategy = request.form.get("strategy") or None
@@ -1061,10 +1079,15 @@ def sell():
         if not symbol:
             return apology("must provide symbol", 400)
         
-        if not shares or not shares.isdigit() or int(shares) <= 0:
-            return apology("must provide positive number of shares", 400)
+        if not shares:
+            return apology("must provide number of shares", 400)
         
-        shares = int(shares)
+        try:
+            shares = int(shares)
+            if shares <= 0:
+                return apology("must provide positive number of shares", 400)
+        except ValueError:
+            return apology("shares must be a valid number", 400)
         
         # Check if user owns enough shares in active portfolio
         if context["type"] == "personal":
@@ -1179,9 +1202,14 @@ def sell():
 @app.route("/add_cash", methods=["GET", "POST"])
 @login_required
 def add_cash():
-    """Set portfolio cash to specific amount"""
+    """Set portfolio cash to specific amount - PERSONAL PORTFOLIO ONLY"""
     user_id = session["user_id"]
     context = get_active_portfolio_context()
+    
+    # SECURITY: Prevent modifying league portfolio cash (that would be cheating!)
+    if context["type"] != "personal":
+        flash("Cannot modify league portfolio cash directly. League portfolios can only be changed through trading.", "danger")
+        return redirect("/")
     
     if request.method == "POST":
         amount = request.form.get("amount")
@@ -1196,52 +1224,17 @@ def add_cash():
         except ValueError:
             return apology("invalid amount", 400)
         
-        # Update cash based on portfolio context
-        if context["type"] == "personal":
-            # Debugging: Check before
-            old_cash = get_portfolio_cash(user_id, context)
-            print(f"DEBUG: Setting personal cash from ${old_cash} to ${amount} for user {user_id}")
-            
-            db.update_cash(user_id, amount)
-            
-            # Verify it worked
-            new_cash = get_portfolio_cash(user_id, context)
-            print(f"DEBUG: After update, cash is ${new_cash}")
-            
-            context_str = "personal portfolio"
-        else:
-            # League portfolio
-            league_id = context["league_id"]
-            
-            # Debugging: Check before
-            old_cash = get_portfolio_cash(user_id, context)
-            print(f"DEBUG: Setting league {league_id} cash from ${old_cash} to ${amount} for user {user_id}")
-            
-            # Ensure league portfolio exists
-            portfolio = db.get_league_portfolio(league_id, user_id)
-            if not portfolio:
-                # Create portfolio if it doesn't exist
-                league = db.get_league(league_id)
-                starting_cash = league.get('starting_cash', 10000.0) if league else 10000.0
-                db.create_league_portfolio(league_id, user_id, starting_cash)
-                print(f"DEBUG: Created league portfolio with ${starting_cash}")
-            
-            db.update_league_cash(league_id, user_id, amount)
-            
-            # Verify it worked
-            new_cash = get_portfolio_cash(user_id, context)
-            print(f"DEBUG: After update, league cash is ${new_cash}")
-            
-            context_str = f"{context['league_name']} portfolio"
+        # Only update personal portfolio cash
+        db.update_cash(user_id, amount)
         
         # Clear any potential caching issues by forcing session update
         session.modified = True
         
-        flash(f"Successfully set {context_str} cash to {usd(amount)}!", "success")
+        flash(f"Successfully set personal portfolio cash to {usd(amount)}!", "success")
         return redirect("/")
     
     else:
-        # Get current cash for display
+        # Get current personal cash for display
         current_cash = get_portfolio_cash(user_id, context)
         return render_template("add_cash.html", current_cash=current_cash, active_context=context)
 
