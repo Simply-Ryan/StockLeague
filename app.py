@@ -8,6 +8,7 @@ import threading
 from datetime import datetime, timedelta
 from collections import defaultdict
 from functools import wraps
+import logging
 
 # Third-party imports
 from flask import Flask, flash, redirect, render_template, request, session, jsonify, send_file, url_for
@@ -37,6 +38,25 @@ def login_required(f):
     return decorated_function
 
 
+# --- Admin-only decorator ---
+def admin_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        user_id = session.get('user_id')
+        if not user_id:
+            return redirect(url_for('login'))
+
+        # Cache user data in session
+        if 'user' not in session:
+            user = db.get_user(user_id)
+            if not user or not user.get('is_admin'):
+                return redirect(url_for('index'))
+            session['user'] = user
+
+        return f(*args, **kwargs)
+    return decorated_function
+
+
 # ============ PORTFOLIO CONTEXT HELPERS ============
 
 def get_active_portfolio_context():
@@ -59,30 +79,29 @@ def set_portfolio_context(context_type, league_id=None, league_name=None):
     }
     session["portfolio_context"] = context
     session.modified = True
-    print(f"DEBUG set_portfolio_context: Set context to {context}")
+    logging.debug(f"DEBUG set_portfolio_context: Set context to {context}")
 
 
 def get_portfolio_cash(user_id, context):
     """Get cash for the active portfolio context."""
-    print(f"DEBUG get_portfolio_cash CALLED: context={context}")
+    logging.info(f"get_portfolio_cash CALLED: context={context}")
     
     if context["type"] == "personal":
         user = db.get_user(user_id)
         cash = user["cash"]
-        print(f"DEBUG get_portfolio_cash: Personal portfolio - user_id={user_id}, cash=${cash}")
+        logging.debug(f"DEBUG get_portfolio_cash: Personal portfolio - user_id={user_id}, cash=${cash}")
         return cash
     else:
-        # League portfolio uses separate cash from league_portfolios table
         league_id = context.get("league_id")
         if not league_id:
-            print(f"DEBUG get_portfolio_cash: ERROR - No league_id in context! context={context}")
+            logging.error(f"DEBUG get_portfolio_cash: ERROR - No league_id in context! context={context}")
             return 0
         portfolio = db.get_league_portfolio(league_id, user_id)
         if not portfolio:
-            print(f"DEBUG get_portfolio_cash: ERROR - No portfolio found for league_id={league_id}, user_id={user_id}")
+            logging.error(f"DEBUG get_portfolio_cash: ERROR - No portfolio found for league_id={league_id}, user_id={user_id}")
             return 0
         cash = portfolio["cash"]
-        print(f"DEBUG get_portfolio_cash: League portfolio - league_id={league_id}, user_id={user_id}, cash=${cash}, portfolio={portfolio}")
+        logging.debug(f"DEBUG get_portfolio_cash: League portfolio - league_id={league_id}, user_id={user_id}, cash=${cash}, portfolio={portfolio}")
         return cash
 
 
@@ -132,7 +151,8 @@ load_dotenv()
 app = Flask(__name__)
 
 # Secret key for session management (change in production!)
-app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY") or "dev-secret-key-change-in-production"
+SECRET_KEY = os.environ.get('SECRET_KEY', 'fallback-secret-key')
+app.config['SECRET_KEY'] = SECRET_KEY
 
 # Custom filters
 app.jinja_env.filters["usd"] = usd
@@ -193,14 +213,25 @@ def upload_avatar():
         flash("No selected file")
         return redirect(url_for("settings"))
     if file and allowed_avatar_file(file.filename):
+        # Validate file size (limit to 2MB)
+        file.seek(0, os.SEEK_END)
+        file_size = file.tell()
+        file.seek(0)
+        if file_size > 2 * 1024 * 1024:  # 2MB limit
+            flash("File size exceeds 2MB limit.")
+            return redirect(url_for("settings"))
+        
         ext = file.filename.rsplit(".", 1)[1].lower()
         filename = f"user_{user_id}_{int(time.time())}.{ext}"
         avatar_folder = os.path.join(app.root_path, "static", "avatars")
-        if not os.path.exists(avatar_folder):
-            os.makedirs(avatar_folder)
+        try:
+            os.makedirs(avatar_folder, exist_ok=True)
+        except OSError as e:
+            logger.error(f"Error creating avatar folder: {e}")
+            flash("Server error. Please try again later.")
+            return redirect(url_for("settings"))
         filepath = os.path.join(avatar_folder, filename)
         file.save(filepath)
-        # Save relative path for use in templates
         avatar_url = f"/static/avatars/{filename}"
         db.update_user_profile(user_id, avatar_url=avatar_url)
         flash("Avatar updated successfully!")
@@ -213,10 +244,17 @@ def upload_avatar():
 def admin_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        user_id = session.get("user_id")
-        user = db.get_user(user_id)
-        if not user or not user.get("is_admin"):
-            return apology("Admins only", 403)
+        user_id = session.get('user_id')
+        if not user_id:
+            return redirect(url_for('login'))
+
+        # Cache user data in session
+        if 'user' not in session:
+            user = db.get_user(user_id)
+            if not user or not user.get('is_admin'):
+                return redirect(url_for('index'))
+            session['user'] = user
+
         return f(*args, **kwargs)
     return decorated_function
 
@@ -685,7 +723,7 @@ def index():
     
     # Get active portfolio context
     context = get_active_portfolio_context()
-    print(f"DEBUG INDEX: user_id={user_id}, context={context}")
+    logging.debug(f"DEBUG INDEX: user_id={user_id}, context={context}")
     
     # Get stocks and transactions based on active portfolio
     stocks = get_portfolio_stocks(user_id, context)
@@ -745,7 +783,7 @@ def index():
     
     # Get cash balance from active portfolio
     cash = get_portfolio_cash(user_id, context)
-    print(f"DEBUG: Rendering index with cash=${cash} for user {user_id} in context {context}")
+    logging.debug(f"DEBUG: Rendering index with cash=${cash} for user {user_id} in context {context}")
     
     # Calculate grand total and overall performance
     grand_total = cash + total_value
@@ -1159,19 +1197,6 @@ def sell():
         if not symbol:
             return apology("must provide symbol", 400)
         
-        if not shares:
-            return apology("must provide number of shares", 400)
-        
-        try:
-            shares = int(shares)
-            if shares <= 0:
-                return apology("must provide positive number of shares", 400)
-        except ValueError:
-            return apology("shares must be a valid number", 400)
-        
-        # Check if user owns enough shares in active portfolio
-        if context["type"] == "personal":
-            stock = db.get_user_stock(user_id, symbol)
         else:
             league_id = context["league_id"]
             stock = db.get_league_holding(league_id, user_id, symbol)
@@ -2016,10 +2041,12 @@ def join_challenge(challenge_id):
         return apology("challenge not found", 404)
     
     if not challenge['is_active']:
+
         return apology("challenge is no longer active", 400)
     
     # Join challenge
     success = db.join_challenge(challenge_id, user_id)
+
     
     if success:
         flash(f'You joined "{challenge["name"]}"! Good luck!', "success")
@@ -3267,7 +3294,7 @@ def sell_option():
 @socketio.on('connect')
 def handle_connect():
     """Handle client connection"""
-    print(f"Client connected: {request.sid}")
+    logging.info(f"Client connected: {request.sid}")
     
     # Join user-specific room for personalized updates
     user_id = session.get('user_id')
@@ -3289,7 +3316,7 @@ def handle_connect():
                 if q:
                     portfolio_value += stock["shares"] * q["price"]
             
-            print(f"DEBUG handle_connect: Sending portfolio_update for context={context}, cash=${cash}, total=${portfolio_value}")
+            logging.debug(f"DEBUG handle_connect: Sending portfolio_update for context={context}, cash=${cash}, total=${portfolio_value}")
             
             emit('portfolio_update', {
                 'cash': cash,
@@ -3297,14 +3324,14 @@ def handle_connect():
                 'stocks': [{'symbol': s["symbol"], 'shares': s["shares"]} for s in stocks]
             })
         except Exception as e:
-            print(f"Error sending initial portfolio state: {e}")
+            logging.error(f"Error sending initial portfolio state: {e}")
     emit('connection_response', {'status': 'connected'})
 
 
 @socketio.on('disconnect')
 def handle_disconnect():
     """Handle client disconnection and cleanup subscriptions"""
-    print(f"Client disconnected: {request.sid}")
+    logging.info(f"Client disconnected: {request.sid}")
     # Remove client from all stock subscriptions
     for symbol in list(stock_subscriptions.keys()):
         if request.sid in stock_subscriptions[symbol]:
@@ -3343,7 +3370,7 @@ def handle_subscribe(data):
             'timestamp': datetime.now().isoformat()
         })
     
-    print(f"Client {request.sid} subscribed to {symbol}")
+    logging.info(f"Client {request.sid} subscribed to {symbol}")
 
 
 @socketio.on('unsubscribe_stock')
@@ -3361,7 +3388,7 @@ def handle_unsubscribe(data):
     
     # Leave room
     leave_room(symbol)
-    print(f"Client {request.sid} unsubscribed from {symbol}")
+    logging.info(f"Client {request.sid} unsubscribed from {symbol}")
 
 
 @socketio.on('get_chart_data')
@@ -3502,7 +3529,7 @@ def _execute_copy_trades(trader_id, symbol, shares, price, trade_type, txn_id):
                 flash(f"Sold {shares} shares of {symbol} for {usd(proceeds)} (after {usd(fee)} fee)", "success")
         
         except Exception as e:
-            print(f"Error executing copy trade for follower {copier['follower_id']}: {e}")
+            logging.error(f"Error executing copy trade for follower {copier['follower_id']}: {e}")
             continue
 
 
@@ -3629,7 +3656,7 @@ def background_price_updater():
             if not symbols:
                 continue
             
-            print(f"Updating prices for {len(symbols)} symbols...")
+            logging.info(f"Updating prices for {len(symbols)} symbols...")
             
             # Fetch updated prices
             for symbol in symbols:
@@ -3649,7 +3676,7 @@ def background_price_updater():
                     }, room=symbol)
         
         except Exception as e:
-            print(f"Error in background price updater: {e}")
+            logging.error(f"Error in background price updater: {e}")
 
 
 # Start background thread for price updates
@@ -3670,7 +3697,7 @@ def background_options_expiration_checker():
             
             # Process expirations at market close (4 PM ET, adjust for your timezone)
             if current_hour == 16:  # 4 PM
-                print(f"Checking for options expiring on {current_date}...")
+                logging.info(f"Checking for options expiring on {current_date}...")
                 
                 # Get current prices for all stocks with expiring options
                 conn = db.get_connection()
@@ -3686,7 +3713,7 @@ def background_options_expiration_checker():
                 conn.close()
                 
                 if symbols:
-                    print(f"Processing expirations for {len(symbols)} symbols...")
+                    logging.info(f"Processing expirations for {len(symbols)} symbols...")
                     
                     # Get current prices
                     current_prices = {}
@@ -3697,10 +3724,10 @@ def background_options_expiration_checker():
                     
                     # Process expirations
                     processed = db.expire_options(current_date, current_prices)
-                    print(f"Processed {processed} options positions")
+                    logging.info(f"Processed {processed} options positions")
         
         except Exception as e:
-            print(f"Error in options expiration checker: {e}")
+            logging.error(f"Error in options expiration checker: {e}")
 
 
 # Start background thread for options expiration
