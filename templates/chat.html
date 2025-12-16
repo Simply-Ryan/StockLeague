@@ -313,6 +313,26 @@ document.body.classList.add('chat-page');
     .chat-btn.send {
         background: var(--primary-color);
         color: white;
+        position: relative;
+        overflow: hidden;
+    }
+    .chat-btn.send .send-spinner {
+        display: none;
+        align-items: center;
+        justify-content: center;
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        font-size: 1.3em;
+        color: white;
+    }
+    .chat-btn.send.processing .send-icon {
+        display: none;
+    }
+    .chat-btn.send.processing .send-spinner {
+        display: flex !important;
     }
     
     .chat-btn.send:hover {
@@ -467,7 +487,8 @@ document.body.classList.add('chat-page');
                     disabled
                 ></textarea>
                 <button type="submit" class="chat-btn send" disabled id="send-btn">
-                    <i class="fas fa-paper-plane"></i>
+                    <span class="send-icon"><i class="fas fa-paper-plane"></i></span>
+                    <span class="send-spinner" style="display:none;"><i class="fas fa-circle-notch fa-spin"></i></span>
                 </button>
             </form>
         </div>
@@ -565,7 +586,11 @@ searchInput.addEventListener('input', (e) => {
 socket.on('chat_history', (messages) => {
     chatMessages.innerHTML = '';
     messages.forEach(msg => {
-        displayMessage(msg);
+        if (msg.type === 'file') {
+            displayFile(msg);
+        } else {
+            displayMessage(msg);
+        }
     });
     scrollToBottom();
 });
@@ -573,6 +598,11 @@ socket.on('chat_history', (messages) => {
 socket.on('chat_message', (msg) => {
     displayMessage(msg);
     scrollToBottom();
+    // If this is our own message, remove spinner and re-enable send button
+    if (msg.username === username) {
+        //sendBtn.classList.remove('processing');
+        sendBtn.disabled = false;
+    }
 });
 
 socket.on('chat_file', (msg) => {
@@ -642,18 +672,14 @@ function displayMessage(msg) {
 // Display file
 function displayFile(msg) {
     const isOwn = msg.username === username;
-    
     const msgDiv = document.createElement('div');
     msgDiv.className = 'chat-message' + (isOwn ? ' own' : '');
-    
     const avatar = document.createElement('div');
     avatar.className = 'message-avatar';
     avatar.textContent = msg.username[0].toUpperCase();
     msgDiv.appendChild(avatar);
-    
     const content = document.createElement('div');
     content.className = 'message-content';
-    
     if (!isOwn) {
         const header = document.createElement('div');
         header.className = 'message-header';
@@ -663,15 +689,27 @@ function displayFile(msg) {
         `;
         content.appendChild(header);
     }
-    
     const file = document.createElement('div');
     file.className = 'message-file';
-    file.innerHTML = `
+    // Image preview logic
+    const imageTypes = ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp'];
+    const lowerName = msg.filename ? msg.filename.toLowerCase() : '';
+    if (imageTypes.some(ext => lowerName.endsWith(ext))) {
+        const img = document.createElement('img');
+        img.src = msg.data;
+        img.alt = msg.filename;
+        img.style.maxWidth = '180px';
+        img.style.maxHeight = '180px';
+        img.style.display = 'block';
+        img.style.marginBottom = '0.5em';
+        img.style.borderRadius = '8px';
+        file.appendChild(img);
+    }
+    file.innerHTML += `
         <i class="fas fa-file"></i>
         <a href="${msg.data}" download="${msg.filename}" style="color: inherit;">${msg.filename}</a>
     `;
     content.appendChild(file);
-    
     msgDiv.appendChild(content);
     chatMessages.appendChild(msgDiv);
 }
@@ -681,9 +719,13 @@ chatForm.addEventListener('submit', (e) => {
     e.preventDefault();
     const message = chatInput.value.trim();
     if (message && currentRoom) {
+        // Show spinner
+        //sendBtn.classList.add('processing');
+        sendBtn.disabled = true;
         socket.emit('chat_message', { room: currentRoom, message });
         chatInput.value = '';
         chatInput.style.height = 'auto';
+        // Spinner will be removed when the server confirms the message
     }
 });
 

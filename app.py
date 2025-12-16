@@ -2096,8 +2096,8 @@ def profile(username):
         conn = db.get_connection()
         cursor = conn.cursor()
         pending = cursor.execute("""
-            SELECT id FROM friend_requests 
-            WHERE sender_id = ? AND receiver_id = ? AND status = 'pending'
+            SELECT id FROM friends 
+            WHERE user_id = ? AND friend_id = ? AND status = 'pending'
         """, (current_user_id, profile_user["id"])).fetchone()
         friend_request_pending = pending is not None
         conn.close()
@@ -2908,59 +2908,24 @@ def compare_portfolios():
 @app.route("/explore")
 @login_required
 def explore():
-    """Explore and discover stocks"""
-    # Get market movers
-    market_movers = get_market_movers()
-    
-    # Get popular stocks
-    popular = get_popular_stocks()
-    
-    # Sector ETFs for exploration
-    sectors = [
-        {'symbol': 'XLK', 'name': 'Technology'},
-        {'symbol': 'XLF', 'name': 'Financial'},
-        {'symbol': 'XLV', 'name': 'Healthcare'},
-        {'symbol': 'XLE', 'name': 'Energy'},
-        {'symbol': 'XLY', 'name': 'Consumer Discretionary'},
-        {'symbol': 'XLP', 'name': 'Consumer Staples'},
-        {'symbol': 'XLI', 'name': 'Industrial'},
-        {'symbol': 'XLB', 'name': 'Materials'}
-    ]
-    
-    # Enrich sectors with current prices
-    for sector in sectors:
-        quote = lookup(sector['symbol'])
-        if quote:
-            sector['price'] = quote['price']
-            sector['change_percent'] = quote.get('change_percent', 0)
-    
-    return render_template("explore.html",
-                         market_movers=market_movers,
-                         popular_stocks=popular,
-                         sectors=sectors)
+    """Explore and discover stocks (coming soon)"""
+    # --- Feature coming soon ---
+    # market_movers = get_market_movers()
+    # popular = get_popular_stocks()
+    # ...
+    return render_template("coming_soon.html")
 
 
 @app.route("/alerts")
 @login_required
 def alerts():
-    """Show and manage price alerts"""
-    user_id = session["user_id"]
-    
-    # Get active alerts
-    active_alerts = db.get_user_alerts(user_id, status='active')
-    triggered_alerts = db.get_user_alerts(user_id, status='triggered')
-    
-    # Enrich with current prices
-    for alert in active_alerts:
-        quote = lookup(alert['symbol'])
-        if quote:
-            alert['current_price'] = quote['price']
-            alert['distance'] = quote['price'] - alert['target_price']
-            alert['distance_percent'] = (alert['distance'] / alert['target_price'] * 100) if alert['target_price'] > 0 else 0
-    
-    return render_template("alerts.html", 
-                         active_alerts=active_alerts,
-                         triggered_alerts=triggered_alerts)
+    """Show and manage price alerts (coming soon)"""
+    # --- Feature coming soon ---
+    # user_id = session["user_id"]
+    # active_alerts = db.get_user_alerts(user_id, status='active')
+    # triggered_alerts = db.get_user_alerts(user_id, status='triggered')
+    # ...
+    return render_template("coming_soon.html")
 
 
 @app.route("/alerts/create", methods=["POST"])
@@ -3307,38 +3272,12 @@ def stop_copy_trading():
 @app.route("/options")
 @login_required
 def options():
-    """Show options trading interface"""
-    user_id = session["user_id"]
-    
-    # Get user's open options positions
-    positions = db.get_user_options_positions(user_id, status='open')
-    
-    # Enrich positions with current prices and Greeks
-    for position in positions:
-        option_data = get_option_price_and_greeks(
-            position['symbol'],
-            position['strike_price'],
-            position['expiration_date'],
-            position['option_type']
-        )
-        
-        if option_data:
-            position['current_premium'] = option_data['price']
-            position['greeks'] = option_data['greeks']
-            position['days_to_expiration'] = option_data['days_to_expiration']
-            position['intrinsic_value'] = option_data['intrinsic_value']
-            position['extrinsic_value'] = option_data['extrinsic_value']
-            
-            # Calculate P&L
-            position['total_cost'] = position['contracts'] * position['avg_premium'] * 100
-            position['current_value'] = position['contracts'] * position['current_premium'] * 100
-            position['unrealized_pl'] = position['current_value'] - position['total_cost']
-            position['unrealized_pl_pct'] = (position['unrealized_pl'] / position['total_cost'] * 100) if position['total_cost'] > 0 else 0
-    
-    # Get recent options transactions
-    transactions = db.get_options_transactions(user_id, limit=20)
-    
-    return render_template("options.html", positions=positions, transactions=transactions)
+    """Show options trading interface (coming soon)"""
+    # --- Feature coming soon ---
+    # user_id = session["user_id"]
+    # positions = db.get_user_options_positions(user_id, status='open')
+    # ...
+    return render_template("coming_soon.html")
 
 
 @app.route("/options/chain/<symbol>")

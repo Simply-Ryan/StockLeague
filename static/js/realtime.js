@@ -213,6 +213,7 @@ function showToast(html) {
         container = document.createElement('div');
         container.id = 'toast-container';
         container.className = 'toast-container position-fixed bottom-0 end-0 p-3';
+        container.style.zIndex = '9999';
         document.body.appendChild(container);
     }
     
@@ -222,13 +223,25 @@ function showToast(html) {
     const toastElement = tempDiv.firstElementChild;
     container.appendChild(toastElement);
     
-    // Initialize and show toast
-    const toast = new bootstrap.Toast(toastElement, { autohide: true, delay: 5000 });
+    // Initialize and show toast with custom options
+    const toast = new bootstrap.Toast(toastElement, { 
+        autohide: true, 
+        delay: 4000,
+        animation: true
+    });
+    
+    // Add smooth hide animation
+    toastElement.addEventListener('hide.bs.toast', function() {
+        toastElement.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
+        toastElement.style.opacity = '0';
+        toastElement.style.transform = 'translateX(400px)';
+    });
+    
     toast.show();
     
     // Remove toast after it's hidden
     toastElement.addEventListener('hidden.bs.toast', function() {
-        toastElement.remove();
+        setTimeout(() => toastElement.remove(), 300);
     });
 }
 

@@ -1,12 +1,20 @@
 // StockLeague JavaScript Functions
 
 document.addEventListener('DOMContentLoaded', function () {
-    // Auto-dismiss alerts after 5 seconds
+    // Auto-dismiss alerts after 5 seconds with smooth fade
     const alerts = document.querySelectorAll('.alert:not(.alert-permanent)');
     alerts.forEach(alert => {
         setTimeout(() => {
-            const bsAlert = new bootstrap.Alert(alert);
-            bsAlert.close();
+            // Add fade-out class first
+            alert.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
+            alert.style.opacity = '0';
+            alert.style.transform = 'translateY(-20px)';
+            
+            // Then close after animation
+            setTimeout(() => {
+                const bsAlert = new bootstrap.Alert(alert);
+                bsAlert.close();
+            }, 300);
         }, 5000);
     });
 
@@ -35,6 +43,44 @@ document.addEventListener('DOMContentLoaded', function () {
             form.classList.add('was-validated');
         });
     });
+
+    // Helper function for confirmation modals
+    window.showConfirmModal = function(title, message, onConfirm) {
+        // Create modal if it doesn't exist
+        let modal = document.getElementById('confirmModal');
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.id = 'confirmModal';
+            modal.className = 'modal fade';
+            modal.innerHTML = `
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title"></h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body"></div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="button" class="btn btn-primary" id="confirmBtn">Confirm</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+        }
+        
+        modal.querySelector('.modal-title').textContent = title;
+        modal.querySelector('.modal-body').textContent = message;
+        
+        const confirmBtn = modal.querySelector('#confirmBtn');
+        confirmBtn.onclick = function() {
+            bootstrap.Modal.getInstance(modal).hide();
+            if (onConfirm) onConfirm();
+        };
+        
+        new bootstrap.Modal(modal).show();
+    };
 
     // Add loading state to buttons on form submit
     forms.forEach(form => {
@@ -84,17 +130,32 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     });
 
-    // Confirmation for selling stocks
+    // Confirmation for selling stocks - using custom styled confirm if available
     const sellForm = document.querySelector('form[action="/sell"]');
     if (sellForm) {
         sellForm.addEventListener('submit', function (e) {
-            const symbol = document.getElementById('symbol').value;
-            const shares = document.getElementById('shares').value;
+            const symbol = document.getElementById('symbol')?.value;
+            const shares = document.getElementById('shares')?.value;
 
-            if (symbol && shares) {
-                const confirmed = confirm(`Are you sure you want to sell ${shares} shares of ${symbol}?`);
-                if (!confirmed) {
-                    e.preventDefault();
+            if (symbol && shares && !sellForm.dataset.confirmed) {
+                e.preventDefault();
+                
+                // Use Bootstrap modal if available, otherwise fallback to confirm
+                if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+                    showConfirmModal(
+                        `Sell ${shares} shares of ${symbol}?`,
+                        'Are you sure you want to proceed with this sale?',
+                        () => {
+                            sellForm.dataset.confirmed = 'true';
+                            sellForm.submit();
+                        }
+                    );
+                } else {
+                    const confirmed = confirm(`Are you sure you want to sell ${shares} shares of ${symbol}?`);
+                    if (confirmed) {
+                        sellForm.dataset.confirmed = 'true';
+                        sellForm.submit();
+                    }
                 }
             }
         });

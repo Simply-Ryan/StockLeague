@@ -540,10 +540,10 @@
             <small class="text-muted">
               <i class="fas fa-database"></i> Data by
               <a
-                href="https://finnhub.io"
+                href="https://finance.yahoo.com/"
                 target="_blank"
                 class="text-info text-decoration-none"
-                >Finnhub</a
+                >Yahoo Finance</a
               >
             </small>
           </div>
@@ -870,16 +870,19 @@
             body: JSON.stringify({ theme: theme }),
           }).catch((err) => console.error("Failed to save theme:", err));
 
-          // Show toast notification
+          // Show toast notification with smooth animation
           const toast = document.createElement("div");
           toast.className = "toast-notification";
           toast.innerHTML = `<i class="fas fa-check-circle text-success me-2"></i>Theme changed to ${
             theme.charAt(0).toUpperCase() + theme.slice(1)
           }`;
-          toast.style.cssText =
-            "position: fixed; top: 20px; right: 20px; background: var(--card-bg); padding: 15px 20px; border-radius: 10px; box-shadow: 0 4px 12px var(--shadow); z-index: 9999; animation: slideIn 0.3s;";
           document.body.appendChild(toast);
-          setTimeout(() => toast.remove(), 3000);
+          
+          // Fade out and remove
+          setTimeout(() => {
+            toast.classList.add('fade-out');
+            setTimeout(() => toast.remove(), 300);
+          }, 2700);
         });
       });
 
