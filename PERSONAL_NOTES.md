@@ -6,7 +6,7 @@ What to do:
 - Add lots of social features to connect friends and people making the trading experience fun.
 - Make the top bar more compact/reorganize it
 
-let's proceed with the next step. please implement it yourself.
+let's proceed with the next step. please do it yourself.
 
 Next feature ideas:
 
