@@ -134,11 +134,11 @@
             <tfoot class="table-light">
                 <tr>
                     <td colspan="5"><strong>Cash Balance</strong></td>
-                    <td colspan="3"><strong>{{ cash | usd }}</strong></td>
+                    <td colspan="3"><strong id="cash-balance">{{ cash | usd }}</strong></td>
                 </tr>
                 <tr class="table-success">
                     <td colspan="5"><strong>GRAND TOTAL</strong></td>
-                    <td colspan="3"><strong>{{ grand_total | usd }}</strong></td>
+                    <td colspan="3"><strong id="grand-total">{{ grand_total | usd }}</strong></td>
                 </tr>
             </tfoot>
         </table>

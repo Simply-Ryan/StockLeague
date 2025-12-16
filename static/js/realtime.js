@@ -84,6 +84,8 @@ socket.on('stock_update', function(data) {
 socket.on('portfolio_update', function(data) {
     const { cash, total_value, stocks } = data;
     
+    console.log('Portfolio update received:', data);
+    
     // Update cash display
     const cashEl = document.getElementById('user-cash');
     if (cashEl) {
@@ -91,11 +93,25 @@ socket.on('portfolio_update', function(data) {
         animateValueChange(cashEl);
     }
     
+    // Update cash balance in table (if exists)
+    const cashBalanceEl = document.getElementById('cash-balance');
+    if (cashBalanceEl) {
+        cashBalanceEl.textContent = formatCurrency(cash);
+        animateValueChange(cashBalanceEl);
+    }
+    
     // Update total portfolio value
     const totalEl = document.getElementById('portfolio-value');
     if (totalEl) {
         totalEl.textContent = formatCurrency(total_value);
         animateValueChange(totalEl);
+    }
+    
+    // Update grand total in table (if exists)
+    const grandTotalEl = document.getElementById('grand-total');
+    if (grandTotalEl) {
+        grandTotalEl.textContent = formatCurrency(total_value);
+        animateValueChange(grandTotalEl);
     }
     
     // Update holdings table
@@ -109,8 +125,6 @@ socket.on('portfolio_update', function(data) {
             }
         }
     });
-    
-    console.log('Portfolio updated:', data);
 });
 
 /**

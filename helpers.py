@@ -27,17 +27,16 @@ def apology(message, code=400):
 
 def lookup(symbol, force_refresh=False):
     """
-    Look up quote for symbol using Finnhub API (free tier: 60 req/min).
-    Implements 30-second caching to avoid rate limits.
+    Look up quote for symbol using Yahoo Finance API.
+    Implements 30-second caching to improve performance.
     
     Args:
         symbol: Stock symbol to look up
         force_refresh: If True, bypass cache and fetch fresh data
     
-    Get your free API key at: https://finnhub.io/register
-    Set it in .env file as: FINNHUB_API_KEY=your_key_here
+    Yahoo Finance is free and requires no API key.
     """
-    import os
+    import yfinance as yf
     
     symbol_upper = symbol.upper()
     current_time = time.time()
@@ -48,54 +47,52 @@ def lookup(symbol, force_refresh=False):
         if current_time - cached_time < _CACHE_TTL:
             return cached_data
     
-    # Get API key from environment
-    api_key = os.environ.get("FINNHUB_API_KEY")
-    
-    if not api_key:
-        print("Warning: FINNHUB_API_KEY not set. Get one free at https://finnhub.io/register")
-        print("Add to .env file: FINNHUB_API_KEY=your_key_here")
-        return None
-    
     try:
-        # Get real-time quote from Finnhub
-        quote_url = f"https://finnhub.io/api/v1/quote?symbol={symbol_upper}&token={api_key}"
-        quote_response = requests.get(quote_url, timeout=5)
-        quote_response.raise_for_status()
-        quote_data = quote_response.json()
+        # Get stock data from Yahoo Finance
+        ticker = yf.Ticker(symbol_upper)
         
-        # Check if we got valid data
-        current_price = quote_data.get('c')  # Current price
+        # Try to get current price from fast_info first (faster)
+        try:
+            fast_info = ticker.fast_info
+            current_price = fast_info.get('lastPrice') or fast_info.get('regularMarketPrice')
+            previous_close = fast_info.get('previousClose', current_price)
+        except:
+            # Fallback to info if fast_info fails
+            info = ticker.info
+            current_price = info.get('currentPrice') or info.get('regularMarketPrice')
+            previous_close = info.get('previousClose', current_price)
+        
         if current_price is None or current_price == 0:
             print(f"Invalid or no price data for {symbol_upper}")
             return None
         
-        # Get company profile for name (also check cache for profile)
-        cache_key = f"{symbol_upper}_profile"
-        if cache_key in _quote_cache:
-            company_name = _quote_cache[cache_key]
-        else:
-            try:
-                profile_url = f"https://finnhub.io/api/v1/stock/profile2?symbol={symbol_upper}&token={api_key}"
-                profile_response = requests.get(profile_url, timeout=5)
-                profile_response.raise_for_status()
-                profile_data = profile_response.json()
-                company_name = profile_data.get('name', symbol_upper)
-                # Cache company name permanently (doesn't change)
-                _quote_cache[cache_key] = company_name
-            except Exception:
-                company_name = symbol_upper
-                _quote_cache[cache_key] = company_name
+        # Get detailed info for name (only if needed)
+        try:
+            info = ticker.info
+            name = info.get('longName') or info.get('shortName', symbol_upper)
+            day_high = info.get('dayHigh', current_price)
+            day_low = info.get('dayLow', current_price)
+            day_open = info.get('open', current_price)
+        except:
+            name = symbol_upper
+            day_high = current_price
+            day_low = current_price
+            day_open = current_price
+        
+        # Calculate change
+        change = current_price - previous_close
+        change_percent = (change / previous_close * 100) if previous_close > 0 else 0
         
         result = {
             "symbol": symbol_upper,
             "price": float(current_price),
-            "name": company_name,
-            "change": quote_data.get('d', 0),  # Daily change
-            "change_percent": quote_data.get('dp', 0),  # Daily change percent
-            "high": quote_data.get('h', current_price),  # Day high
-            "low": quote_data.get('l', current_price),  # Day low
-            "open": quote_data.get('o', current_price),  # Day open
-            "previous_close": quote_data.get('pc', current_price)  # Previous close
+            "name": name,
+            "change": float(change),
+            "change_percent": float(change_percent),
+            "high": float(day_high),
+            "low": float(day_low),
+            "open": float(day_open),
+            "previous_close": float(previous_close)
         }
         
         # Store in cache with timestamp
@@ -103,14 +100,8 @@ def lookup(symbol, force_refresh=False):
         
         return result
     
-    except requests.RequestException as e:
-        print(f"API request error for {symbol}: {str(e)}")
-        return None
-    except (ValueError, KeyError) as e:
-        print(f"Data parsing error for {symbol}: {str(e)}")
-        return None
     except Exception as e:
-        print(f"Unexpected error looking up {symbol}: {str(e)}")
+        print(f"Error looking up {symbol}: {str(e)}")
         return None
 
 
@@ -121,49 +112,42 @@ def usd(value):
 
 def get_chart_data(symbol, days=30):
     """
-    Get historical price data for charts.
+    Get historical price data for charts using Yahoo Finance.
     Returns dict with dates and prices for the last N days.
     """
-    import os
+    import yfinance as yf
     from datetime import datetime, timedelta
     
-    api_key = os.environ.get("FINNHUB_API_KEY")
-    if not api_key:
-        return None
-    
     try:
-        # Calculate date range
-        end_date = datetime.now()
-        start_date = end_date - timedelta(days=days)
+        ticker = yf.Ticker(symbol.upper())
         
-        # Convert to Unix timestamps
-        end_timestamp = int(end_date.timestamp())
-        start_timestamp = int(start_date.timestamp())
+        # Get historical data
+        period_map = {
+            7: '7d',
+            30: '1mo',
+            90: '3mo',
+            180: '6mo',
+            365: '1y'
+        }
         
-        # Get candle data (daily prices)
-        url = f"https://finnhub.io/api/v1/stock/candle?symbol={symbol.upper()}&resolution=D&from={start_timestamp}&to={end_timestamp}&token={api_key}"
-        response = requests.get(url, timeout=5)
-        response.raise_for_status()
-        data = response.json()
+        # Find closest period or default to exact days
+        period = period_map.get(days, f'{days}d')
+        hist = ticker.history(period=period)
         
-        # Check if we got valid data
-        if data.get('s') != 'ok' or not data.get('c'):
+        if hist.empty:
+            print(f"No chart data available for {symbol}")
             return None
         
         # Format data for Chart.js
-        timestamps = data.get('t', [])
-        closes = data.get('c', [])
-        
-        # Convert timestamps to dates
-        dates = [datetime.fromtimestamp(ts).strftime('%Y-%m-%d') for ts in timestamps]
+        dates = [date.strftime('%Y-%m-%d') for date in hist.index]
         
         return {
             'dates': dates,
-            'prices': closes,
-            'highs': data.get('h', []),
-            'lows': data.get('l', []),
-            'opens': data.get('o', []),
-            'volumes': data.get('v', [])
+            'prices': hist['Close'].tolist(),
+            'highs': hist['High'].tolist(),
+            'lows': hist['Low'].tolist(),
+            'opens': hist['Open'].tolist(),
+            'volumes': hist['Volume'].tolist()
         }
     
     except Exception as e:
@@ -185,26 +169,28 @@ def get_popular_stocks():
 
 
 def get_stock_news(symbol, limit=5):
-    """Get recent news for a stock"""
-    api_key = os.environ.get("FINNHUB_API_KEY")
-    if not api_key:
-        return []
+    """Get recent news for a stock using Yahoo Finance"""
+    import yfinance as yf
     
     try:
-        # Calculate date range (last 7 days)
-        end_date = datetime.now()
-        start_date = end_date - timedelta(days=7)
+        ticker = yf.Ticker(symbol.upper())
+        news = ticker.news
         
-        end_str = end_date.strftime('%Y-%m-%d')
-        start_str = start_date.strftime('%Y-%m-%d')
+        if not news:
+            return []
         
-        url = f"https://finnhub.io/api/v1/company-news?symbol={symbol.upper()}&from={start_str}&to={end_str}&token={api_key}"
-        response = requests.get(url, timeout=5)
-        response.raise_for_status()
-        news_data = response.json()
+        # Format news to match expected structure
+        formatted_news = []
+        for article in news[:limit]:
+            formatted_news.append({
+                'headline': article.get('title', ''),
+                'summary': article.get('summary', ''),
+                'url': article.get('link', ''),
+                'source': article.get('publisher', 'Yahoo Finance'),
+                'datetime': article.get('providerPublishTime', int(time.time()))
+            })
         
-        # Return limited number of articles
-        return news_data[:limit] if isinstance(news_data, list) else []
+        return formatted_news
     
     except Exception as e:
         print(f"Error fetching news for {symbol}: {str(e)}")
@@ -213,10 +199,6 @@ def get_stock_news(symbol, limit=5):
 
 def get_market_movers():
     """Get top gaining and losing stocks from major indices"""
-    api_key = os.environ.get("FINNHUB_API_KEY")
-    if not api_key:
-        return {'gainers': [], 'losers': []}
-    
     try:
         # Get S&P 500 constituents (we'll check a subset)
         major_symbols = [
@@ -226,7 +208,7 @@ def get_market_movers():
         ]
         
         movers = []
-        for symbol in major_symbols[:20]:  # Limit to avoid API rate limits
+        for symbol in major_symbols[:20]:  # Process subset to balance performance
             quote = lookup(symbol)
             if quote and 'change_percent' in quote:
                 movers.append({
@@ -258,7 +240,7 @@ def get_market_movers():
 def _generate_mock_candles(symbol, days=90):
     """
     Generate realistic mock candlestick data based on current stock price.
-    Used as fallback when Finnhub API is unavailable or rate limited.
+    Used as fallback when Yahoo Finance API is unavailable.
     """
     # Get current price
     quote = lookup(symbol)
@@ -320,7 +302,7 @@ def _generate_mock_candles(symbol, days=90):
 
 def get_candlestick_data(symbol, timeframe='D', days=90):
     """
-    Get OHLCV candlestick data for a stock
+    Get OHLCV candlestick data for a stock using Yahoo Finance
     
     Args:
         symbol: Stock symbol
@@ -331,47 +313,44 @@ def get_candlestick_data(symbol, timeframe='D', days=90):
         List of candles with format:
         [{time, open, high, low, close, volume}, ...]
     """
-    api_key = os.environ.get("FINNHUB_API_KEY")
-    if not api_key:
-        return _generate_mock_candles(symbol, days)
+    import yfinance as yf
     
     try:
-        # Calculate timestamp range
-        end_time = int(datetime.now().timestamp())
-        start_time = int((datetime.now() - timedelta(days=days)).timestamp())
+        ticker = yf.Ticker(symbol.upper())
         
-        # Map timeframe to Finnhub resolution
-        resolution_map = {
-            'D': 'D',   # Daily
-            'W': 'W',   # Weekly
-            'M': 'M',   # Monthly
-            '60': '60', # 60 minute
-            '30': '30', # 30 minute
-            '15': '15', # 15 minute
-            '5': '5',   # 5 minute
-            '1': '1'    # 1 minute
+        # Map timeframe to yfinance interval
+        interval_map = {
+            'D': '1d',   # Daily
+            'W': '1wk',  # Weekly
+            'M': '1mo',  # Monthly
+            '60': '60m', # 60 minute
+            '30': '30m', # 30 minute
+            '15': '15m', # 15 minute
+            '5': '5m',   # 5 minute
+            '1': '1m'    # 1 minute
         }
-        resolution = resolution_map.get(timeframe, 'D')
+        interval = interval_map.get(timeframe, '1d')
         
-        url = f"https://finnhub.io/api/v1/stock/candle?symbol={symbol.upper()}&resolution={resolution}&from={start_time}&to={end_time}&token={api_key}"
-        response = requests.get(url, timeout=10)
-        response.raise_for_status()
-        data = response.json()
+        # For intraday data, limit to recent days
+        if timeframe in ['60', '30', '15', '5', '1']:
+            days = min(days, 7)  # Max 7 days for intraday
         
-        if data.get('s') != 'ok':
-            # Fallback to mock data if API returns error
+        # Get historical data
+        hist = ticker.history(period=f'{days}d', interval=interval)
+        
+        if hist.empty:
             return _generate_mock_candles(symbol, days)
         
         # Format data for TradingView charts
         candles = []
-        for i in range(len(data['t'])):
+        for date, row in hist.iterrows():
             candles.append({
-                'time': data['t'][i],
-                'open': round(data['o'][i], 2),
-                'high': round(data['h'][i], 2),
-                'low': round(data['l'][i], 2),
-                'close': round(data['c'][i], 2),
-                'volume': data['v'][i]
+                'time': int(date.timestamp()),
+                'open': round(row['Open'], 2),
+                'high': round(row['High'], 2),
+                'low': round(row['Low'], 2),
+                'close': round(row['Close'], 2),
+                'volume': int(row['Volume'])
             })
         
         return candles
@@ -985,7 +964,7 @@ def analyze_sentiment(text):
 
 def fetch_news_finnhub(symbol=None, limit=50):
     """
-    Fetch news from Finnhub API
+    Fetch news using Yahoo Finance API
     
     Args:
         symbol: Stock symbol (None for general market news)
@@ -994,68 +973,53 @@ def fetch_news_finnhub(symbol=None, limit=50):
     Returns:
         List of news articles with sentiment
     """
-    import os
-    import requests
-    from datetime import datetime, timedelta
-    
-    api_key = os.environ.get("FINNHUB_API_KEY")
-    if not api_key:
-        print("Warning: FINNHUB_API_KEY not set")
-        return []
+    import yfinance as yf
+    from datetime import datetime
     
     try:
         if symbol:
-            # Company news
-            url = f"https://finnhub.io/api/v1/company-news"
-            today = datetime.now()
-            week_ago = today - timedelta(days=7)
-            
-            params = {
-                'symbol': symbol,
-                'from': week_ago.strftime('%Y-%m-%d'),
-                'to': today.strftime('%Y-%m-%d'),
-                'token': api_key
-            }
+            # Company news from Yahoo Finance
+            ticker = yf.Ticker(symbol)
+            articles = ticker.news
         else:
-            # General market news
-            url = f"https://finnhub.io/api/v1/news"
-            params = {
-                'category': 'general',
-                'token': api_key
-            }
+            # For general market news, use a major index like S&P 500
+            ticker = yf.Ticker("^GSPC")
+            articles = ticker.news
         
-        response = requests.get(url, params=params, timeout=10)
-        response.raise_for_status()
-        
-        articles = response.json()
+        if not articles:
+            return []
         
         # Process and add sentiment
         processed_articles = []
         for article in articles[:limit]:
             # Analyze sentiment
-            headline = article.get('headline', '')
+            headline = article.get('title', '')
             summary = article.get('summary', '')
             text_to_analyze = f"{headline}. {summary}"
             
             sentiment = analyze_sentiment(text_to_analyze)
             
+            # Convert timestamp to readable format
+            timestamp = article.get('providerPublishTime', int(time.time()))
+            published_at = datetime.fromtimestamp(timestamp).strftime('%Y-%m-%d %H:%M:%S')
+            
             processed_articles.append({
                 'symbol': symbol,
                 'headline': headline,
                 'summary': summary,
-                'source': article.get('source', 'Unknown'),
-                'url': article.get('url', ''),
-                'image_url': article.get('image', ''),
-                'published_at': datetime.fromtimestamp(article.get('datetime', 0)).strftime('%Y-%m-%d %H:%M:%S'),
+                'source': article.get('publisher', 'Yahoo Finance'),
+                'url': article.get('link', ''),
+                'image_url': article.get('thumbnail', {}).get('resolutions', [{}])[0].get('url', '') if article.get('thumbnail') else '',
+                'published_at': published_at,
                 'sentiment_score': sentiment['score'],
                 'sentiment_label': sentiment['label'],
-                'category': article.get('category', 'general')
+                'category': 'general'
             })
         
         return processed_articles
     
     except Exception as e:
-        print(f"Error fetching news from Finnhub: {e}")
+        print(f"Error fetching news from Yahoo Finance: {e}")
         return []
 
 

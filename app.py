@@ -64,6 +64,8 @@ def set_portfolio_context(context_type, league_id=None, league_name=None):
 
 def get_portfolio_cash(user_id, context):
     """Get cash for the active portfolio context."""
+    print(f"DEBUG get_portfolio_cash CALLED: context={context}")
+    
     if context["type"] == "personal":
         user = db.get_user(user_id)
         cash = user["cash"]
@@ -73,11 +75,14 @@ def get_portfolio_cash(user_id, context):
         # League portfolio uses separate cash from league_portfolios table
         league_id = context.get("league_id")
         if not league_id:
-            print(f"DEBUG get_portfolio_cash: No league_id in context!")
+            print(f"DEBUG get_portfolio_cash: ERROR - No league_id in context! context={context}")
             return 0
         portfolio = db.get_league_portfolio(league_id, user_id)
-        cash = portfolio["cash"] if portfolio else 0
-        print(f"DEBUG get_portfolio_cash: League portfolio - league_id={league_id}, user_id={user_id}, cash=${cash}")
+        if not portfolio:
+            print(f"DEBUG get_portfolio_cash: ERROR - No portfolio found for league_id={league_id}, user_id={user_id}")
+            return 0
+        cash = portfolio["cash"]
+        print(f"DEBUG get_portfolio_cash: League portfolio - league_id={league_id}, user_id={user_id}, cash=${cash}, portfolio={portfolio}")
         return cash
 
 
@@ -641,6 +646,7 @@ def index():
     
     # Get active portfolio context
     context = get_active_portfolio_context()
+    print(f"DEBUG INDEX: user_id={user_id}, context={context}")
     
     # Get stocks and transactions based on active portfolio
     stocks = get_portfolio_stocks(user_id, context)
@@ -937,6 +943,41 @@ def get_analytics_api(user_id):
     
     analytics_data = calculate_portfolio_analytics(user_id, db)
     return jsonify(analytics_data)
+
+
+@app.route("/debug/portfolio")
+@login_required
+def debug_portfolio():
+    """Debug endpoint to check portfolio context and cash"""
+    user_id = session["user_id"]
+    context = get_active_portfolio_context()
+    
+    # Get personal cash
+    user = db.get_user(user_id)
+    personal_cash = user["cash"]
+    
+    # Get league portfolios
+    league_portfolios = []
+    leagues = db.get_user_leagues(user_id)
+    for league in leagues:
+        lp = db.get_league_portfolio(league["id"], user_id)
+        league_portfolios.append({
+            "league_id": league["id"],
+            "league_name": league["name"],
+            "cash": lp["cash"] if lp else "No portfolio"
+        })
+    
+    # Get current context cash
+    current_cash = get_portfolio_cash(user_id, context)
+    
+    return jsonify({
+        "user_id": user_id,
+        "username": user["username"],
+        "current_context": context,
+        "personal_cash": personal_cash,
+        "league_portfolios": league_portfolios,
+        "current_context_cash": current_cash
+    })
 
 
 @app.route("/login", methods=["GET", "POST"])
@@ -3491,18 +3532,25 @@ def handle_connect():
     if user_id:
         join_room(f'user_{user_id}')
         
-        # Send initial portfolio state
+        # Send initial portfolio state based on active context
         try:
-            user = db.get_user(user_id)
-            stocks = db.get_user_stocks(user_id)
-            portfolio_value = user["cash"]
+            context = get_active_portfolio_context()
+            
+            # Get cash and stocks based on context
+            cash = get_portfolio_cash(user_id, context)
+            stocks = get_portfolio_stocks(user_id, context)
+            
+            # Calculate portfolio value
+            portfolio_value = cash
             for stock in stocks:
                 q = lookup(stock["symbol"])
                 if q:
                     portfolio_value += stock["shares"] * q["price"]
             
+            print(f"DEBUG handle_connect: Sending portfolio_update for context={context}, cash=${cash}, total=${portfolio_value}")
+            
             emit('portfolio_update', {
-                'cash': user["cash"],
+                'cash': cash,
                 'total_value': portfolio_value,
                 'stocks': [{'symbol': s["symbol"], 'shares': s["shares"]} for s in stocks]
             })
