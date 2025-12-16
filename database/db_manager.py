@@ -157,6 +157,34 @@ class DatabaseManager:
                 last_active TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
+
+        # Create user_badges table for profile badges
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS user_badges (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                badge TEXT NOT NULL,
+                awarded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id)
+            )
+        """)
+
+    def get_user_badges(self, user_id):
+        """Get all badges for a user."""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT badge FROM user_badges WHERE user_id = ?", (user_id,))
+        badges = [row[0] for row in cursor.fetchall()]
+        conn.close()
+        return badges
+
+    def add_user_badge(self, user_id, badge):
+        """Award a badge to a user."""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute("INSERT INTO user_badges (user_id, badge) VALUES (?, ?)", (user_id, badge))
+        conn.commit()
+        conn.close()
         
         # Create transactions table
         cursor.execute("""
@@ -2001,7 +2029,7 @@ class DatabaseManager:
         fields = []
         values = []
         for key, value in kwargs.items():
-            if key in ['bio', 'avatar_url', 'is_public', 'email']:
+            if key in ['bio', 'avatar_url', 'is_public', 'email', 'theme']:
                 fields.append(f"{key} = ?")
                 values.append(value)
         

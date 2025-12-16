@@ -1,3 +1,4 @@
+
 # Standard library imports
 import os
 import json
@@ -10,7 +11,7 @@ from collections import defaultdict
 from functools import wraps
 
 # Third-party imports
-from flask import Flask, flash, redirect, render_template, request, session, jsonify, send_file
+from flask import Flask, flash, redirect, render_template, request, session, jsonify, send_file, url_for
 from flask_session import Session
 from flask_socketio import SocketIO, emit, join_room, leave_room
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -172,7 +173,42 @@ def inject_portfolio_context():
 @app.route("/chat/settings")
 @login_required
 def chat_settings():
+
     return render_template("chat_settings.html")
+
+# ============ AVATAR UPLOAD ============
+ALLOWED_AVATAR_EXTENSIONS = {"png", "jpg", "jpeg", "gif"}
+
+def allowed_avatar_file(filename):
+    return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_AVATAR_EXTENSIONS
+
+@app.route("/settings/avatar", methods=["POST"])
+@login_required
+def upload_avatar():
+    user_id = session["user_id"]
+    if "avatar" not in request.files:
+        flash("No file part")
+        return redirect(url_for("settings"))
+    file = request.files["avatar"]
+    if file.filename == "":
+        flash("No selected file")
+        return redirect(url_for("settings"))
+    if file and allowed_avatar_file(file.filename):
+        ext = file.filename.rsplit(".", 1)[1].lower()
+        filename = f"user_{user_id}_{int(time.time())}.{ext}"
+        avatar_folder = os.path.join(app.root_path, "static", "avatars")
+        if not os.path.exists(avatar_folder):
+            os.makedirs(avatar_folder)
+        filepath = os.path.join(avatar_folder, filename)
+        file.save(filepath)
+        # Save relative path for use in templates
+        avatar_url = f"/static/avatars/{filename}"
+        db.update_user_profile(user_id, avatar_url=avatar_url)
+        flash("Avatar updated successfully!")
+        return redirect(url_for("settings"))
+    else:
+        flash("Invalid file type. Allowed: png, jpg, jpeg, gif.")
+        return redirect(url_for("settings"))
 
 # --- Admin-only decorator ---
 def admin_required(f):
@@ -2055,6 +2091,12 @@ def profile(username):
     
     # Get user's stocks
     stocks = db.get_user_stocks(profile_user["id"])
+
+    # Get user badges
+    badges = db.get_user_badges(profile_user["id"])
+
+    # Get user achievements
+    achievements = db.get_achievements(profile_user["id"])
     
     # Calculate portfolio value
     total_value = profile_user["cash"]
@@ -2102,6 +2144,13 @@ def profile(username):
         friend_request_pending = pending is not None
         conn.close()
     
+    # Can the current user award a badge to this profile?
+    can_award_badge = False
+    if not is_own_profile:
+        current_user = db.get_user(current_user_id)
+        if current_user and current_user.get("is_admin"):
+            can_award_badge = True
+
     return render_template("profile.html",
                          profile_user=profile_user,
                          is_own_profile=is_own_profile,
@@ -2110,7 +2159,10 @@ def profile(username):
                          recent_transactions=recent_transactions,
                          friends=friends,
                          is_friend=is_friend,
-                         friend_request_pending=friend_request_pending)
+                         friend_request_pending=friend_request_pending,
+                         badges=badges,
+                         achievements=achievements,
+                         can_award_badge=can_award_badge)
 
 
 @app.route("/settings")
@@ -2130,10 +2182,9 @@ def update_profile():
     email = request.form.get("email")
     bio = request.form.get("bio")
     is_public = 1 if request.form.get("is_public") else 0
-    
+    theme = request.form.get("theme") or "dark"
     # Update profile
-    db.update_user_profile(user_id, email=email, bio=bio, is_public=is_public)
-    
+    db.update_user_profile(user_id, email=email, bio=bio, is_public=is_public, theme=theme)
     flash("Profile updated successfully!")
     return redirect("/settings")
 

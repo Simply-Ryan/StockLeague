@@ -16,7 +16,31 @@
                     <h5 class="mb-0"><i class="fas fa-user"></i> Profile Information</h5>
                 </div>
                 <div class="card-body">
+                    <!-- Avatar Upload -->
+                    <form action="/settings/avatar" method="post" enctype="multipart/form-data" class="mb-4">
+                        <div class="mb-3 text-center">
+                            <label for="avatar" class="form-label">Avatar</label><br>
+                            {% if user.avatar_url %}
+                                <img src="{{ user.avatar_url }}" alt="Avatar" class="rounded-circle mb-2" style="width: 96px; height: 96px; object-fit: cover; border: 2px solid #ccc;">
+                            {% else %}
+                                <i class="fas fa-user-circle fa-5x text-secondary mb-2"></i>
+                            {% endif %}
+                            <input class="form-control mt-2" type="file" id="avatar" name="avatar" accept="image/*">
+                            <div class="form-text">JPG, PNG, GIF. Max 2MB.</div>
+                        </div>
+                        <button type="submit" class="btn btn-outline-primary mb-3"><i class="fas fa-upload"></i> Upload Avatar</button>
+                    </form>
+                    <!-- Profile Edit Form -->
                     <form action="/settings/profile" method="post">
+                        <div class="mb-3">
+                            <label for="theme" class="form-label">Theme</label>
+                            <select class="form-select" id="theme" name="theme">
+                                <option value="system" {% if user.theme == 'system' %}selected{% endif %}>System Default</option>
+                                <option value="light" {% if user.theme == 'light' %}selected{% endif %}>Light</option>
+                                <option value="dark" {% if user.theme == 'dark' or not user.theme %}selected{% endif %}>Dark</option>
+                            </select>
+                            <div class="form-text">Choose your preferred site theme.</div>
+                        </div>
                         <div class="mb-3">
                             <label for="username" class="form-label">Username</label>
                             <input type="text" class="form-control" id="username" value="{{ user.username }}" disabled>

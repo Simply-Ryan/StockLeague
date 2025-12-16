@@ -10,9 +10,44 @@
             <div class="card shadow">
                 <div class="card-body text-center">
                     <div class="mb-3">
-                        <i class="fas fa-user-circle fa-5x text-primary"></i>
+                        {% if profile_user.avatar_url %}
+                            <img src="{{ profile_user.avatar_url }}" alt="Avatar" class="rounded-circle mb-2" style="width: 96px; height: 96px; object-fit: cover; border: 2px solid #ccc;">
+                        {% else %}
+                            <i class="fas fa-user-circle fa-5x text-primary"></i>
+                        {% endif %}
                     </div>
                     <h3 class="mb-2">{{ profile_user.username }}</h3>
+                    {% if badges %}
+                    <div class="mb-2">
+                        {% for badge in badges %}
+                            <span class="badge bg-warning text-dark fs-5" title="Badge">{{ badge }}</span>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+
+                    {% if achievements %}
+                    <div class="mb-2">
+                        <h6 class="text-muted mb-1">Achievements</h6>
+                        <div class="d-flex flex-wrap justify-content-center gap-2">
+                            {% for ach in achievements[:6] %}
+                                <span class="badge bg-success text-light fs-6" title="{{ ach.description }}">{% if ach.icon %}{{ ach.icon }} {% endif %}{{ ach.name }}</span>
+                            {% endfor %}
+                        </div>
+                        {% if achievements|length > 6 %}
+                        <div class="mt-1"><small>+{{ achievements|length - 6 }} more</small></div>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+
+                    {% if can_award_badge %}
+                    <form action="/profile/{{ profile_user.username }}/award_badge" method="post" class="mb-2">
+                        <div class="input-group input-group-sm mb-2">
+                            <input type="text" name="badge" class="form-control" placeholder="Award badge (emoji or text)" required maxlength="16">
+                            <button class="btn btn-outline-warning" type="submit">Award</button>
+                        </div>
+                        <div class="form-text">Admins: Give a badge (e.g. 🏆, 💰, 📈)</div>
+                    </form>
+                    {% endif %}
                     
                     {% if profile_user.bio %}
                     <p class="text-muted">{{ profile_user.bio }}</p>
