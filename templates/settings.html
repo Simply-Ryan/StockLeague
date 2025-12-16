@@ -38,6 +38,8 @@
                                 <option value="system" {% if user.theme == 'system' %}selected{% endif %}>System Default</option>
                                 <option value="light" {% if user.theme == 'light' %}selected{% endif %}>Light</option>
                                 <option value="dark" {% if user.theme == 'dark' or not user.theme %}selected{% endif %}>Dark</option>
+                                <option value="blue" {% if user.theme == 'blue' %}selected{% endif %}>Blue</option>
+                                <option value="green" {% if user.theme == 'green' %}selected{% endif %}>Green</option>
                             </select>
                             <div class="form-text">Choose your preferred site theme.</div>
                         </div>
@@ -138,6 +140,26 @@
                 </div>
             </div>
             
+            <!-- Privacy Settings -->
+            <div class="card shadow mb-4">
+                <div class="card-header bg-secondary text-white">
+                    <h5 class="mb-0"><i class="fas fa-lock"></i> Privacy Settings</h5>
+                </div>
+                <div class="card-body">
+                    <form action="/settings/privacy" method="post">
+                        <div class="form-check form-switch mb-3">
+                            <input class="form-check-input" type="checkbox" id="profile_visibility" name="profile_visibility" {% if user.profile_visibility == 'private' %}checked{% endif %}>
+                            <label class="form-check-label" for="profile_visibility">Make my profile private</label>
+                        </div>
+                        <div class="form-check form-switch mb-3">
+                            <input class="form-check-input" type="checkbox" id="email_visibility" name="email_visibility" {% if user.email_visibility == 'private' %}checked{% endif %}>
+                            <label class="form-check-label" for="email_visibility">Hide my email address</label>
+                        </div>
+                        <button type="submit" class="btn btn-outline-secondary"><i class="fas fa-save"></i> Save Privacy Settings</button>
+                    </form>
+                </div>
+            </div>
+
             <!-- Danger Zone -->
             <div class="card shadow border-danger mb-4">
                 <div class="card-header bg-danger text-white">

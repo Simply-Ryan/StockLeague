@@ -80,6 +80,42 @@
                     </div>
                 </div>
 
+                <!-- Buy Stocks Form -->
+                <form action="/buy" method="post" class="mt-4">
+                    <div class="mb-3">
+                        <label for="buy_symbol" class="form-label">Stock Symbol</label>
+                        <input type="text" class="form-control text-uppercase" id="buy_symbol" name="symbol" 
+                               placeholder="e.g., AAPL, MSFT, AMZN" value="{{ quote.symbol }}" required>
+                        <div class="form-text">Enter the ticker symbol of the stock you want to buy</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="buy_shares" class="form-label">Number of Shares</label>
+                        <input type="number" class="form-control" id="buy_shares" name="shares" 
+                               min="1" placeholder="Enter number of shares" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="buy_strategy" class="form-label">Trading Strategy (Optional)</label>
+                        <select class="form-select" id="buy_strategy" name="strategy">
+                            <option value="">No Strategy</option>
+                            <option value="Day Trading">Day Trading</option>
+                            <option value="Swing Trading">Swing Trading</option>
+                            <option value="Long Term">Long Term Hold</option>
+                            <option value="Value Investing">Value Investing</option>
+                            <option value="Growth">Growth Strategy</option>
+                            <option value="Dividend">Dividend Income</option>
+                        </select>
+                        <div class="form-text">Tag this trade with a strategy to track performance</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="buy_notes" class="form-label">Notes (Optional)</label>
+                        <textarea class="form-control" id="buy_notes" name="notes" rows="2" 
+                                  placeholder="Why are you buying this stock?"></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-success w-100">
+                        <i class="fas fa-shopping-cart"></i> Buy Stock
+                    </button>
+                </form>
+
                 <!-- Action Buttons -->
                 <hr>
                 <div class="d-grid gap-2 d-md-flex justify-content-md-center">

@@ -10,19 +10,19 @@
 
     <!-- Portfolio Context Banner -->
     {% if active_context and active_context.type == 'league' %}
-    <div class="alert alert-warning d-flex align-items-center mb-3" role="alert">
-        <i class="fas fa-trophy fa-2x me-3"></i>
+    <div class="alert alert-warning d-flex align-items-center mb-3" role="alert" style="color: #856404; background-color: #fff3cd; border-color: #ffeeba;">
+        <i class="fas fa-trophy fa-2x me-3" style="color: #856404;"></i>
         <div>
-            <strong><i class="fas fa-shield-alt"></i> League Portfolio: {{ active_context.league_name }}</strong>
-            <small class="d-block">This portfolio is separate from your personal account. Trades here only affect your league ranking.</small>
+            <strong style="color: #856404;"><i class="fas fa-shield-alt"></i> League Portfolio: {{ active_context.league_name }}</strong>
+            <small class="d-block" style="color: #856404;">This portfolio is separate from your personal account. Trades here only affect your league ranking.</small>
         </div>
     </div>
     {% else %}
-    <div class="alert alert-primary d-flex align-items-center mb-3" role="alert">
-        <i class="fas fa-user fa-2x me-3"></i>
+    <div class="alert alert-primary d-flex align-items-center mb-3" role="alert" style="color: #004085; background-color: #cce5ff; border-color: #b8daff;">
+        <i class="fas fa-user fa-2x me-3" style="color: #004085;"></i>
         <div>
-            <strong><i class="fas fa-wallet"></i> Personal Portfolio</strong>
-            <small class="d-block">This is your main trading account, separate from any league competitions.</small>
+            <strong style="color: #004085;"><i class="fas fa-wallet"></i> Personal Portfolio</strong>
+            <small class="d-block" style="color: #004085;">This is your main trading account, separate from any league competitions.</small>
         </div>
     </div>
     {% endif %}

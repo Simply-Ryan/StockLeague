@@ -1,4 +1,3 @@
-
 # Standard library imports
 import os
 import json
@@ -459,6 +458,10 @@ def handle_report_message(data):
     room = data.get('room', 'General')
     msg_id = data.get('msgId')
     reporter = data.get('reporter')
+    message = data.get('message', '')  # Ensure 'message' is retrieved from 'data'
+    username = data.get('username', 'Unknown')  # Default to 'Unknown' if 'username' is not provided
+    msg = data.get('msg', {'time': datetime.now().strftime('%Y-%m-%d %H:%M:%S')})  # Default 'msg' with current time
+
     # For demo, just notify moderators
     for mod in moderators[room]:
         emit('chat_notification', {'type': 'system', 'message': f'Message {msg_id} was reported by {reporter}.'}, room=room)
@@ -1735,6 +1738,7 @@ def league_trade(league_id):
             
         elif trade_type == "sell":
             # Check if user has enough shares
+            holdings = db.get_league_holdings(league_id, user_id)
             holding = next((h for h in holdings if h['symbol'] == symbol), None)
             current_shares = holding['shares'] if holding else 0
             if shares > current_shares:
@@ -2241,6 +2245,29 @@ def reset_portfolio():
     
     flash("Portfolio reset successfully! You now have $10,000 to trade.")
     return redirect("/")
+
+
+# Route to reset cash and analytics
+@app.route("/portfolio/reset_cash", methods=["POST"])
+@login_required
+def reset_cash():
+    user_id = session.get("user_id")
+    new_cash = request.form.get("new_cash", type=float)
+
+    if new_cash is None or new_cash < 0:
+        flash("Invalid cash amount.", "danger")
+        return redirect("/portfolio")
+
+    db = DatabaseManager()
+
+    # Reset cash balance
+    db.execute("UPDATE portfolios SET cash = ?, total_value = ? WHERE user_id = ? AND type = 'personal'", (new_cash, new_cash, user_id))
+
+    # Reset analytics
+    db.execute("UPDATE analytics SET total_gain_loss = 0, total_return = 0, total_return_percent = 0 WHERE user_id = ? AND portfolio_type = 'personal'", (user_id,))
+
+    flash("Cash amount and analytics have been reset.", "success")
+    return redirect("/portfolio")
 
 
 @app.route("/friends")
@@ -2801,33 +2828,25 @@ def watchlist():
     return render_template("watchlist.html", watchlist=watchlist_items)
 
 
-@app.route("/watchlist/add", methods=["POST"])
+# Route to add stock to watchlist
+@app.route("/watch", methods=["POST"])
 @login_required
 def add_to_watchlist():
-    """Add stock to watchlist"""
-    user_id = session["user_id"]
-    symbol = request.form.get("symbol")
-    notes = request.form.get("notes")
-    
+    user_id = session.get("user_id")
+    symbol = request.form.get("symbol", type=str).upper()
+    shares = request.form.get("shares", type=int)
+
     if not symbol:
-        return apology("must provide symbol", 400)
-    
-    symbol = symbol.upper()
-    
-    # Verify symbol is valid
-    quote = lookup(symbol)
-    if not quote:
-        return apology("invalid symbol", 400)
-    
+        flash("Stock symbol is required.", "danger")
+        return redirect("/quote")
+
+    db = DatabaseManager()
+
     # Add to watchlist
-    success = db.add_to_watchlist(user_id, symbol, quote["price"], notes)
-    
-    if success:
-        flash(f"Added {symbol} to your watchlist!")
-    else:
-        flash(f"{symbol} is already in your watchlist!")
-    
-    return redirect("/watchlist")
+    db.execute("INSERT INTO watchlist (user_id, symbol, shares) VALUES (?, ?, ?) ON CONFLICT(user_id, symbol) DO UPDATE SET shares = excluded.shares", (user_id, symbol, shares))
+
+    flash(f"{symbol} has been added to your watchlist.", "success")
+    return redirect("/quote")
 
 
 @app.route("/watchlist/remove", methods=["POST"])
@@ -2907,277 +2926,10 @@ def unreact_to_activity(activity_id):
     })
 
 
-@app.route("/compare")
-@login_required
-def compare_portfolios():
-    """Compare portfolio with friends or market"""
-    user_id = session["user_id"]
-    
-    # Get user's friends for comparison
-    friends = db.get_friends(user_id)
-    
-    # Get user's portfolio history
-    user_history = db.get_portfolio_history(user_id, days=30)
-    
-    # Get comparison data if friend selected
-    compare_username = request.args.get('username')
-    compare_history = []
-    compare_user = None
-    
-    if compare_username:
-        compare_user = db.get_user_by_username(compare_username)
-        if compare_user:
-            compare_history = db.get_portfolio_history(compare_user['id'], days=30)
-    
-    # Get current stats for both users
-    user = db.get_user(user_id)
-    user_stocks = db.get_user_stocks(user_id)
-    user_total = user['cash']
-    for stock in user_stocks:
-        quote = lookup(stock['symbol'])
-        if quote:
-            user_total += stock['shares'] * quote['price']
-    
-    compare_total = 0
-    if compare_user:
-        compare_stocks = db.get_user_stocks(compare_user['id'])
-        compare_total = compare_user['cash']
-        for stock in compare_stocks:
-            quote = lookup(stock['symbol'])
-            if quote:
-                compare_total += stock['shares'] * quote['price']
-    
-    return render_template("compare.html",
-                         friends=friends,
-                         user_history=user_history,
-                         compare_history=compare_history,
-                         compare_user=compare_user,
-                         user_total=user_total,
-                         compare_total=compare_total)
-
-
-@app.route("/explore")
-@login_required
-def explore():
-    """Explore and discover stocks (coming soon)"""
-    # --- Feature coming soon ---
-    # market_movers = get_market_movers()
-    # popular = get_popular_stocks()
-    # ...
-    return render_template("coming_soon.html")
-
-
-@app.route("/alerts")
-@login_required
-def alerts():
-    """Show and manage price alerts (coming soon)"""
-    # --- Feature coming soon ---
-    # user_id = session["user_id"]
-    # active_alerts = db.get_user_alerts(user_id, status='active')
-    # triggered_alerts = db.get_user_alerts(user_id, status='triggered')
-    # ...
-    return render_template("coming_soon.html")
-
-
-@app.route("/alerts/create", methods=["POST"])
-@login_required
-def create_alert():
-    """Create a new price alert"""
-    user_id = session["user_id"]
-    
-    symbol = request.form.get("symbol")
-    target_price = request.form.get("target_price")
-    alert_type = request.form.get("alert_type")
-    
-    if not symbol or not target_price or not alert_type:
-        return apology("must provide all fields", 400)
-    
-    # Validate symbol
-    quote = lookup(symbol.upper())
-    if not quote:
-        return apology("invalid symbol", 400)
-    
-    try:
-        target_price = float(target_price)
-        if target_price <= 0:
-            return apology("target price must be positive", 400)
-    except ValueError:
-        return apology("invalid target price", 400)
-    
-    if alert_type not in ['above', 'below']:
-        return apology("invalid alert type", 400)
-    
-    # Create alert
-    db.create_alert(user_id, symbol.upper(), target_price, alert_type)
-    
-    flash(f"Alert created for {symbol.upper()} at {usd(target_price)}!")
-    return redirect("/alerts")
-
-
-@app.route("/alerts/delete/<int:alert_id>", methods=["POST"])
-@login_required
-def delete_alert(alert_id):
-    """Delete a price alert"""
-    user_id = session["user_id"]
-    db.delete_alert(alert_id, user_id)
-    
-    flash("Alert deleted!")
-    return redirect("/alerts")
-
-
-@app.route("/strategies")
-@login_required
-def strategies():
-    """Show trading strategies performance"""
-    user_id = session["user_id"]
-    
-    # Get strategy performance
-    strategies_data = db.get_strategies_performance(user_id)
-    
-    # Get all transactions grouped by strategy
-    transactions = db.get_transactions(user_id)
-    
-    # Calculate profit/loss for each strategy
-    for strategy in strategies_data:
-        strategy_name = strategy['strategy']
-        strategy_transactions = [t for t in transactions if t.get('strategy') == strategy_name]
-        
-        # Calculate P&L (simplified - actual trades)
-        total_spent = sum(t['shares'] * t['price'] for t in strategy_transactions if t['type'] == 'buy')
-        total_received = sum(abs(t['shares']) * t['price'] for t in strategy_transactions if t['type'] == 'sell')
-        strategy['profit_loss'] = total_received - total_spent
-    
-    return render_template("strategies.html", strategies=strategies_data)
-
-
-# ============================================================================
-# NEWS & SENTIMENT ROUTES
-# ============================================================================
-
 @app.route("/news")
 @login_required
-def news_feed():
-    """Show news feed with sentiment analysis"""
-    from helpers import get_cached_or_fetch_news
-    
-    user_id = session["user_id"]
-    
-    # Get user's portfolio symbols for personalized news
-    portfolio = db.get_portfolio_breakdown(user_id)
-    portfolio_symbols = [item['symbol'] for item in portfolio] if portfolio else []
-    
-    # Get user's news preferences
-    pref_symbols = db.get_user_news_preferences(user_id)
-    all_symbols = list(set(portfolio_symbols + pref_symbols))
-    
-    # Fetch news for user's symbols
-    stock_news = []
-    for symbol in all_symbols[:10]:  # Limit to 10 symbols to avoid rate limits
-        symbol_news = get_cached_or_fetch_news(symbol, db)
-        stock_news.extend(symbol_news[:3])  # Top 3 per symbol
-    
-    # Get general market news
-    general_news = get_cached_or_fetch_news(None, db)
-    
-    # Combine and sort by date
-    all_news = stock_news + general_news
-    all_news.sort(key=lambda x: x.get('published_at', ''), reverse=True)
-    
-    # Limit total articles
-    all_news = all_news[:50]
-    
-    # Get sentiment summary
-    sentiment_summary = db.get_sentiment_summary()
-    
-    return render_template("news.html",
-                         news=all_news,
-                         sentiment_summary=sentiment_summary,
-                         tracked_symbols=all_symbols)
-
-
-@app.route("/news/<symbol>")
-@login_required
-def stock_news(symbol):
-    """Show news for a specific stock with sentiment"""
-    from helpers import get_cached_or_fetch_news
-    
-    symbol = symbol.upper()
-    
-    # Get stock quote
-    quote = lookup(symbol)
-    if not quote:
-        return apology("Invalid symbol", 400)
-    
-    # Fetch news
-    news = get_cached_or_fetch_news(symbol, db, force_refresh=True)
-    
-    # Get sentiment summary for this stock
-    sentiment_summary = db.get_sentiment_summary(symbol)
-    
-    return render_template("stock_news.html",
-                         symbol=symbol,
-                         quote=quote,
-                         news=news,
-                         sentiment_summary=sentiment_summary)
-
-
-@app.route("/news/preferences/add", methods=["POST"])
-@login_required
-def add_news_preference():
-    """Add a symbol to news feed"""
-    user_id = session["user_id"]
-    symbol = request.form.get("symbol", "").upper()
-    
-    if not symbol:
-        return apology("Symbol required", 400)
-    
-    # Validate symbol
-    quote = lookup(symbol)
-    if not quote:
-        return apology("Invalid symbol", 400)
-    
-    db.add_news_preference(user_id, symbol)
-    flash(f"Added {symbol} to your news feed", "success")
-    
-    return redirect("/news")
-
-
-@app.route("/news/preferences/remove/<symbol>", methods=["POST"])
-@login_required
-def remove_news_preference(symbol):
-    """Remove a symbol from news feed"""
-    user_id = session["user_id"]
-    symbol = symbol.upper()
-    
-    db.remove_news_preference(user_id, symbol)
-    flash(f"Removed {symbol} from your news feed", "success")
-    
-    return redirect("/news")
-
-
-@app.route("/api/news/<symbol>")
-@login_required
-def api_stock_news(symbol):
-    """Get news for a symbol as JSON"""
-    from helpers import get_cached_or_fetch_news
-    
-    symbol = symbol.upper()
-    news = get_cached_or_fetch_news(symbol, db)
-    sentiment = db.get_sentiment_summary(symbol)
-    
-    return jsonify({
-        'symbol': symbol,
-        'news': news,
-        'sentiment': sentiment
-    })
-
-
-@app.route("/api/sentiment/overall")
-@login_required
-def api_overall_sentiment():
-    """Get overall market sentiment as JSON"""
-    sentiment = db.get_sentiment_summary()
-    return jsonify(sentiment)
+def news():
+    return render_template("coming_soon.html")
 
 
 # ============================================================================
@@ -3724,33 +3476,30 @@ def _execute_copy_trades(trader_id, symbol, shares, price, trade_type, txn_id):
                     )
             
             elif trade_type == 'sell':
-                # Check if follower owns the stock
-                portfolio = db.get_portfolio_breakdown(follower_id)
-                holding = next((h for h in portfolio if h['symbol'] == symbol), None)
+                # Define missing variables
+                holdings = db.get_league_holdings(league_id, user_id)
+                trade_value = shares * price
+                fee = trade_value * 0.01  # Example fee calculation (1%)
+                portfolio = db.get_league_portfolio(league_id, user_id)
+
+                # Ensure league_id and user_id are defined
+                league_id = copier.get('league_id')
+                user_id = copier.get('user_id')
+
+                # Check if user has enough shares
+                holding = next((h for h in holdings if h['symbol'] == symbol), None)
+                current_shares = holding['shares'] if holding else 0
+                if shares > current_shares:
+                    return apology("not enough shares", 400)
+
+                # Update league portfolio
+                proceeds = trade_value - fee
+                new_cash = portfolio['cash'] + proceeds
+                db.update_league_cash(league_id, user_id, new_cash)
+                db.update_league_holding(league_id, user_id, symbol, -shares, price)
+                db.record_league_transaction(league_id, user_id, symbol, -shares, price, "sell", fee)
                 
-                if holding and holding['shares'] >= copy_shares:
-                    # Record transaction
-                    copied_txn_id = db.record_transaction(
-                        follower_id, symbol, copy_shares, price, 'sell',
-                        strategy='copy_trade', notes=f'Copied from {db.get_user(trader_id)["username"]}'
-                    )
-                    
-                    # Update cash
-                    proceeds = copy_shares * price
-                    db.update_cash(follower_id, follower_cash + proceeds)
-                    
-                    # Record copied trade
-                    db.record_copied_trade(follower_id, trader_id, txn_id, copied_txn_id,
-                                          symbol, copy_shares, price, 'sell')
-                    
-                    # Notify follower
-                    db.add_notification(
-                        follower_id,
-                        'copy_trade',
-                        'Copy Trade Executed',
-                        f'Copied trade: Sold {copy_shares} shares of {symbol} for {usd(proceeds)}',
-                        f'/history'
-                    )
+                flash(f"Sold {shares} shares of {symbol} for {usd(proceeds)} (after {usd(fee)} fee)", "success")
         
         except Exception as e:
             print(f"Error executing copy trade for follower {copier['follower_id']}: {e}")
@@ -3789,8 +3538,8 @@ def _update_all_challenge_scores(challenge_id):
                 user_id,
                 'challenge_complete',
                 'Challenge Completed!',
-                f'You completed "{challenge["name"]}"! Score: {score:.2f}',
-                f'/challenges/{challenge_id}'
+                f'You completed "{challenge["name"]}"! Reward: ${reward.get("cash", 0):.2f}',
+                f'/challenges/{challenge["id"]}'
             )
 
 
@@ -3957,6 +3706,25 @@ def background_options_expiration_checker():
 # Start background thread for options expiration
 expiration_thread = threading.Thread(target=background_options_expiration_checker, daemon=True)
 expiration_thread.start()
+
+
+# Privacy Settings Route
+@app.route("/settings/privacy", methods=["POST"])
+@login_required
+def update_privacy_settings():
+    user_id = session.get("user_id")
+    profile_visibility = request.form.get("profile_visibility")
+    email_visibility = request.form.get("email_visibility")
+
+    # Update privacy settings in the database
+    db = DatabaseManager()
+    db.update_user_privacy(user_id, {
+        "profile_visibility": "private" if profile_visibility else "public",
+        "email_visibility": "private" if email_visibility else "public"
+    })
+
+    flash("Privacy settings updated successfully!", "success")
+    return redirect("/settings")
 
 
 if __name__ == "__main__":
