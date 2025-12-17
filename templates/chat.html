@@ -153,6 +153,9 @@ document.body.classList.add('chat-page');
         font-weight: 600;
         font-size: 1.1rem;
         color: var(--text-primary);
+        cursor: pointer;
+        text-decoration: none;
+        display: inline-block;
     }
     
     .chat-header-status {
@@ -334,6 +337,25 @@ document.body.classList.add('chat-page');
     .chat-btn.send.processing .send-spinner {
         display: flex !important;
     }
+    .chat-btn.send .send-check {
+        display: none;
+        align-items: center;
+        justify-content: center;
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        font-size: 1.1em;
+        color: white;
+    }
+    .chat-btn.send.sent .send-icon,
+    .chat-btn.send.sent .send-spinner {
+        display: none !important;
+    }
+    .chat-btn.send.sent .send-check {
+        display: flex !important;
+    }
     
     .chat-btn.send:hover {
         opacity: 0.9;
@@ -415,8 +437,10 @@ document.body.classList.add('chat-page');
         </div>
         <div class="conversations-list" id="conversations-list">
             {% if conversations %}
-                {% for conv in conversations %}
-                <div class="conversation-item" data-room="{{ conv.id }}" data-name="{{ conv.name }}" data-type="{{ conv.type }}">
+                 {% for conv in conversations %}
+                 <div class="conversation-item" data-room="{{ conv.id }}" data-name="{{ conv.name }}" data-type="{{ conv.type }}"
+                     {% if conv.type == 'dm' %} data-user-id="{{ conv.user_id }}" {% endif %}
+                     {% if conv.type == 'league' %} data-league-id="{{ conv.league_id }}" {% endif %}>
                     <div class="conversation-avatar">
                         {{ conv.name[0].upper() }}
                     </div>
@@ -444,13 +468,13 @@ document.body.classList.add('chat-page');
     <!-- Chat Area -->
     <div class="chat-area">
         <div class="chat-header">
-            <div class="chat-header-info">
+                <div class="chat-header-info">
                 <button class="btn btn-sm btn-outline-secondary d-md-none me-2" id="toggle-sidebar">
                     <i class="fas fa-bars"></i>
                 </button>
                 <div class="conversation-avatar" id="chat-avatar"></div>
                 <div>
-                    <div class="chat-header-name" id="chat-name">Select a conversation</div>
+                    <a class="chat-header-name" id="chat-name" href="#">Select a conversation</a>
                     <div class="chat-header-status" id="chat-status"></div>
                 </div>
             </div>
@@ -486,14 +510,18 @@ document.body.classList.add('chat-page');
                     rows="1"
                     disabled
                 ></textarea>
-                <button type="submit" class="chat-btn send" disabled id="send-btn">
+                <button type="submit" class="chat-btn send" disabled id="send-btn" aria-label="Send message" title="Send message">
                     <span class="send-icon"><i class="fas fa-paper-plane"></i></span>
                     <span class="send-spinner" style="display:none;"><i class="fas fa-circle-notch fa-spin"></i></span>
+                    <span class="send-check" aria-hidden="true" style="display:none;"><i class="fas fa-check"></i></span>
                 </button>
             </form>
         </div>
     </div>
 </div>
+
+<!-- ARIA live region for screen reader notifications -->
+<div id="chat-aria-live" aria-live="polite" aria-atomic="true" style="position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden;"></div>
 
 <!-- Emoji Picker CDN -->
 <script type="module">
@@ -546,9 +574,23 @@ conversationsList.addEventListener('click', (e) => {
     };
     
     // Update header
-    chatName.textContent = currentConversation.name;
+    // Make the header name clickable: profile for DM, league page for league chats
+    const nameLink = chatName; // chatName is an <a>
     chatAvatar.textContent = currentConversation.name[0].toUpperCase();
-    chatStatus.textContent = currentConversation.type === 'dm' ? 'Direct Message' : 'League Chat';
+    if (currentConversation.type === 'dm') {
+        nameLink.textContent = currentConversation.name;
+        // Use username for profile route
+        nameLink.href = '/profile/' + encodeURIComponent(currentConversation.name);
+        nameLink.target = '_self';
+        chatStatus.textContent = 'Direct Message';
+    } else {
+        nameLink.textContent = currentConversation.name;
+        // league id is stored on the element dataset if provided
+        const leagueId = item.dataset.leagueId || (item.dataset.room || '').replace('league_', '');
+        nameLink.href = '/leagues/' + leagueId;
+        nameLink.target = '_self';
+        chatStatus.textContent = 'League Chat';
+    }
     
     // Clear messages
     chatMessages.innerHTML = '';
@@ -600,8 +642,23 @@ socket.on('chat_message', (msg) => {
     scrollToBottom();
     // If this is our own message, remove spinner and re-enable send button
     if (msg.username === username) {
-        //sendBtn.classList.remove('processing');
+        sendBtn.classList.remove('processing');
+        sendBtn.removeAttribute('aria-busy');
         sendBtn.disabled = false;
+        // Briefly show a sent checkmark for visual confirmation
+        try {
+            sendBtn.classList.add('sent');
+            const live = document.getElementById('chat-aria-live');
+            if (live) {
+                live.textContent = 'Message sent.';
+                setTimeout(() => { live.textContent = ''; }, 1000);
+            }
+            setTimeout(() => { sendBtn.classList.remove('sent'); }, 900);
+            // Return focus to input for rapid messaging
+            chatInput.focus();
+        } catch (err) {
+            // ignore
+        }
     }
 });
 
@@ -714,18 +771,33 @@ function displayFile(msg) {
     chatMessages.appendChild(msgDiv);
 }
 
-// Send message
+// Send message helper (shows spinner and emits)
+function sendCurrentMessage() {
+    const message = chatInput.value.trim();
+    if (!message || !currentRoom) return;
+
+    // Show spinner state on the button
+    sendBtn.classList.add('processing');
+    sendBtn.setAttribute('aria-busy', 'true');
+    sendBtn.disabled = true;
+
+    socket.emit('chat_message', { room: currentRoom, message });
+    chatInput.value = '';
+    chatInput.style.height = 'auto';
+}
+
+// Send message via form submit
 chatForm.addEventListener('submit', (e) => {
     e.preventDefault();
-    const message = chatInput.value.trim();
-    if (message && currentRoom) {
-        // Show spinner
-        //sendBtn.classList.add('processing');
-        sendBtn.disabled = true;
-        socket.emit('chat_message', { room: currentRoom, message });
-        chatInput.value = '';
-        chatInput.style.height = 'auto';
-        // Spinner will be removed when the server confirms the message
+    sendCurrentMessage();
+});
+
+// Allow Enter to send, Shift+Enter for newline
+chatInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        // Only send if input not disabled and button enabled
+        if (!sendBtn.disabled) sendCurrentMessage();
     }
 });
 

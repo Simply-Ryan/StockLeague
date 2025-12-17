@@ -82,8 +82,11 @@ document.addEventListener('DOMContentLoaded', function () {
         new bootstrap.Modal(modal).show();
     };
 
-    // Add loading state to buttons on form submit
+    // Add loading state to buttons on form submit (skip chat form)
     forms.forEach(form => {
+        // Don't apply global loading behavior to the chat form (we handle it separately)
+        if (form.id === 'chat-form' || form.classList.contains('no-loading')) return;
+
         form.addEventListener('submit', function () {
             const submitButton = form.querySelector('button[type="submit"]');
             if (submitButton && form.checkValidity()) {

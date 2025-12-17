@@ -183,11 +183,11 @@
               >
                 {% if active_context and active_context.type == 'league' %}
                   <i class="fas fa-trophy text-warning"></i>
-                  <span class="d-none d-md-inline">{{ active_context.league_name }}</span>
+                  <span class="d-none d-md-inline clickable-subject" data-href="/leagues/{{ active_context.league_id }}">{{ active_context.league_name }}</span>
                   <span class="badge bg-warning text-dark ms-1">League</span>
                 {% else %}
                   <i class="fas fa-user text-primary"></i>
-                  <span class="d-none d-md-inline">Personal</span>
+                  <span class="d-none d-md-inline clickable-subject" data-href="/profile/{{ session.username }}">Personal</span>
                   <span class="badge bg-primary ms-1">Personal</span>
                 {% endif %}
               </a>
@@ -320,7 +320,7 @@
                     href="#"
                     data-theme="dark"
                   >
-                    <i class="fas fa-moon text-primary me-2"></i> Dark
+                    <i class="fas fa-moon text-primary me-2"></i> <span class="theme-label">Dark</span>
                     <i
                       class="fas fa-check text-success ms-auto"
                       id="check-dark"
@@ -334,7 +334,7 @@
                     href="#"
                     data-theme="light"
                   >
-                    <i class="fas fa-sun text-warning me-2"></i> Light
+                    <i class="fas fa-sun text-warning me-2"></i> <span class="theme-label">Light</span>
                     <i
                       class="fas fa-check text-success ms-auto"
                       id="check-light"
@@ -348,7 +348,7 @@
                     href="#"
                     data-theme="auto"
                   >
-                    <i class="fas fa-adjust text-info me-2"></i> Auto
+                    <i class="fas fa-adjust text-info me-2"></i> <span class="theme-label">Auto</span>
                     <i
                       class="fas fa-check text-success ms-auto"
                       id="check-auto"
@@ -363,7 +363,7 @@
                     href="#"
                     data-theme="ocean"
                   >
-                    <i class="fas fa-water text-info me-2"></i> Ocean
+                    <i class="fas fa-water text-info me-2"></i> <span class="theme-label">Ocean</span>
                     <i
                       class="fas fa-check text-success ms-auto"
                       id="check-ocean"
@@ -377,7 +377,7 @@
                     href="#"
                     data-theme="forest"
                   >
-                    <i class="fas fa-tree text-success me-2"></i> Forest
+                    <i class="fas fa-tree text-success me-2"></i> <span class="theme-label">Forest</span>
                     <i
                       class="fas fa-check text-success ms-auto"
                       id="check-forest"
@@ -391,7 +391,7 @@
                     href="#"
                     data-theme="sunset"
                   >
-                    <i class="fas fa-sun text-danger me-2"></i> Sunset
+                    <i class="fas fa-sun text-danger me-2"></i> <span class="theme-label">Sunset</span>
                     <i
                       class="fas fa-check text-success ms-auto"
                       id="check-sunset"
@@ -895,6 +895,30 @@
           }
         });
     </script>
-    {% endif %} {% block scripts %}{% endblock %}
+    {% endif %}
+
+    <script>
+      // Make the subject name in the navbar clickable (navigates while keeping dropdown behavior)
+      document.addEventListener('DOMContentLoaded', function () {
+        document.querySelectorAll('.clickable-subject').forEach(function (el) {
+          el.style.cursor = 'pointer';
+          el.setAttribute('tabindex', '0');
+          el.setAttribute('role', 'link');
+          el.addEventListener('click', function (e) {
+            const href = el.dataset.href;
+            if (href) window.location.href = href;
+          });
+          el.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              const href = el.dataset.href;
+              if (href) window.location.href = href;
+            }
+          });
+        });
+      });
+    </script>
+
+    {% block scripts %}{% endblock %}
   </body>
 </html>

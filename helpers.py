@@ -9,6 +9,14 @@ import difflib
 from typing import List
 from utils import POPULAR_SYMBOLS
 
+# Try to import yfinance gracefully so editor/runtime show clear behavior
+try:
+    import yfinance as yf  # type: ignore
+    YFINANCE_AVAILABLE = True
+except Exception:
+    yf = None
+    YFINANCE_AVAILABLE = False
+
 # Simple cache for stock quotes (30 second TTL to avoid rate limits)
 _quote_cache = {}
 _CACHE_TTL = 30  # seconds

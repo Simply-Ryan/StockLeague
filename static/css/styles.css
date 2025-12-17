@@ -719,6 +719,29 @@ a:hover {
     opacity: 0.85;
 }
 
+/* Theme selector label contrast fixes
+   Ensure the theme names in the dropdown have high contrast in all themes
+   without overriding the icon color classes (text-*). */
+.dropdown-menu .theme-option .theme-label {
+    color: var(--text-primary);
+    margin-left: 0.25rem;
+}
+
+.dropdown-menu .theme-option:hover,
+.dropdown-menu .theme-option:focus {
+    background: var(--bg-tertiary);
+}
+
+.dropdown-menu .theme-option:hover .theme-label,
+.dropdown-menu .theme-option:focus .theme-label {
+    color: var(--text-primary);
+}
+
+/* Make sure check icon remains visible against any background */
+.dropdown-menu .theme-option .fa-check {
+    color: var(--success-color);
+}
+
 .text-secondary {
     color: var(--text-secondary) !important;
     opacity: 0.9;

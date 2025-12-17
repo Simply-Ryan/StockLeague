@@ -5,6 +5,7 @@ import time
 import uuid
 import random
 import threading
+from apscheduler.schedulers.background import BackgroundScheduler
 from datetime import datetime, timedelta
 from collections import defaultdict
 from functools import wraps
@@ -281,6 +282,122 @@ def admin_api_chat_rooms():
 def admin_api_chat_reports():
     # Placeholder: return empty for now
     return jsonify({"reports": []})
+
+
+# --- League admin actions: kick/mute/set-admin ---
+@app.route('/leagues/<int:league_id>/admin/kick', methods=['POST'])
+@login_required
+def league_admin_kick(league_id):
+    user_id = session.get('user_id')
+    target_user_id = request.form.get('target_user_id') or request.json.get('target_user_id') if request.is_json else None
+    if not target_user_id:
+        return jsonify({'error': 'target_user_id is required'}), 400
+    try:
+        target_user_id = int(target_user_id)
+    except ValueError:
+        return jsonify({'error': 'invalid target_user_id'}), 400
+
+    db = DatabaseManager()
+    # Check requester is admin
+    if not db.is_user_league_admin(league_id, user_id):
+        return jsonify({'error': 'permission denied'}), 403
+
+    # Prevent kicking the creator or self
+    league = db.get_league(league_id)
+    if league and league.get('creator_id') == target_user_id:
+        return jsonify({'error': 'cannot remove league creator'}), 400
+
+    db.remove_league_member(league_id, target_user_id)
+
+    # Notify via socket and create notification
+    room = f'league_{league_id}'
+    socketio.emit('league_member_kicked', {'league_id': league_id, 'user_id': target_user_id}, room=room)
+    db.create_notification(target_user_id, 'league_kicked', 'Removed from league', f'You were removed from league "{league.get("name")}"', f'/leagues/{league_id}')
+
+    return jsonify({'ok': True})
+
+
+@app.route('/leagues/<int:league_id>/admin/mute', methods=['POST'])
+@login_required
+def league_admin_mute(league_id):
+    user_id = session.get('user_id')
+    payload = request.get_json() or request.form
+    target_user_id = payload.get('target_user_id')
+    minutes = payload.get('minutes') or payload.get('duration_minutes')
+    if not target_user_id:
+        return jsonify({'error': 'target_user_id is required'}), 400
+    try:
+        target_user_id = int(target_user_id)
+    except ValueError:
+        return jsonify({'error': 'invalid target_user_id'}), 400
+
+    db = DatabaseManager()
+    if not db.is_user_league_admin(league_id, user_id):
+        return jsonify({'error': 'permission denied'}), 403
+
+    from datetime import datetime, timedelta
+    muted_until = None
+    try:
+        if minutes:
+            muted_until = (datetime.now() + timedelta(minutes=int(minutes))).isoformat()
+    except Exception:
+        muted_until = None
+
+    db.set_league_moderation(league_id, target_user_id, is_muted=True, muted_until=muted_until)
+    room = f'league_{league_id}'
+    socketio.emit('league_member_muted', {'league_id': league_id, 'user_id': target_user_id, 'muted_until': muted_until}, room=room)
+    db.create_notification(target_user_id, 'league_muted', 'You were muted', f'You were muted in league "{db.get_league(league_id).get("name")}"', f'/leagues/{league_id}')
+    return jsonify({'ok': True})
+
+
+@app.route('/leagues/<int:league_id>/admin/unmute', methods=['POST'])
+@login_required
+def league_admin_unmute(league_id):
+    user_id = session.get('user_id')
+    payload = request.get_json() or request.form
+    target_user_id = payload.get('target_user_id')
+    if not target_user_id:
+        return jsonify({'error': 'target_user_id is required'}), 400
+    try:
+        target_user_id = int(target_user_id)
+    except ValueError:
+        return jsonify({'error': 'invalid target_user_id'}), 400
+
+    db = DatabaseManager()
+    if not db.is_user_league_admin(league_id, user_id):
+        return jsonify({'error': 'permission denied'}), 403
+
+    db.set_league_moderation(league_id, target_user_id, is_muted=False, muted_until=None)
+    room = f'league_{league_id}'
+    socketio.emit('league_member_unmuted', {'league_id': league_id, 'user_id': target_user_id}, room=room)
+    db.create_notification(target_user_id, 'league_unmuted', 'You were unmuted', f'You were unmuted in league "{db.get_league(league_id).get("name")}"', f'/leagues/{league_id}')
+    return jsonify({'ok': True})
+
+
+@app.route('/leagues/<int:league_id>/admin/set_admin', methods=['POST'])
+@login_required
+def league_admin_set_admin(league_id):
+    user_id = session.get('user_id')
+    payload = request.get_json() or request.form
+    target_user_id = payload.get('target_user_id')
+    is_admin = payload.get('is_admin')
+    if not target_user_id or is_admin is None:
+        return jsonify({'error': 'target_user_id and is_admin are required'}), 400
+    try:
+        target_user_id = int(target_user_id)
+        is_admin = bool(int(is_admin)) if isinstance(is_admin, str) and is_admin.isdigit() else bool(is_admin)
+    except Exception:
+        return jsonify({'error': 'invalid parameters'}), 400
+
+    db = DatabaseManager()
+    if not db.is_user_league_admin(league_id, user_id):
+        return jsonify({'error': 'permission denied'}), 403
+
+    db.set_league_member_admin(league_id, target_user_id, is_admin=is_admin)
+    room = f'league_{league_id}'
+    socketio.emit('league_member_admin_changed', {'league_id': league_id, 'user_id': target_user_id, 'is_admin': is_admin}, room=room)
+    db.create_notification(target_user_id, 'league_admin_changed', 'Admin status changed', f'Your admin status in "{db.get_league(league_id).get("name")}" was set to {is_admin}', f'/leagues/{league_id}')
+    return jsonify({'ok': True})
 
 # --- Trading Event Chat Integration ---
 def send_trade_alert_to_chat(user_id, symbol, shares, price, trade_type):
@@ -1438,6 +1555,251 @@ def leaderboard():
     return render_template("leaderboard.html", 
                          leaderboard=leaderboard_data,
                          current_user=current_username)
+
+
+@app.route("/api/leaderboard/global")
+@login_required
+def api_leaderboard_global():
+    """Return global leaderboard as JSON.
+
+    This endpoint reads from the `leaderboards` cache table when available.
+    Supports pagination via `limit` and `offset` query params.
+    Falls back to live computation if cache is missing.
+    """
+    # Pagination parameters
+    try:
+        limit = int(request.args.get("limit", 100))
+        offset = int(request.args.get("offset", 0))
+    except ValueError:
+        return jsonify({"error": "invalid pagination parameters"}), 400
+
+    # Try to load cached leaderboard
+    conn = db.get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT data_json FROM leaderboards WHERE leaderboard_type = ? AND period = ?", ("global", "all"))
+    row = cursor.fetchone()
+    if row and row[0]:
+        try:
+            data = json.loads(row[0])
+            # Apply pagination
+            paged = data[offset:offset+limit]
+            return jsonify(leaderboard=paged, total=len(data))
+        except Exception:
+            # Fall through to live compute
+            pass
+
+    # Live compute fallback (slower)
+    users_data = cursor.execute("SELECT id, username, cash FROM users ORDER BY username").fetchall()
+
+    leaderboard_data = []
+    starting_cash = 10000.00
+
+    for user_data in users_data:
+        user_id = user_data[0]
+        username = user_data[1]
+        cash = user_data[2]
+
+        # Get user's stocks
+        stocks = db.get_user_stocks(user_id)
+
+        # Calculate total value
+        total_value = cash
+        for stock in stocks:
+            # Support both dict rows and tuple rows
+            symbol = stock.get("symbol") if isinstance(stock, dict) else stock[2]
+            shares = stock.get("shares") if isinstance(stock, dict) else stock[3]
+            quote = lookup(symbol)
+            if quote:
+                total_value += shares * quote["price"]
+
+        total_return = total_value - starting_cash
+        return_percent = (total_return / starting_cash) * 100 if starting_cash > 0 else 0
+
+        leaderboard_data.append({
+            "username": username,
+            "total_value": round(total_value, 2),
+            "total_return": round(total_return, 2),
+            "return_percent": round(return_percent, 2)
+        })
+
+    leaderboard_data.sort(key=lambda x: x["total_value"], reverse=True)
+    conn.close()
+
+    # Return paginated slice
+    return jsonify(leaderboard=leaderboard_data[offset:offset+limit], total=len(leaderboard_data))
+
+
+@app.route("/api/leaderboard/league/<int:league_id>")
+@login_required
+def api_leaderboard_league(league_id):
+    """Return a league leaderboard as JSON."""
+    # Try cached first (period 'all' for now)
+    conn = db.get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT data_json FROM leaderboards WHERE leaderboard_type = ? AND period = ?", (f"league_{league_id}", "all"))
+    row = cursor.fetchone()
+    if row and row[0]:
+        try:
+            data = json.loads(row[0])
+            conn.close()
+            return jsonify(leaderboard=data)
+        except Exception:
+            pass
+
+    leaderboard = db.get_league_leaderboard(league_id)
+    return jsonify(leaderboard=leaderboard)
+
+
+def compute_and_cache_global_leaderboard():
+    """Compute the global leaderboard and cache it into `leaderboards` table.
+
+    This function writes a JSON array into the `leaderboards` table with
+    `leaderboard_type` = 'global' and `period` = 'all'.
+    """
+    try:
+        conn = db.get_connection()
+        cursor = conn.cursor()
+        users_data = cursor.execute("SELECT id, username, cash FROM users ORDER BY username").fetchall()
+
+        leaderboard_data = []
+        starting_cash = 10000.00
+
+        for user_data in users_data:
+            user_id = user_data[0]
+            username = user_data[1]
+            cash = user_data[2]
+
+            stocks = db.get_user_stocks(user_id)
+            total_value = cash
+            for stock in stocks:
+                symbol = stock.get("symbol") if isinstance(stock, dict) else stock[2]
+                shares = stock.get("shares") if isinstance(stock, dict) else stock[3]
+                quote = lookup(symbol)
+                if quote:
+                    total_value += shares * quote["price"]
+
+            total_return = total_value - starting_cash
+            return_percent = (total_return / starting_cash) * 100 if starting_cash > 0 else 0
+
+            leaderboard_data.append({
+                "username": username,
+                "total_value": round(total_value, 2),
+                "total_return": round(total_return, 2),
+                "return_percent": round(return_percent, 2)
+            })
+
+        leaderboard_data.sort(key=lambda x: x["total_value"], reverse=True)
+
+        data_json = json.dumps(leaderboard_data)
+
+        # Upsert into leaderboards table
+        cursor.execute(
+            "INSERT INTO leaderboards (leaderboard_type, period, data_json, updated_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP) "
+            "ON CONFLICT(leaderboard_type, period) DO UPDATE SET data_json = excluded.data_json, updated_at = CURRENT_TIMESTAMP",
+            ("global", "all", data_json)
+        )
+
+        # Also write compact snapshots to leaderboard_snapshots (league_id NULL for global)
+        try:
+            # Insert each snapshot row; snapshot_at defaults to CURRENT_TIMESTAMP
+            for rank, entry in enumerate(leaderboard_data, start=1):
+                # find user id in same connection
+                try:
+                    cursor.execute("SELECT id FROM users WHERE username = ?", (entry['username'],))
+                    user_row = cursor.fetchone()
+                    user_id = user_row[0] if user_row else None
+                except Exception:
+                    user_id = None
+
+                cursor.execute(
+                    "INSERT INTO leaderboard_snapshots (league_id, user_id, username, rank, total_value) VALUES (?, ?, ?, ?, ?)",
+                    (None, user_id, entry['username'], rank, entry['total_value'])
+                )
+        except Exception:
+            # Best-effort snapshot; don't fail the whole job
+            pass
+
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        print("Error computing/caching global leaderboard:", e)
+        return False
+
+
+def compute_and_cache_league_leaderboards(limit=100):
+    """Compute leaderboards for active leagues and store compact snapshots.
+
+    For each active league, retrieve the leaderboard via `db.get_league_leaderboard`
+    and write per-member rows to `leaderboard_snapshots`. Also upsert a cached
+    JSON entry into the `leaderboards` table with key `league_<id>`.
+    """
+    try:
+        leagues = db.get_active_leagues(limit=limit)
+        conn = db.get_connection()
+        cursor = conn.cursor()
+
+        for league in leagues:
+            league_id = league.get('id') if isinstance(league, dict) else league[0]
+            # get leaderboard entries (list of dicts)
+            leaderboard = db.get_league_leaderboard(league_id)
+
+            # Upsert JSON cache for this league
+            try:
+                data_json = json.dumps(leaderboard)
+                cursor.execute(
+                    "INSERT INTO leaderboards (leaderboard_type, period, data_json, updated_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP) "
+                    "ON CONFLICT(leaderboard_type, period) DO UPDATE SET data_json = excluded.data_json, updated_at = CURRENT_TIMESTAMP",
+                    (f"league_{league_id}", "all", data_json)
+                )
+            except Exception:
+                pass
+
+            # Insert compact snapshots
+            try:
+                for entry in leaderboard:
+                    user_id = entry.get('id')
+                    username = entry.get('username')
+                    rank = entry.get('current_rank') or None
+                    # prefer score if present, otherwise 0
+                    total_value = entry.get('score') if entry.get('score') is not None else 0
+                    cursor.execute(
+                        "INSERT INTO leaderboard_snapshots (league_id, user_id, username, rank, total_value) VALUES (?, ?, ?, ?, ?)",
+                        (league_id, user_id, username, rank, total_value)
+                    )
+            except Exception:
+                pass
+
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        print("Error computing league snapshots:", e)
+        return False
+
+
+def start_leaderboard_worker(interval_seconds=300):
+    """Start a background thread that updates the global leaderboard periodically.
+
+    Default interval is 300 seconds (5 minutes).
+    """
+    def worker():
+        import time
+        while True:
+            try:
+                compute_and_cache_global_leaderboard()
+            except Exception as e:
+                print("Leaderboard worker error:", e)
+            time.sleep(interval_seconds)
+
+    t = threading.Thread(target=worker, daemon=True)
+    t.start()
+
+
+# Start the leaderboard worker when running directly (not under test/WSGI)
+if __name__ != "__main__":
+    # When imported by tests or WSGI servers, don't auto-start.
+    pass
 
 
 @app.route("/portfolio/switch", methods=["POST"])
@@ -3000,7 +3362,119 @@ def unreact_to_activity(activity_id):
 @app.route("/news")
 @login_required
 def news():
-    return render_template("coming_soon.html")
+    """
+    News feed: show general market news and user's tracked symbols.
+    Uses cached news when available and falls back to fetching fresh news.
+    """
+    user_id = session.get('user_id')
+
+    # Get tracked symbols for the user
+    try:
+        tracked_symbols = db.get_user_news_preferences(user_id)
+    except Exception:
+        tracked_symbols = []
+
+    # Fetch general market news (cached or fresh)
+    try:
+        news_articles = get_cached_or_fetch_news(None, db)
+    except Exception as e:
+        # Fallback to empty list on error
+        print(f"Error getting general news: {e}")
+        news_articles = []
+
+    # Compute sentiment summary
+    sentiment_summary = {
+        'positive': {'count': 0, 'percentage': 0},
+        'neutral': {'count': 0, 'percentage': 0},
+        'negative': {'count': 0, 'percentage': 0}
+    }
+    total = len(news_articles) or 0
+    for a in news_articles:
+        label = a.get('sentiment_label') or a.get('sentiment', {}).get('label') or 'neutral'
+        if label == 'positive':
+            sentiment_summary['positive']['count'] += 1
+        elif label == 'negative':
+            sentiment_summary['negative']['count'] += 1
+        else:
+            sentiment_summary['neutral']['count'] += 1
+
+    if total > 0:
+        sentiment_summary['positive']['percentage'] = (sentiment_summary['positive']['count'] / total) * 100
+        sentiment_summary['neutral']['percentage'] = (sentiment_summary['neutral']['count'] / total) * 100
+        sentiment_summary['negative']['percentage'] = (sentiment_summary['negative']['count'] / total) * 100
+
+    return render_template('news.html', news=news_articles, tracked_symbols=tracked_symbols, sentiment_summary=sentiment_summary)
+
+
+@app.route('/news/<symbol>')
+@login_required
+def news_for_symbol(symbol):
+    """Show news and sentiment for a specific stock symbol."""
+    user_id = session.get('user_id')
+    sym = (symbol or '').upper()
+
+    # Get symbol news (cached or fresh)
+    try:
+        articles = get_cached_or_fetch_news(sym, db)
+    except Exception as e:
+        print(f"Error getting news for {sym}: {e}")
+        articles = []
+
+    # Get quote if possible for header
+    try:
+        quote = lookup(sym)
+    except Exception:
+        quote = None
+
+    # Aggregate sentiment summary for symbol
+    sentiment_summary = {
+        'positive': {'count': 0, 'percentage': 0},
+        'neutral': {'count': 0, 'percentage': 0},
+        'negative': {'count': 0, 'percentage': 0}
+    }
+    total = len(articles) or 0
+    for a in articles:
+        label = a.get('sentiment_label') or a.get('sentiment', {}).get('label') or 'neutral'
+        if label == 'positive':
+            sentiment_summary['positive']['count'] += 1
+        elif label == 'negative':
+            sentiment_summary['negative']['count'] += 1
+        else:
+            sentiment_summary['neutral']['count'] += 1
+
+    if total > 0:
+        sentiment_summary['positive']['percentage'] = (sentiment_summary['positive']['count'] / total) * 100
+        sentiment_summary['neutral']['percentage'] = (sentiment_summary['neutral']['count'] / total) * 100
+        sentiment_summary['negative']['percentage'] = (sentiment_summary['negative']['count'] / total) * 100
+
+    return render_template('stock_news.html', news=articles, symbol=sym, quote=quote, sentiment_summary=sentiment_summary)
+
+
+@app.route('/news/preferences/add', methods=['POST'])
+@login_required
+def news_preferences_add():
+    user_id = session.get('user_id')
+    symbol = request.form.get('symbol') or request.json.get('symbol') if request.is_json else request.form.get('symbol')
+    if not symbol:
+        return redirect(url_for('news'))
+    symbol = symbol.upper().strip()
+    try:
+        db.add_news_preference(user_id, symbol)
+    except Exception as e:
+        print(f"Error adding news preference: {e}")
+    return redirect(url_for('news'))
+
+
+@app.route('/news/preferences/remove/<symbol>', methods=['POST'])
+@login_required
+def news_preferences_remove(symbol):
+    user_id = session.get('user_id')
+    sym = (symbol or '').upper()
+    try:
+        db.remove_news_preference(user_id, sym)
+    except Exception as e:
+        print(f"Error removing news preference: {e}")
+    return redirect(url_for('news'))
 
 
 # ============================================================================
@@ -3799,4 +4273,22 @@ def update_privacy_settings():
 
 
 if __name__ == "__main__":
-    socketio.run(app, debug=True, host='0.0.0.0', port=5000)
+    # Start APScheduler jobs for leaderboards (manageable, configurable)
+    try:
+        scheduler = BackgroundScheduler()
+        # Global leaderboard every 5 minutes
+        scheduler.add_job(compute_and_cache_global_leaderboard, 'interval', minutes=5, id='global_leaderboard')
+        # Per-league snapshots every 5 minutes (stagger if desired)
+        scheduler.add_job(compute_and_cache_league_leaderboards, 'interval', minutes=5, id='league_leaderboards')
+        scheduler.start()
+        print("Leaderboard scheduler started (global & leagues every 5 minutes)")
+    except Exception as e:
+        print("Failed to start leaderboard scheduler:", e)
+
+    try:
+        socketio.run(app, debug=True, host='0.0.0.0', port=5000)
+    finally:
+        try:
+            scheduler.shutdown(wait=False)
+        except Exception:
+            pass

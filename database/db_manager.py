@@ -9,6 +9,11 @@ class DatabaseManager:
         self.init_db()
         self.init_chat_table()
         self.init_activity_reactions_table()
+        # Ensure moderation table exists
+        try:
+            self.init_league_moderation_table()
+        except Exception:
+            pass
 
     def init_chat_table(self):
         """Initialize chat messages table."""
@@ -538,6 +543,23 @@ class DatabaseManager:
                 UNIQUE(leaderboard_type, period)
             )
         """)
+
+        # Leaderboard snapshots (compact rows for fast queries)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS leaderboard_snapshots (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                league_id INTEGER,
+                user_id INTEGER NOT NULL,
+                username TEXT,
+                rank INTEGER,
+                total_value NUMERIC,
+                snapshot_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (league_id) REFERENCES leagues(id),
+                FOREIGN KEY (user_id) REFERENCES users(id)
+            )
+        """)
+
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_leaderboard_snapshots_league ON leaderboard_snapshots(league_id, snapshot_at)")
         
         # ============ MESSAGING TABLES ============
         
@@ -1951,6 +1973,106 @@ class DatabaseManager:
         conn.close()
         
         return [dict(row) for row in members]
+
+    # ============ LEAGUE ADMIN / MODERATION HELPERS ============
+
+    def is_user_league_admin(self, league_id, user_id):
+        """Return True if the given user is an admin for the league."""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT is_admin FROM league_members WHERE league_id = ? AND user_id = ?", (league_id, user_id))
+        row = cursor.fetchone()
+        conn.close()
+        return bool(row and row['is_admin'])
+
+    def remove_league_member(self, league_id, user_id):
+        """Remove a member from a league and cleanup related league data."""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        # Delete from league_members
+        cursor.execute("DELETE FROM league_members WHERE league_id = ? AND user_id = ?", (league_id, user_id))
+        # Delete portfolio, holdings, transactions for that user in the league
+        cursor.execute("DELETE FROM league_portfolios WHERE league_id = ? AND user_id = ?", (league_id, user_id))
+        cursor.execute("DELETE FROM league_holdings WHERE league_id = ? AND user_id = ?", (league_id, user_id))
+        cursor.execute("DELETE FROM league_transactions WHERE league_id = ? AND user_id = ?", (league_id, user_id))
+        conn.commit()
+        conn.close()
+
+    def set_league_member_admin(self, league_id, user_id, is_admin=True):
+        """Grant or revoke admin privileges for a league member."""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute("UPDATE league_members SET is_admin = ? WHERE league_id = ? AND user_id = ?", (1 if is_admin else 0, league_id, user_id))
+        conn.commit()
+        conn.close()
+
+    def init_league_moderation_table(self):
+        """Create moderation table used for mutes/bans."""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS league_moderation (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                league_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                is_muted INTEGER DEFAULT 0,
+                muted_until TIMESTAMP,
+                is_banned INTEGER DEFAULT 0,
+                banned_at TIMESTAMP,
+                reason TEXT,
+                FOREIGN KEY (league_id) REFERENCES leagues(id),
+                FOREIGN KEY (user_id) REFERENCES users(id),
+                UNIQUE(league_id, user_id)
+            )
+        ''')
+        conn.commit()
+        conn.close()
+
+    def set_league_moderation(self, league_id, user_id, is_muted=None, muted_until=None, is_banned=None, reason=None):
+        """Set moderation flags for a league member (mute/ban)."""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT id FROM league_moderation WHERE league_id = ? AND user_id = ?", (league_id, user_id))
+        exists = cursor.fetchone()
+        if exists:
+            parts = []
+            params = []
+            if is_muted is not None:
+                parts.append("is_muted = ?")
+                params.append(1 if is_muted else 0)
+            if muted_until is not None:
+                parts.append("muted_until = ?")
+                params.append(muted_until)
+            if is_banned is not None:
+                parts.append("is_banned = ?")
+                params.append(1 if is_banned else 0)
+            if reason is not None:
+                parts.append("reason = ?")
+                params.append(reason)
+            if parts:
+                sql = "UPDATE league_moderation SET " + ", ".join(parts) + " WHERE league_id = ? AND user_id = ?"
+                params.extend([league_id, user_id])
+                cursor.execute(sql, tuple(params))
+        else:
+            cursor.execute("INSERT INTO league_moderation (league_id, user_id, is_muted, muted_until, is_banned, banned_at, reason) VALUES (?, ?, ?, ?, ?, ?, ?)", (
+                league_id,
+                user_id,
+                1 if is_muted else 0,
+                muted_until,
+                1 if is_banned else 0,
+                datetime.now() if is_banned else None,
+                reason
+            ))
+        conn.commit()
+        conn.close()
+
+    def get_league_moderation(self, league_id, user_id):
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM league_moderation WHERE league_id = ? AND user_id = ?", (league_id, user_id))
+        row = cursor.fetchone()
+        conn.close()
+        return dict(row) if row else None
     
     # ============ NOTIFICATION METHODS ============
     

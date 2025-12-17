@@ -31,59 +31,28 @@ A **gamified social paper trading platform** where users compete in leagues, cha
 ## 👥 PHASE 2: Social System (Friends & Community)
 
 ### 2.1 Friends System
-- [ ] Send friend requests
-- [ ] Accept/decline friend requests
-- [ ] Friend list view
-- [ ] Unfriend functionality
-- [ ] Block users
-- [ ] Friend search (by username)
-- [ ] Friend activity feed
-- [ ] View friend portfolios (with privacy settings)
-- [ ] Compare performance with friends
+ [X] Send friend requests
+ [X] Accept/decline friend requests
+ [X] Friend list view
+ [X] Unfriend functionality
 
 ### 2.2 User Profiles
-- [ ] Public profile page with stats
-- [ ] Profile customization (bio, avatar)
-- [ ] Trading statistics display:
-  - Total trades
-  - Win rate
-  - Best performing stock
-  - Biggest gain/loss
-  - Trading style (aggressive/conservative)
-  - Account age
-- [ ] Badge/achievement display
-- [ ] League memberships shown
-- [ ] Friend list visible
-- [ ] Activity timeline
-- [ ] Privacy settings (public/friends only/private)
+ [X] Public profile page with stats
+ [X] Profile customization (bio, avatar)
 
 ### 2.3 Social Feed
-- [ ] Global activity feed
-- [ ] Friend activity feed
-- [ ] Post your trades (optional)
-- [ ] Like/comment on trades
-- [ ] Share trading ideas
-- [ ] Trade screenshots/charts
-- [ ] Congratulate achievements
-- [ ] Following system (like Twitter)
+ [X] Global activity feed
+ [X] Friend activity feed
+ [X] Post your trades (optional)
+ [X] Like/comment on trades
 
 ---
-
-## 🏆 PHASE 3: League System (Competitive Core)
-
-### 3.1 League Types
-- [ ] **Public Leagues** (anyone can join)
-- [ ] **Private Leagues** (invite-only)
-- [ ] **Ranked Leagues** (skill-based matchmaking)
-- [ ] **School/College Leagues**
-- [ ] **Corporate/Office Leagues**
-- [ ] **Global League** (default, all users)
-
-### 3.2 League Features
-- [ ] Create league (custom name, description, logo)
+ [X] Create league (custom name, description, logo)
+ [X] Join league (via code or public search)
+ [ ] League settings:
 - [ ] Join league (via code or public search)
-- [ ] League settings:
-  - Starting cash amount
+ [X] League chat/discussion board
+ [ ] League admin controls (kick, mute, settings)
   - Trading restrictions (sectors, stock limits)
   - Duration (1 week, 1 month, 3 months, ongoing)
   - Reset schedule

@@ -17,6 +17,14 @@
         </div>
     </div>
 
+    <!-- Dynamic leaderboard container (populated by JS) -->
+    <div class="row justify-content-center mb-3">
+        <div class="col-md-8 text-center">
+            <button id="toggle-live" class="btn btn-sm btn-outline-primary">Toggle Live Updates</button>
+        </div>
+    </div>
+    <div id="leaderboard-dynamic" class="row justify-content-center mb-4"></div>
+
     {% if leaderboard %}
     <div class="row justify-content-center">
         <div class="col-lg-8">
@@ -78,3 +86,26 @@
     {% endif %}
 </div>
 {% endblock %}
+
+    {% block scripts %}
+    {{ super() }}
+    <script type="module">
+    import { renderGlobalTop } from '/static/js/leaderboards.js';
+
+    let live = false;
+    let intervalId = null;
+
+    document.getElementById('toggle-live').addEventListener('click', async () => {
+        live = !live;
+        const btn = document.getElementById('toggle-live');
+        btn.textContent = live ? 'Stop Live Updates' : 'Toggle Live Updates';
+        if (live) {
+            await renderGlobalTop('leaderboard-dynamic', 20);
+            intervalId = setInterval(() => renderGlobalTop('leaderboard-dynamic', 20), 30000);
+        } else {
+            clearInterval(intervalId);
+            document.getElementById('leaderboard-dynamic').innerHTML = '';
+        }
+    });
+    </script>
+    {% endblock %}
