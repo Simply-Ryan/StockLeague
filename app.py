@@ -862,7 +862,14 @@ def buy():
         # Look up stock quote
         quote = lookup(symbol)
         if not quote:
-            return apology("invalid symbol", 400)
+            # Try searching for similar company names/symbols via Yahoo search
+            from helpers import search_tickers
+            suggestions = search_tickers(symbol)
+            if suggestions:
+                # Render the quote form again with suggestions for the user to pick
+                return render_template("quote.html", suggestions=suggestions, previous_query=symbol)
+            else:
+                return apology("invalid symbol", 400)
         
         # Calculate total cost
         price = quote["price"]
@@ -1113,7 +1120,14 @@ def quote():
         quote = lookup(symbol.upper())
         
         if not quote:
-            return apology("invalid symbol", 400)
+            # Try searching for similar company names/symbols via Yahoo search
+            from helpers import search_tickers
+            suggestions = search_tickers(symbol)
+            if suggestions:
+                # Render the quote form again with suggestions for the user to pick
+                return render_template("quote.html", suggestions=suggestions, previous_query=symbol)
+            else:
+                return apology("invalid symbol", 400)
         
         # Get chart data for the last 30 days
         chart_data = get_chart_data(symbol.upper(), days=30)
@@ -1134,6 +1148,36 @@ def quote():
         return render_template("quoted.html", quote=quote, chart_data=chart_data, in_watchlist=in_watchlist, news=news)
     
     else:
+        # Support GET with query param: /quote?symbol=MSFT
+        symbol = request.args.get('symbol')
+        if symbol:
+            quote = lookup(symbol.upper())
+            if not quote:
+                from helpers import search_tickers
+                suggestions = search_tickers(symbol)
+                if suggestions:
+                    return render_template("quote.html", suggestions=suggestions, previous_query=symbol)
+                else:
+                    return apology("invalid symbol", 400)
+
+            # Get chart data for the last 30 days
+            chart_data = get_chart_data(symbol.upper(), days=30)
+
+            # Check if in watchlist
+            user_id = session["user_id"]
+            in_watchlist = db.is_in_watchlist(user_id, symbol.upper())
+
+            # Get stock news
+            news = get_stock_news(symbol.upper(), limit=5)
+
+            # Check for triggered alerts
+            triggered = db.check_alerts(user_id, symbol.upper(), quote['price'])
+            if triggered:
+                for alert in triggered:
+                    flash(f"🔔 Alert triggered: {symbol.upper()} {'reached above' if alert['alert_type'] == 'above' else 'fell below'} {usd(alert['target_price'])}!", "info")
+
+            return render_template("quoted.html", quote=quote, chart_data=chart_data, in_watchlist=in_watchlist, news=news)
+
         return render_template("quote.html")
 
 

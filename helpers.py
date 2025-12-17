@@ -5,6 +5,9 @@ from functools import wraps
 import random
 from datetime import datetime, timedelta
 import time
+import difflib
+from typing import List
+from utils import POPULAR_SYMBOLS
 
 # Simple cache for stock quotes (30 second TTL to avoid rate limits)
 _quote_cache = {}
@@ -195,6 +198,105 @@ def get_stock_news(symbol, limit=5):
     except Exception as e:
         print(f"Error fetching news for {symbol}: {str(e)}")
         return []
+
+
+def search_tickers(query, limit=8):
+    """Search Yahoo Finance for symbols/company names similar to query.
+
+    Uses Yahoo's public search endpoint to return a small list of matching
+    symbols with their display names. Returns list of dicts: {symbol, name}.
+    """
+    try:
+        url = "https://query2.finance.yahoo.com/v1/finance/search"
+        params = {
+            'q': query,
+            'lang': 'en-US',
+            'region': 'US',
+            'quotesCount': limit,
+            'newsCount': 0
+        }
+        resp = requests.get(url, params=params, timeout=5)
+        resp.raise_for_status()
+        data = resp.json()
+
+        results = []
+        for item in data.get('quotes', [])[:limit]:
+            # Only include equities/ETFs for quoting
+            qtype = item.get('quoteType', '').upper()
+            if qtype not in ('EQUITY', 'ETF', 'MUTUALFUND'):
+                # include some common types but skip collections like 'INDEX' if not relevant
+                pass
+
+            symbol = item.get('symbol')
+            name = item.get('longname') or item.get('shortname') or item.get('name') or item.get('quoteSourceName') or symbol
+            if symbol:
+                results.append({'symbol': symbol, 'name': name})
+
+        return results
+    except Exception as e:
+        print(f"Error searching tickers for '{query}': {e}")
+        # If the remote search fails (rate limit or network issue), fall back
+        # to a small local search over popular symbols using fuzzy matching.
+        try:
+            return _local_search_tickers(query, limit)
+        except Exception as ex:
+            print(f"Local fallback search failed: {ex}")
+            return []
+
+
+_symbol_name_cache = {}
+
+
+def _ensure_symbol_name(symbol: str) -> str:
+    """Ensure we have a display name for symbol; cache it."""
+    sym = symbol.upper()
+    if sym in _symbol_name_cache:
+        return _symbol_name_cache[sym]
+    try:
+        import yfinance as yf
+        t = yf.Ticker(sym)
+        info = t.info
+        name = info.get('longName') or info.get('shortName') or sym
+    except Exception:
+        name = sym
+    _symbol_name_cache[sym] = name
+    return name
+
+
+def _local_search_tickers(query: str, limit: int = 8) -> List[dict]:
+    """Fallback search: check popular symbols and fuzzy-match company names."""
+    q = (query or '').strip().lower()
+    candidates = []
+
+    # Pre-seed popular symbols (ensure names cached)
+    for sym in POPULAR_SYMBOLS:
+        name = _ensure_symbol_name(sym)
+        candidates.append({'symbol': sym, 'name': name})
+
+    # First, direct substring matches on symbol or name
+    results = []
+    for item in candidates:
+        if len(results) >= limit:
+            break
+        if q in item['symbol'].lower() or q in item['name'].lower():
+            results.append(item)
+
+    if len(results) >= limit:
+        return results[:limit]
+
+    # If not enough, use difflib on company names
+    names = [c['name'] for c in candidates]
+    close = difflib.get_close_matches(query, names, n=limit)
+    for cname in close:
+        for c in candidates:
+            if c['name'] == cname and c not in results:
+                results.append(c)
+                if len(results) >= limit:
+                    break
+        if len(results) >= limit:
+            break
+
+    return results[:limit]
 
 
 def get_market_movers():
