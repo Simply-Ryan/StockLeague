@@ -24,7 +24,7 @@
                 </div>
                 {% endif %}
                 
-                <form action="/add_cash" method="post">
+                <form action="/edit_portfolio" method="post">
                     <div class="mb-3">
                         <label for="amount" class="form-label">New Cash Balance (USD)</label>
                         <div class="input-group">
@@ -40,33 +40,6 @@
                 </form>
             </div>
         </div>
-        
-        <!-- Quick Amount Buttons -->
-        <div class="card mt-3">
-            <div class="card-body">
-                <h5 class="card-title">
-                    <i class="fas fa-bolt text-warning"></i> Quick Set
-                </h5>
-                <div class="d-flex flex-wrap gap-2">
-                    <button class="btn btn-outline-success quick-amount" data-amount="1000">$1,000</button>
-                    <button class="btn btn-outline-success quick-amount" data-amount="5000">$5,000</button>
-                    <button class="btn btn-outline-success quick-amount" data-amount="10000">$10,000</button>
-                    <button class="btn btn-outline-success quick-amount" data-amount="50000">$50,000</button>
-                    <button class="btn btn-outline-success quick-amount" data-amount="100000">$100,000</button>
-                </div>
-            </div>
-        </div>
     </div>
 </div>
-{% endblock %}
-
-{% block scripts %}
-<script>
-    // Quick amount buttons
-    document.querySelectorAll('.quick-amount').forEach(button => {
-        button.addEventListener('click', function() {
-            document.getElementById('amount').value = this.dataset.amount;
-        });
-    });
-</script>
 {% endblock %}

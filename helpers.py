@@ -21,6 +21,10 @@ except Exception:
 _quote_cache = {}
 _CACHE_TTL = 30  # seconds
 
+# Cache for market-level queries (indices, movers, volume leaders)
+_market_cache = {}
+_MARKET_TTL = 45  # seconds
+
 
 def apology(message, code=400):
     """Render message as an apology to user."""
@@ -170,13 +174,47 @@ def get_popular_stocks():
     """Get quotes for popular stocks to display on homepage"""
     popular_symbols = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA', 'NVDA', 'META', 'SPY']
     
+    # Use a short cache to avoid repeated lookups on page refresh
+    key = 'popular_stocks'
+    now = time.time()
+    if key in _market_cache:
+        data, ts = _market_cache[key]
+        if now - ts < _MARKET_TTL:
+            return data
+
     stocks = []
     for symbol in popular_symbols:
         quote = lookup(symbol)
         if quote:
             stocks.append(quote)
-    
+
+    _market_cache[key] = (stocks, now)
     return stocks
+
+
+def get_market_indices():
+    """Return a small summary of major US indices (S&P 500, Dow, Nasdaq)."""
+    indices = {
+        '^GSPC': 'S&P 500',
+        '^DJI': 'Dow Jones',
+        '^IXIC': 'Nasdaq'
+    }
+    key = 'market_indices'
+    now = time.time()
+    if key in _market_cache:
+        data, ts = _market_cache[key]
+        if now - ts < _MARKET_TTL:
+            return data
+
+    result = []
+    for sym, name in indices.items():
+        q = lookup(sym)
+        if q:
+            q['display_name'] = name
+            result.append(q)
+
+    _market_cache[key] = (result, now)
+    return result
 
 
 def get_stock_news(symbol, limit=5):
@@ -317,6 +355,13 @@ def get_market_movers():
             'ADBE', 'CRM', 'PFE', 'CSCO', 'INTC', 'AMD', 'ORCL', 'PYPL'
         ]
         
+        key = 'market_movers'
+        now = time.time()
+        if key in _market_cache:
+            data, ts = _market_cache[key]
+            if now - ts < _MARKET_TTL:
+                return data
+
         movers = []
         for symbol in major_symbols[:20]:  # Process subset to balance performance
             quote = lookup(symbol)
@@ -337,14 +382,51 @@ def get_market_movers():
         losers = movers[-5:]
         losers.reverse()  # Show worst losers first
         
-        return {
+        result = {
             'gainers': gainers,
             'losers': losers
         }
+        _market_cache[key] = (result, now)
+        return result
     
     except Exception as e:
         print(f"Error fetching market movers: {str(e)}")
         return {'gainers': [], 'losers': []}
+
+
+def get_volume_leaders(symbols=None, limit=10):
+    """Return top symbols by latest traded volume from a provided symbol list (fallback to popular symbols)."""
+    key = 'volume_leaders'
+    now = time.time()
+    if key in _market_cache:
+        data, ts = _market_cache[key]
+        if now - ts < _MARKET_TTL:
+            return data
+
+    symbols = symbols or ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA', 'NVDA', 'META', 'SPY', 'AMD', 'INTC', 'FB']
+    rows = []
+    for s in symbols:
+        try:
+            t = yf.Ticker(s)
+            # fast_info may include volume
+            try:
+                vol = t.fast_info.get('volume')
+            except Exception:
+                vol = None
+            if vol is None:
+                info = t.info
+                vol = info.get('volume') or info.get('averageVolume')
+
+            quote = lookup(s)
+            if quote:
+                rows.append({'symbol': s, 'name': quote.get('name', s), 'price': quote.get('price'), 'volume': vol or 0})
+        except Exception:
+            continue
+
+    rows.sort(key=lambda r: (r.get('volume') or 0), reverse=True)
+    result = rows[:limit]
+    _market_cache[key] = (result, now)
+    return result
 
 
 def _generate_mock_candles(symbol, days=90):

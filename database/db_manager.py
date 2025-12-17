@@ -174,6 +174,116 @@ class DatabaseManager:
             )
         """)
 
+        # ============ MINIMAL LEAGUE TABLES (ensure present for tests and admin tools) ============
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS leagues (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                description TEXT,
+                creator_id INTEGER NOT NULL,
+                league_type TEXT DEFAULT 'public',
+                starting_cash NUMERIC DEFAULT 10000.00,
+                invite_code TEXT UNIQUE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                season_start TIMESTAMP,
+                season_end TIMESTAMP,
+                is_active INTEGER DEFAULT 1,
+                FOREIGN KEY (creator_id) REFERENCES users(id)
+            )
+        """)
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS league_members (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                league_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                current_rank INTEGER,
+                score NUMERIC DEFAULT 0,
+                is_admin INTEGER DEFAULT 0,
+                FOREIGN KEY (league_id) REFERENCES leagues(id),
+                FOREIGN KEY (user_id) REFERENCES users(id),
+                UNIQUE(league_id, user_id)
+            )
+        """)
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS league_portfolios (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                league_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                cash NUMERIC NOT NULL DEFAULT 10000.00,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                locked_at TIMESTAMP,
+                FOREIGN KEY (league_id) REFERENCES leagues(id),
+                FOREIGN KEY (user_id) REFERENCES users(id),
+                UNIQUE(league_id, user_id)
+            )
+        """)
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS league_holdings (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                league_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                symbol TEXT NOT NULL,
+                shares INTEGER NOT NULL DEFAULT 0,
+                avg_cost NUMERIC NOT NULL DEFAULT 0,
+                FOREIGN KEY (league_id) REFERENCES leagues(id),
+                FOREIGN KEY (user_id) REFERENCES users(id),
+                UNIQUE(league_id, user_id, symbol)
+            )
+        """)
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS league_transactions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                league_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                symbol TEXT NOT NULL,
+                shares INTEGER NOT NULL,
+                price NUMERIC NOT NULL,
+                type TEXT NOT NULL,
+                fee NUMERIC DEFAULT 0,
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (league_id) REFERENCES leagues(id),
+                FOREIGN KEY (user_id) REFERENCES users(id)
+            )
+        """)
+
+        # Notifications table (minimal)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS notifications (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                notification_type TEXT NOT NULL,
+                title TEXT,
+                content TEXT,
+                related_data TEXT,
+                is_read INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id)
+            )
+        """)
+
+        # Audit log for personal portfolio resets
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS portfolio_resets (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                performed_by INTEGER,
+                old_cash NUMERIC,
+                new_cash NUMERIC,
+                ip_address TEXT,
+                user_agent TEXT,
+                reason TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id),
+                FOREIGN KEY (performed_by) REFERENCES users(id)
+            )
+        """)
+
+
     def get_user_badges(self, user_id):
         """Get all badges for a user."""
         conn = self.get_connection()
@@ -190,636 +300,6 @@ class DatabaseManager:
         cursor.execute("INSERT INTO user_badges (user_id, badge) VALUES (?, ?)", (user_id, badge))
         conn.commit()
         conn.close()
-        
-        # Create transactions table
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS transactions (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER NOT NULL,
-                symbol TEXT NOT NULL,
-                shares INTEGER NOT NULL,
-                price NUMERIC NOT NULL,
-                type TEXT NOT NULL,
-                strategy TEXT,
-                notes TEXT,
-                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (user_id) REFERENCES users(id)
-            )
-        """)
-        
-        # Pending orders table for advanced order types
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS pending_orders (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER NOT NULL,
-                symbol TEXT NOT NULL,
-                shares INTEGER NOT NULL,
-                order_type TEXT NOT NULL,
-                action TEXT NOT NULL,
-                limit_price NUMERIC,
-                stop_price NUMERIC,
-                trailing_percent NUMERIC,
-                trailing_amount NUMERIC,
-                status TEXT DEFAULT 'pending',
-                expiration TIMESTAMP,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                executed_at TIMESTAMP,
-                cancelled_at TIMESTAMP,
-                notes TEXT,
-                FOREIGN KEY (user_id) REFERENCES users(id)
-            )
-        """)
-        
-        # Portfolio snapshots for historical tracking
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS portfolio_snapshots (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER NOT NULL,
-                total_value NUMERIC NOT NULL,
-                cash NUMERIC NOT NULL,
-                stocks_json TEXT,
-                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (user_id) REFERENCES users(id)
-            )
-        """)
-        
-        # Watchlist table
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS watchlist (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER NOT NULL,
-                symbol TEXT NOT NULL,
-                added_price NUMERIC,
-                notes TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (user_id) REFERENCES users(id),
-                UNIQUE(user_id, symbol)
-            )
-        """)
-        
-        # Price alerts table
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS price_alerts (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER NOT NULL,
-                symbol TEXT NOT NULL,
-                target_price NUMERIC NOT NULL,
-                alert_type TEXT NOT NULL,
-                status TEXT DEFAULT 'active',
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                triggered_at TIMESTAMP,
-                FOREIGN KEY (user_id) REFERENCES users(id)
-            )
-        """)
-        
-        # ============ SOCIAL TABLES ============
-        
-        # Friends table
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS friends (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER NOT NULL,
-                friend_id INTEGER NOT NULL,
-                status TEXT NOT NULL DEFAULT 'pending',
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (user_id) REFERENCES users(id),
-                FOREIGN KEY (friend_id) REFERENCES users(id),
-                UNIQUE(user_id, friend_id)
-            )
-        """)
-        
-        # Social posts/feed
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS posts (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER NOT NULL,
-                content TEXT NOT NULL,
-                post_type TEXT DEFAULT 'text',
-                related_data TEXT,
-                likes INTEGER DEFAULT 0,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (user_id) REFERENCES users(id)
-            )
-        """)
-        
-        # Post comments
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS comments (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                post_id INTEGER NOT NULL,
-                user_id INTEGER NOT NULL,
-                content TEXT NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (post_id) REFERENCES posts(id),
-                FOREIGN KEY (user_id) REFERENCES users(id)
-            )
-        """)
-        
-        # Post likes
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS post_likes (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                post_id INTEGER NOT NULL,
-                user_id INTEGER NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (post_id) REFERENCES posts(id),
-                FOREIGN KEY (user_id) REFERENCES users(id),
-                UNIQUE(post_id, user_id)
-            )
-        """)
-        
-        # ============ LEAGUE TABLES ============
-        
-        # Leagues
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS leagues (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL,
-                description TEXT,
-                creator_id INTEGER NOT NULL,
-                league_type TEXT DEFAULT 'public',
-                starting_cash NUMERIC DEFAULT 10000.00,
-                settings_json TEXT,
-                invite_code TEXT UNIQUE,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                season_start TIMESTAMP,
-                season_end TIMESTAMP,
-                is_active INTEGER DEFAULT 1,
-                FOREIGN KEY (creator_id) REFERENCES users(id)
-            )
-        """)
-        
-        # League members
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS league_members (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                league_id INTEGER NOT NULL,
-                user_id INTEGER NOT NULL,
-                joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                current_rank INTEGER,
-                score NUMERIC DEFAULT 0,
-                is_admin INTEGER DEFAULT 0,
-                FOREIGN KEY (league_id) REFERENCES leagues(id),
-                FOREIGN KEY (user_id) REFERENCES users(id),
-                UNIQUE(league_id, user_id)
-            )
-        """)
-        
-        # League chat messages
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS league_messages (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                league_id INTEGER NOT NULL,
-                user_id INTEGER NOT NULL,
-                message TEXT NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (league_id) REFERENCES leagues(id),
-                FOREIGN KEY (user_id) REFERENCES users(id)
-            )
-        """)
-        
-        # ============ LEAGUE COMPETITION TABLES ============
-        
-        # League portfolios - isolated cash balance per league member
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS league_portfolios (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                league_id INTEGER NOT NULL,
-                user_id INTEGER NOT NULL,
-                cash NUMERIC NOT NULL DEFAULT 10000.00,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                locked_at TIMESTAMP,
-                FOREIGN KEY (league_id) REFERENCES leagues(id),
-                FOREIGN KEY (user_id) REFERENCES users(id),
-                UNIQUE(league_id, user_id)
-            )
-        """)
-        
-        # League holdings - stock positions per league member
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS league_holdings (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                league_id INTEGER NOT NULL,
-                user_id INTEGER NOT NULL,
-                symbol TEXT NOT NULL,
-                shares INTEGER NOT NULL DEFAULT 0,
-                avg_cost NUMERIC NOT NULL DEFAULT 0,
-                FOREIGN KEY (league_id) REFERENCES leagues(id),
-                FOREIGN KEY (user_id) REFERENCES users(id),
-                UNIQUE(league_id, user_id, symbol)
-            )
-        """)
-        
-        # League transactions - trade history per league
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS league_transactions (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                league_id INTEGER NOT NULL,
-                user_id INTEGER NOT NULL,
-                symbol TEXT NOT NULL,
-                shares INTEGER NOT NULL,
-                price NUMERIC NOT NULL,
-                type TEXT NOT NULL,
-                fee NUMERIC DEFAULT 0,
-                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (league_id) REFERENCES leagues(id),
-                FOREIGN KEY (user_id) REFERENCES users(id)
-            )
-        """)
-        
-        # League portfolio snapshots - for historical rankings and audits
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS league_portfolio_snapshots (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                league_id INTEGER NOT NULL,
-                user_id INTEGER NOT NULL,
-                total_value NUMERIC NOT NULL,
-                cash NUMERIC NOT NULL,
-                holdings_json TEXT,
-                snapshot_date DATE NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (league_id) REFERENCES leagues(id),
-                FOREIGN KEY (user_id) REFERENCES users(id),
-                UNIQUE(league_id, user_id, snapshot_date)
-            )
-        """)
-        
-        # ============ GAME MODE TABLES ============
-        
-        # Challenges
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS challenges (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL,
-                description TEXT,
-                challenge_type TEXT NOT NULL,
-                rules_json TEXT,
-                creator_id INTEGER,
-                start_time TIMESTAMP,
-                end_time TIMESTAMP,
-                reward_json TEXT,
-                is_active INTEGER DEFAULT 1,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (creator_id) REFERENCES users(id)
-            )
-        """)
-        
-        # Challenge participants
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS challenge_participants (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                challenge_id INTEGER NOT NULL,
-                user_id INTEGER NOT NULL,
-                score NUMERIC DEFAULT 0,
-                rank INTEGER,
-                completed INTEGER DEFAULT 0,
-                joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                completed_at TIMESTAMP,
-                FOREIGN KEY (challenge_id) REFERENCES challenges(id),
-                FOREIGN KEY (user_id) REFERENCES users(id),
-                UNIQUE(challenge_id, user_id)
-            )
-        """)
-        
-        # ============ ACHIEVEMENT TABLES ============
-        
-        # Achievements
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS achievements (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL UNIQUE,
-                description TEXT,
-                category TEXT,
-                icon TEXT,
-                rarity TEXT DEFAULT 'common',
-                criteria_json TEXT,
-                points INTEGER DEFAULT 0,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
-        
-        # User achievements
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS user_achievements (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER NOT NULL,
-                achievement_id INTEGER NOT NULL,
-                unlocked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                progress INTEGER DEFAULT 100,
-                FOREIGN KEY (user_id) REFERENCES users(id),
-                FOREIGN KEY (achievement_id) REFERENCES achievements(id),
-                UNIQUE(user_id, achievement_id)
-            )
-        """)
-        
-        # ============ NOTIFICATION TABLES ============
-        
-        # Notifications
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS notifications (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER NOT NULL,
-                notification_type TEXT NOT NULL,
-                title TEXT,
-                content TEXT,
-                related_data TEXT,
-                is_read INTEGER DEFAULT 0,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (user_id) REFERENCES users(id)
-            )
-        """)
-        
-        # ============ LEADERBOARD TABLES ============
-        
-        # Leaderboard cache (for performance)
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS leaderboards (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                leaderboard_type TEXT NOT NULL,
-                period TEXT NOT NULL,
-                data_json TEXT NOT NULL,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE(leaderboard_type, period)
-            )
-        """)
-
-        # Leaderboard snapshots (compact rows for fast queries)
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS leaderboard_snapshots (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                league_id INTEGER,
-                user_id INTEGER NOT NULL,
-                username TEXT,
-                rank INTEGER,
-                total_value NUMERIC,
-                snapshot_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (league_id) REFERENCES leagues(id),
-                FOREIGN KEY (user_id) REFERENCES users(id)
-            )
-        """)
-
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_leaderboard_snapshots_league ON leaderboard_snapshots(league_id, snapshot_at)")
-        
-        # ============ MESSAGING TABLES ============
-        
-        # Direct messages
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS messages (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                sender_id INTEGER NOT NULL,
-                receiver_id INTEGER NOT NULL,
-                content TEXT NOT NULL,
-                is_read INTEGER DEFAULT 0,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (sender_id) REFERENCES users(id),
-                FOREIGN KEY (receiver_id) REFERENCES users(id)
-            )
-        """)
-        
-        # ============ OPTIONS TABLES ============
-        
-        # Options contracts table
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS options_contracts (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                symbol TEXT NOT NULL,
-                strike_price NUMERIC NOT NULL,
-                expiration_date DATE NOT NULL,
-                option_type TEXT NOT NULL CHECK(option_type IN ('call', 'put')),
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE(symbol, strike_price, expiration_date, option_type)
-            )
-        """)
-        
-        # User options positions table
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS options_positions (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER NOT NULL,
-                contract_id INTEGER NOT NULL,
-                contracts INTEGER NOT NULL,
-                avg_premium NUMERIC NOT NULL,
-                position_type TEXT NOT NULL CHECK(position_type IN ('long', 'short')),
-                opened_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                closed_at TIMESTAMP,
-                status TEXT DEFAULT 'open' CHECK(status IN ('open', 'closed', 'expired', 'exercised', 'assigned')),
-                FOREIGN KEY (user_id) REFERENCES users(id),
-                FOREIGN KEY (contract_id) REFERENCES options_contracts(id)
-            )
-        """)
-        
-        # Options transactions table
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS options_transactions (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER NOT NULL,
-                position_id INTEGER NOT NULL,
-                contract_id INTEGER NOT NULL,
-                contracts INTEGER NOT NULL,
-                premium NUMERIC NOT NULL,
-                transaction_type TEXT NOT NULL CHECK(transaction_type IN ('buy', 'sell', 'exercise', 'expire')),
-                total_cost NUMERIC NOT NULL,
-                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (user_id) REFERENCES users(id),
-                FOREIGN KEY (position_id) REFERENCES options_positions(id),
-                FOREIGN KEY (contract_id) REFERENCES options_contracts(id)
-            )
-        """)
-        
-        # ============ NEWS TABLES ============
-        
-        # News articles table
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS news_articles (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                symbol TEXT,
-                headline TEXT NOT NULL,
-                summary TEXT,
-                source TEXT NOT NULL,
-                url TEXT UNIQUE NOT NULL,
-                image_url TEXT,
-                published_at TIMESTAMP NOT NULL,
-                sentiment_score NUMERIC,
-                sentiment_label TEXT CHECK(sentiment_label IN ('positive', 'neutral', 'negative')),
-                category TEXT,
-                cached_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE(url)
-            )
-        """)
-        
-        # User news preferences table
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS news_preferences (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER NOT NULL,
-                symbol TEXT NOT NULL,
-                enabled INTEGER DEFAULT 1,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (user_id) REFERENCES users(id),
-                UNIQUE(user_id, symbol)
-            )
-        """)
-        
-        # ============ SOCIAL TRADING TABLES ============
-        
-        # Following relationships table
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS trader_following (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                follower_id INTEGER NOT NULL,
-                trader_id INTEGER NOT NULL,
-                started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (follower_id) REFERENCES users(id),
-                FOREIGN KEY (trader_id) REFERENCES users(id),
-                UNIQUE(follower_id, trader_id)
-            )
-        """)
-        
-        # Copy trading settings table
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS copy_trading (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                follower_id INTEGER NOT NULL,
-                trader_id INTEGER NOT NULL,
-                is_active INTEGER DEFAULT 1,
-                allocation_percentage NUMERIC DEFAULT 10.0,
-                max_trade_amount NUMERIC DEFAULT 1000.0,
-                copy_buys INTEGER DEFAULT 1,
-                copy_sells INTEGER DEFAULT 1,
-                started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                stopped_at TIMESTAMP,
-                FOREIGN KEY (follower_id) REFERENCES users(id),
-                FOREIGN KEY (trader_id) REFERENCES users(id),
-                UNIQUE(follower_id, trader_id)
-            )
-        """)
-        
-        # Copied trades tracking table
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS copied_trades (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                follower_id INTEGER NOT NULL,
-                trader_id INTEGER NOT NULL,
-                original_transaction_id INTEGER NOT NULL,
-                copied_transaction_id INTEGER NOT NULL,
-                symbol TEXT NOT NULL,
-                shares INTEGER NOT NULL,
-                price NUMERIC NOT NULL,
-                type TEXT NOT NULL,
-                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (follower_id) REFERENCES users(id),
-                FOREIGN KEY (trader_id) REFERENCES users(id),
-                FOREIGN KEY (original_transaction_id) REFERENCES transactions(id),
-                FOREIGN KEY (copied_transaction_id) REFERENCES transactions(id)
-            )
-        """)
-        
-        # Trader statistics table (cached performance metrics)
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS trader_stats (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER NOT NULL UNIQUE,
-                total_trades INTEGER DEFAULT 0,
-                winning_trades INTEGER DEFAULT 0,
-                losing_trades INTEGER DEFAULT 0,
-                win_rate NUMERIC DEFAULT 0,
-                total_return NUMERIC DEFAULT 0,
-                avg_return_per_trade NUMERIC DEFAULT 0,
-                risk_score NUMERIC DEFAULT 0,
-                sharpe_ratio NUMERIC DEFAULT 0,
-                max_drawdown NUMERIC DEFAULT 0,
-                followers_count INTEGER DEFAULT 0,
-                copiers_count INTEGER DEFAULT 0,
-                last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (user_id) REFERENCES users(id)
-            )
-        """)
-        
-        # ============ INDEXES FOR PERFORMANCE ============
-        
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_user_transactions ON transactions(user_id)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_pending_orders_user ON pending_orders(user_id)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_pending_orders_status ON pending_orders(status)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_pending_orders_symbol ON pending_orders(symbol)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_username ON users(username)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_friends_user ON friends(user_id)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_friends_status ON friends(status)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_league_members ON league_members(league_id)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_league_user ON league_members(user_id)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_challenges_active ON challenges(is_active)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_options_positions_user ON options_positions(user_id)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_options_positions_status ON options_positions(status)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_options_contracts_symbol ON options_contracts(symbol)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_options_contracts_expiration ON options_contracts(expiration_date)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_news_symbol ON news_articles(symbol)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_news_published ON news_articles(published_at)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_news_sentiment ON news_articles(sentiment_label)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_trader_following_follower ON trader_following(follower_id)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_trader_following_trader ON trader_following(trader_id)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_copy_trading_follower ON copy_trading(follower_id)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_copy_trading_trader ON copy_trading(trader_id)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_copy_trading_active ON copy_trading(is_active)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_trader_stats_return ON trader_stats(total_return)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_trader_stats_win_rate ON trader_stats(win_rate)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_notifications_read ON notifications(is_read)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_posts_user ON posts(user_id)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_messages_receiver ON messages(receiver_id)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_portfolio_snapshots ON portfolio_snapshots(user_id, timestamp)")
-        
-        # League competition indexes
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_league_portfolios ON league_portfolios(league_id, user_id)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_league_holdings ON league_holdings(league_id, user_id)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_league_holdings_symbol ON league_holdings(league_id, symbol)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_league_transactions ON league_transactions(league_id, user_id)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_league_transactions_time ON league_transactions(league_id, timestamp)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_league_snapshots ON league_portfolio_snapshots(league_id, user_id, snapshot_date)")
-        
-        # ============ MIGRATIONS ============
-        # Add strategy and notes columns to transactions if they don't exist
-        try:
-            cursor.execute("ALTER TABLE transactions ADD COLUMN strategy TEXT")
-        except sqlite3.OperationalError:
-            pass  # Column already exists
-        
-        try:
-            cursor.execute("ALTER TABLE transactions ADD COLUMN notes TEXT")
-        except sqlite3.OperationalError:
-            pass  # Column already exists
-        
-        try:
-            cursor.execute("ALTER TABLE users ADD COLUMN theme TEXT DEFAULT 'dark'")
-        except sqlite3.OperationalError:
-            pass  # Column already exists
-        
-        # League competition migrations
-        try:
-            cursor.execute("ALTER TABLE leagues ADD COLUMN lifecycle_state TEXT DEFAULT 'active'")
-        except sqlite3.OperationalError:
-            pass  # Column already exists
-        
-        try:
-            cursor.execute("ALTER TABLE leagues ADD COLUMN mode TEXT DEFAULT 'absolute_value'")
-        except sqlite3.OperationalError:
-            pass  # Column already exists
-        
-        try:
-            cursor.execute("ALTER TABLE leagues ADD COLUMN rules_json TEXT")
-        except sqlite3.OperationalError:
-            pass  # Column already exists
-        
-        # Create index on lifecycle_state column (after migration adds it)
-        try:
-            cursor.execute("CREATE INDEX IF NOT EXISTS idx_leagues_state ON leagues(lifecycle_state)")
-        except sqlite3.OperationalError:
-            pass  # Index or column might not exist yet
-        
-        conn.commit()
-        conn.close()
-        
-        # Seed default challenges if none exist
-        self._seed_default_challenges()
     
     def _seed_default_challenges(self):
         """Create default challenges if none exist"""
@@ -2073,6 +1553,59 @@ class DatabaseManager:
         row = cursor.fetchone()
         conn.close()
         return dict(row) if row else None
+
+    def reset_personal_portfolio(self, user_id, new_cash, performed_by=None, ip_address=None, user_agent=None, reason=None):
+        """Reset a user's personal portfolio by deleting transactions, snapshots,
+        options positions/transactions, and cached stats, then set cash to new_cash.
+
+        This is destructive and intended for demo/testing only.
+        """
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        try:
+            # Read old cash for audit
+            cursor.execute("SELECT cash FROM users WHERE id = ?", (user_id,))
+            row = cursor.fetchone()
+            old_cash = row['cash'] if row else None
+
+            # Remove transactions (personal holdings/history)
+            cursor.execute("DELETE FROM transactions WHERE user_id = ?", (user_id,))
+
+            # Remove portfolio snapshots and cached snapshots
+            cursor.execute("DELETE FROM portfolio_snapshots WHERE user_id = ?", (user_id,))
+
+            # Remove options-related records
+            cursor.execute("DELETE FROM options_transactions WHERE user_id = ?", (user_id,))
+            cursor.execute("DELETE FROM options_positions WHERE user_id = ?", (user_id,))
+
+            # Remove cached trader stats
+            cursor.execute("DELETE FROM trader_stats WHERE user_id = ?", (user_id,))
+
+            # Optionally clear copied trades referencing this user as follower/trader
+            cursor.execute("DELETE FROM copied_trades WHERE follower_id = ? OR trader_id = ?", (user_id, user_id))
+
+            # Set new cash balance (after cleanup)
+            cursor.execute("UPDATE users SET cash = ? WHERE id = ?", (new_cash, user_id))
+
+            # Insert audit entry into portfolio_resets
+            cursor.execute(
+                """
+                INSERT INTO portfolio_resets (user_id, performed_by, old_cash, new_cash, ip_address, user_agent, reason)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (user_id, performed_by, old_cash, new_cash, ip_address, user_agent, reason)
+            )
+
+            conn.commit()
+        finally:
+            conn.close()
+
+        # Recompute analytics (best-effort)
+        try:
+            self.update_trader_stats(user_id)
+        except Exception:
+            # Don't raise if analytics recompute fails; portfolio has been reset
+            pass
     
     # ============ NOTIFICATION METHODS ============
     
@@ -3787,6 +3320,21 @@ class DatabaseManager:
         conn.close()
         
         return [dict(row) for row in traders]
+
+    def get_recent_transactions(self, limit=20):
+        """Get recent global transactions across users for an explore feed."""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT t.id, t.user_id, u.username, u.avatar_url, t.symbol, t.shares, t.price, t.type, t.timestamp
+            FROM transactions t
+            JOIN users u ON t.user_id = u.id
+            ORDER BY t.timestamp DESC
+            LIMIT ?
+        """, (limit,))
+        rows = cursor.fetchall()
+        conn.close()
+        return [dict(r) for r in rows]
     
     # === Activity Reactions ===
     

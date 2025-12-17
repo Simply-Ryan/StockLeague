@@ -920,6 +920,11 @@ def index():
         quote = lookup(symbol)
         if quote:
             popular_stocks.append(quote)
+    # Add volume leaders to homepage
+    try:
+        homepage_volume_leaders = get_volume_leaders()
+    except Exception:
+        homepage_volume_leaders = []
     
     # Get watchlist count only (don't fetch prices for speed)
     watchlist = db.get_watchlist(user_id)
@@ -939,6 +944,7 @@ def index():
                          total_return=total_return,
                          total_return_percent=total_return_percent,
                          popular_stocks=popular_stocks,
+                         homepage_volume_leaders=homepage_volume_leaders,
                          watchlist_count=len(watchlist),
                          portfolio_history=portfolio_history,
                          active_context=context)
@@ -1465,44 +1471,55 @@ def sell():
         return render_template("sell.html", stocks=stocks, active_context=context)
 
 
-@app.route("/add_cash", methods=["GET", "POST"])
+@app.route("/edit_portfolio", methods=["GET", "POST"])
 @login_required
-def add_cash():
-    """Set portfolio cash to specific amount - PERSONAL PORTFOLIO ONLY"""
+def edit_portfolio():
+    """Edit personal portfolio balance. This resets holdings and analytics for the user."""
     user_id = session["user_id"]
     context = get_active_portfolio_context()
-    
+
     # SECURITY: Prevent modifying league portfolio cash (that would be cheating!)
     if context["type"] != "personal":
         flash("Cannot modify league portfolio cash directly. League portfolios can only be changed through trading.", "danger")
         return redirect("/")
-    
+
     if request.method == "POST":
         amount = request.form.get("amount")
-        
+
         if not amount:
             return apology("must provide amount", 400)
-        
+
         try:
             amount = float(amount)
             if amount < 0:
                 return apology("amount cannot be negative", 400)
         except ValueError:
             return apology("invalid amount", 400)
-        
-        # Only update personal portfolio cash
-        db.update_cash(user_id, amount)
-        
+
+        # Use centralized DB method to reset personal portfolio and set new cash
+        try:
+            db.reset_personal_portfolio(
+                user_id,
+                amount,
+                performed_by=session.get('user_id'),
+                ip_address=request.remote_addr,
+                user_agent=request.headers.get('User-Agent'),
+                reason=None
+            )
+        except Exception:
+            # If reset fails for some reason, return an error
+            return apology('failed to reset portfolio', 500)
+
         # Clear any potential caching issues by forcing session update
         session.modified = True
-        
-        flash(f"Successfully set personal portfolio cash to {usd(amount)}!", "success")
+
+        flash(f"Successfully reset your portfolio and set cash to {usd(amount)}!", "success")
         return redirect("/")
-    
+
     else:
         # Get current personal cash for display
         current_cash = get_portfolio_cash(user_id, context)
-        return render_template("add_cash.html", current_cash=current_cash, active_context=context)
+        return render_template("edit_portfolio.html", current_cash=current_cash, active_context=context)
 
 
 @app.route("/leaderboard")
@@ -3475,6 +3492,81 @@ def news_preferences_remove(symbol):
     except Exception as e:
         print(f"Error removing news preference: {e}")
     return redirect(url_for('news'))
+
+
+@app.route('/explore')
+def explore():
+    """Explore page: market movers, popular stocks, top traders, challenges, open leagues, and recent trades."""
+    user_id = session.get('user_id')
+
+    # Market data
+    try:
+        popular = get_popular_stocks()
+    except Exception:
+        popular = []
+
+    try:
+        movers = get_market_movers()
+    except Exception:
+        movers = {'gainers': [], 'losers': []}
+
+    # Market indices summary
+    try:
+        market_indices = get_market_indices()
+    except Exception:
+        market_indices = []
+
+    # Build a short market summary (simple heuristic)
+    try:
+        up = 0
+        down = 0
+        for idx in market_indices:
+            if idx.get('change', 0) > 0:
+                up += 1
+            elif idx.get('change', 0) < 0:
+                down += 1
+        if up > down:
+            market_trend = 'up'
+        elif down > up:
+            market_trend = 'down'
+        else:
+            market_trend = 'mixed'
+    except Exception:
+        market_trend = 'mixed'
+
+    # Provide symbol lists for client-side sparklines (loads asynchronously)
+    popular_symbols = [p.get('symbol') for p in popular if p.get('symbol')]
+    index_symbols = [idx.get('symbol') for idx in market_indices if idx.get('symbol')]
+
+    # Volume leaders (show on explore page)
+    try:
+        volume_leaders = get_volume_leaders()
+    except Exception:
+        volume_leaders = []
+
+    return render_template('explore.html',
+                           popular_stocks=popular,
+                           market_movers=movers,
+                           market_indices=market_indices,
+                           market_trend=market_trend,
+                           popular_symbols=popular_symbols,
+                           index_symbols=index_symbols,
+                           volume_leaders=volume_leaders)
+
+
+
+@app.route('/api/chart/<path:symbol>')
+def api_chart(symbol):
+    """Return JSON chart data (prices) for given symbol. URL accepts path to allow ^ in symbols."""
+    days = int(request.args.get('days', 30))
+    try:
+        chart = get_chart_data(symbol, days=days)
+        if not chart:
+            return jsonify({'prices': []})
+        return jsonify({'prices': chart.get('prices', [])})
+    except Exception as e:
+        print(f"Error in api_chart for {symbol}: {e}")
+        return jsonify({'prices': []})
 
 
 # ============================================================================

@@ -1,162 +1,181 @@
 {% extends "layout.html" %}
 
-{% block title %}Explore Stocks - StockLeague{% endblock %}
+{% block title %}Explore - StockLeague{% endblock %}
 
 {% block main %}
-<div class="container mt-4">
-    <h2 class="mb-4">
-        <i class="fas fa-search"></i> Explore Stocks
-    </h2>
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <h2 class="mb-3"><i class="fas fa-search"></i> Explore</h2>
 
-    <!-- Search Bar -->
-    <div class="card mb-4">
-        <div class="card-body">
-            <form action="/quote" method="get">
-                <div class="input-group input-group-lg">
-                    <input type="text" class="form-control" name="symbol" placeholder="Search for a stock symbol (e.g., AAPL, MSFT, GOOGL)" required>
-                    <button class="btn btn-primary" type="submit">
-                        <i class="fas fa-search"></i> Search
-                    </button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <!-- Market Movers -->
-    {% if market_movers and (market_movers.gainers or market_movers.losers) %}
-    <div class="mb-4">
-        <h4 class="mb-3"><i class="fas fa-fire"></i> Today's Market Movers</h4>
-        <div class="row">
-            <div class="col-md-6 mb-3">
-                <div class="card h-100">
-                    <div class="card-header bg-success text-white">
-                        <h6 class="mb-0"><i class="fas fa-arrow-up"></i> Top Gainers</h6>
+        <!-- Search -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <form action="/quote" method="get">
+                    <div class="input-group">
+                        <input type="text" class="form-control" name="symbol" placeholder="Search symbol or company (e.g., AAPL)" required>
+                        <button class="btn btn-primary" type="submit"><i class="fas fa-search"></i> Search</button>
                     </div>
-                    <div class="card-body p-0">
-                        <div class="list-group list-group-flush">
-                            {% for stock in market_movers.gainers %}
-                            <a href="/quote?symbol={{ stock.symbol }}" class="list-group-item list-group-item-action">
-                                <div class="d-flex justify-content-between align-items-center">
-                                    <div>
-                                        <strong>{{ stock.symbol }}</strong>
-                                        <small class="text-muted d-block">{{ stock.name }}</small>
-                                    </div>
-                                    <div class="text-end">
-                                        <div>{{ stock.price | usd }}</div>
-                                        <small class="text-success">
-                                            <i class="fas fa-arrow-up"></i> +{{ "%.2f" | format(stock.change_percent) }}%
-                                        </small>
-                                    </div>
-                                </div>
-                            </a>
-                            {% endfor %}
+                </form>
+            </div>
+        </div>
+
+        <!-- Market Summary -->
+        <div class="card mb-3">
+            <div class="card-body">
+                <h5 class="card-title"><i class="fas fa-globe-americas"></i> Market Summary</h5>
+                <p class="small text-muted">Market trend: <strong>{{ market_trend|capitalize }}</strong></p>
+                <div class="row align-items-center">
+                    {% for idx in market_indices %}
+                    <div class="col-12 col-md-4 mb-2">
+                        <div class="border rounded p-2 text-center">
+                            <div class="small text-muted">{{ idx.display_name }}</div>
+                            <div class="h5 mb-0">{{ idx.price | usd }}</div>
+                            <div class="d-flex justify-content-center align-items-center mt-2">
+                                <div id="spinner_index_{{ idx.symbol }}" class="spinner-border spinner-border-sm text-secondary me-2" role="status"></div>
+                                <canvas id="index_{{ idx.symbol }}" class="sparkline-canvas" width="160" height="40" style="display:none;"></canvas>
+                            </div>
+                            <div class="small {% if idx.change >= 0 %}text-success{% else %}text-danger{% endif %} mt-2">
+                                {{ '%.2f'|format(idx.change) }} ({{ '%.2f'|format(idx.change_percent) }}%)
+                            </div>
                         </div>
                     </div>
+                    {% endfor %}
                 </div>
             </div>
-            <div class="col-md-6 mb-3">
-                <div class="card h-100">
-                    <div class="card-header bg-danger text-white">
-                        <h6 class="mb-0"><i class="fas fa-arrow-down"></i> Top Losers</h6>
-                    </div>
-                    <div class="card-body p-0">
-                        <div class="list-group list-group-flush">
-                            {% for stock in market_movers.losers %}
-                            <a href="/quote?symbol={{ stock.symbol }}" class="list-group-item list-group-item-action">
-                                <div class="d-flex justify-content-between align-items-center">
-                                    <div>
-                                        <strong>{{ stock.symbol }}</strong>
-                                        <small class="text-muted d-block">{{ stock.name }}</small>
-                                    </div>
-                                    <div class="text-end">
-                                        <div>{{ stock.price | usd }}</div>
-                                        <small class="text-danger">
-                                            <i class="fas fa-arrow-down"></i> {{ "%.2f" | format(stock.change_percent) }}%
-                                        </small>
-                                    </div>
-                                </div>
-                            </a>
+        </div>
+
+        <!-- Market Movers -->
+        <div class="card mb-3">
+            <div class="card-body">
+                <h5 class="card-title"><i class="fas fa-chart-line"></i> Market Movers</h5>
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6>Top Gainers</h6>
+                        <ul class="list-group mb-2">
+                            {% for s in market_movers.gainers %}
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                <div><strong>{{ s.symbol }}</strong> <small class="text-muted">{{ s.name }}</small></div>
+                                <div class="text-end"><div>{{ s.price | usd }}</div><div class="small text-success">{{ '%.2f'|format(s.change_percent) }}%</div></div>
+                            </li>
+                            {% else %}
+                            <li class="list-group-item">No gainers</li>
                             {% endfor %}
-                        </div>
+                        </ul>
+                    </div>
+                    <div class="col-md-6">
+                        <h6>Top Losers</h6>
+                        <ul class="list-group mb-2">
+                            {% for s in market_movers.losers %}
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                <div><strong>{{ s.symbol }}</strong> <small class="text-muted">{{ s.name }}</small></div>
+                                <div class="text-end"><div>{{ s.price | usd }}</div><div class="small text-danger">{{ '%.2f'|format(s.change_percent) }}%</div></div>
+                            </li>
+                            {% else %}
+                            <li class="list-group-item">No losers</li>
+                            {% endfor %}
+                        </ul>
                     </div>
                 </div>
             </div>
         </div>
-    </div>
-    {% endif %}
 
-    <!-- Popular Stocks -->
-    {% if popular_stocks %}
-    <div class="mb-4">
-        <h4 class="mb-3"><i class="fas fa-star"></i> Popular Stocks</h4>
-        <div class="row">
-            {% for stock in popular_stocks %}
-            <div class="col-lg-3 col-md-4 col-sm-6 mb-3">
-                <div class="card h-100">
-                    <div class="card-body">
-                        <h6 class="card-title">
-                            <a href="/quote?symbol={{ stock.symbol }}" class="text-decoration-none">
+        <!-- Popular Stocks -->
+        <div class="card mb-3">
+            <div class="card-body">
+                <h5 class="card-title"><i class="fas fa-star"></i> Popular Stocks</h5>
+                <div class="row">
+                    {% for stock in popular_stocks %}
+                    <div class="col-12 col-md-6 mb-2">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div style="min-width: 0;">
                                 <strong>{{ stock.symbol }}</strong>
-                            </a>
-                        </h6>
-                        <small class="text-muted d-block mb-2">{{ stock.name }}</small>
-                        <h5 class="mb-1">{{ stock.price | usd }}</h5>
-                        <p class="mb-0 {% if stock.change_percent >= 0 %}text-success{% else %}text-danger{% endif %}">
-                            <i class="fas fa-{% if stock.change_percent >= 0 %}arrow-up{% else %}arrow-down{% endif %}"></i>
-                            {% if stock.change_percent >= 0 %}+{% endif %}{{ "%.2f" | format(stock.change_percent) }}%
-                        </p>
+                                <div class="small text-muted">{{ stock.name }}</div>
+                                <div class="mt-1 d-flex align-items-center">
+                                    <div id="spinner_stock_{{ stock.symbol }}" class="spinner-border spinner-border-sm text-secondary me-2" role="status"></div>
+                                    <canvas id="stock_{{ stock.symbol }}" class="sparkline-canvas" width="120" height="30" style="display:none;"></canvas>
+                                </div>
+                            </div>
+                            <div class="text-end"><div>{{ stock.price | usd }}</div><div class="small {{ 'text-success' if stock.change >= 0 else 'text-danger' }}">{{ '%.2f'|format(stock.change_percent) }}%</div></div>
+                        </div>
                     </div>
+                    {% else %}
+                    <div class="col-12">No popular stocks</div>
+                    {% endfor %}
                 </div>
             </div>
-            {% endfor %}
         </div>
     </div>
-    {% endif %}
 
-    <!-- Sector ETFs -->
-    {% if sectors %}
-    <div class="mb-4">
-        <h4 class="mb-3"><i class="fas fa-layer-group"></i> Sector ETFs</h4>
-        <div class="row">
-            {% for sector in sectors %}
-            <div class="col-lg-3 col-md-4 col-sm-6 mb-3">
-                <div class="card h-100">
-                    <div class="card-body">
-                        <h6 class="card-title">
-                            <a href="/quote?symbol={{ sector.symbol }}" class="text-decoration-none">
-                                <strong>{{ sector.symbol }}</strong>
-                            </a>
-                        </h6>
-                        <small class="text-muted d-block mb-2">{{ sector.name }}</small>
-                        {% if sector.price %}
-                        <h5 class="mb-1">{{ sector.price | usd }}</h5>
-                        <p class="mb-0 {% if sector.change_percent >= 0 %}text-success{% else %}text-danger{% endif %}">
-                            <i class="fas fa-{% if sector.change_percent >= 0 %}arrow-up{% else %}arrow-down{% endif %}"></i>
-                            {% if sector.change_percent >= 0 %}+{% endif %}{{ "%.2f" | format(sector.change_percent) }}%
-                        </p>
-                        {% endif %}
-                    </div>
-                </div>
+    <div class="col-md-4">
+        <div class="card mb-3">
+            <div class="card-body">
+                <h5 class="card-title">Volume Leaders</h5>
+                <ul class="list-unstyled mb-0">
+                    {% for v in volume_leaders %}
+                    <li class="mb-2">
+                        <a href="/quote?symbol={{ v.symbol }}"><strong>{{ v.symbol }}</strong></a>
+                        <div class="small text-muted">Volume: {{ v.volume or 'N/A' }} — Price: {{ v.price | usd }}</div>
+                    </li>
+                    {% else %}
+                    <li>No volume leaders</li>
+                    {% endfor %}
+                </ul>
             </div>
-            {% endfor %}
         </div>
-    </div>
-    {% endif %}
 
-    <!-- Quick Links -->
-    <div class="card">
-        <div class="card-header">
-            <h5 class="mb-0"><i class="fas fa-lightbulb"></i> Trading Tips</h5>
-        </div>
-        <div class="card-body">
-            <ul class="mb-0">
-                <li>Research companies before investing</li>
-                <li>Diversify your portfolio across different sectors</li>
-                <li>Monitor market trends and news</li>
-                <li>Set realistic goals and manage risk</li>
-                <li>Use the watchlist feature to track stocks before buying</li>
-            </ul>
-        </div>
+        {# About This Page removed per request #}
     </div>
 </div>
+    
+<!-- Chart.js for sparklines (pinned version for reliability) -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+// Load sparklines asynchronously via API to speed up initial page render
+const popularSymbols = {{ popular_symbols | tojson | safe }} || [];
+const indexSymbols = {{ index_symbols | tojson | safe }} || [];
+
+function renderSparkline(canvasId, prices){
+    const el = document.getElementById(canvasId);
+    const spinner = document.getElementById('spinner_' + canvasId);
+    if(!el) return;
+    try{
+        const data = prices.map(v => Number(v));
+        if(!data || data.length === 0){
+            if(spinner) spinner.style.display = 'none';
+            return;
+        }
+        // ensure canvas has display block and sized box
+        el.style.display = 'block';
+        el.style.width = el.getAttribute('width') + 'px';
+        el.style.height = el.getAttribute('height') + 'px';
+        if(spinner) spinner.style.display = 'none';
+        new Chart(el.getContext('2d'), {
+            type: 'line',
+            data: { labels: data.map((_,i)=>i), datasets:[{data: data, borderColor: data[0] <= data[data.length-1] ? '#198754' : '#dc3545', backgroundColor: 'rgba(0,0,0,0)', pointRadius:0, borderWidth:1}]},
+            options: { responsive:true, maintainAspectRatio:false, elements:{line:{tension:0.3}}, scales:{x:{display:false}, y:{display:false}}, plugins:{legend:{display:false}, tooltip:{enabled:false}} }
+        });
+    }catch(e){
+        if(spinner) spinner.style.display = 'none';
+        console.warn('renderSparkline error', e);
+    }
+}
+
+function fetchAndRender(symbol, prefix){
+    // encode symbol for URL (caret ^ will be encoded)
+    const urlSym = encodeURIComponent(symbol);
+    fetch(`/api/chart/${urlSym}?days=30`).then(r=>r.json()).then(j=>{
+        const canvasId = `${prefix}${symbol}`;
+        renderSparkline(canvasId, j.prices || []);
+    }).catch(e=>{
+        const spinner = document.getElementById('spinner_' + prefix + symbol);
+        if(spinner) spinner.style.display = 'none';
+        console.warn('fetch spark error', e);
+    });
+}
+
+// Kick off fetches
+popularSymbols.forEach(sym => fetchAndRender(sym, 'stock_'));
+indexSymbols.forEach(sym => fetchAndRender(sym, 'index_'));
+</script>
+
 {% endblock %}

@@ -29,7 +29,7 @@ This makes it crystal clear which portfolio you're viewing.
 
 ### 2. Existing Protections
 The code already has these safety measures:
-- `/add_cash` route BLOCKS league portfolio modifications
+- `/edit_portfolio` route BLOCKS league portfolio modifications (personal only)
 - All buy/sell routes properly use `get_portfolio_cash()` and `get_portfolio_stocks()`
 - Context switching uses session storage correctly
 - Debug logging shows which context is being used

@@ -1,5 +1,6 @@
 <!DOCTYPE html>
-<html lang="en">
+{# If user is not logged in, default to light theme so containers have borders and look like registered user's light theme #}
+<html lang="en" {% if not session.get('user_id') %}data-theme="light" data-theme-mode="light"{% endif %}>
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -246,8 +247,8 @@
             <!-- Quick Action: Set Cash (Personal Portfolio Only) -->
             {% if active_context.type == 'personal' %}
             <li class="nav-item d-none d-lg-block">
-              <a class="btn btn-sm btn-success me-2" href="/add_cash" title="Set personal portfolio cash (demo/testing only)">
-                <i class="fas fa-wallet"></i> Set Cash
+              <a class="btn btn-sm btn-success me-2" href="/edit_portfolio" title="Edit personal portfolio cash (demo/testing only)">
+                <i class="fas fa-wallet"></i> Edit Portfolio
               </a>
             </li>
             {% endif %}
@@ -466,6 +467,33 @@
             </li>
           </ul>
           <ul class="navbar-nav ms-auto">
+            <li class="nav-item dropdown me-2">
+              <a
+                class="nav-link"
+                href="#"
+                id="guestThemeDropdown"
+                role="button"
+                data-bs-toggle="dropdown"
+                aria-expanded="false"
+                title="Theme"
+              >
+                <i class="fas fa-palette" id="guest-theme-icon"></i>
+              </a>
+              <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="guestThemeDropdown">
+                <li><h6 class="dropdown-header">Theme</h6></li>
+                <li><hr class="dropdown-divider" /></li>
+                <li>
+                  <a class="dropdown-item guest-theme-option d-flex align-items-center" href="#" data-theme="light">
+                    <i class="fas fa-sun text-warning me-2"></i> Light
+                  </a>
+                </li>
+                <li>
+                  <a class="dropdown-item guest-theme-option d-flex align-items-center" href="#" data-theme="dark">
+                    <i class="fas fa-moon text-primary me-2"></i> Dark
+                  </a>
+                </li>
+              </ul>
+            </li>
             <li class="nav-item">
               <a class="btn btn-outline-light btn-sm me-2" href="/register">
                 <i class="fas fa-user-plus"></i> Register
@@ -894,6 +922,40 @@
             applyTheme("auto");
           }
         });
+    </script>
+    {% endif %}
+    {% if not session.get('user_id') %}
+    <script>
+      // Guest theme handler: limited to light/dark only
+      (function () {
+        const htmlEl = document.documentElement;
+        const icon = document.getElementById('guest-theme-icon');
+
+        // Default to light for guests (ensures borders and light look)
+        let theme = localStorage.getItem('theme') || 'light';
+        if (!theme) theme = 'light';
+        htmlEl.setAttribute('data-theme', theme);
+        htmlEl.setAttribute('data-theme-mode', theme);
+
+        function updateIcon(t) {
+          if (!icon) return;
+          icon.className = t === 'dark' ? 'fas fa-moon' : 'fas fa-sun';
+        }
+
+        updateIcon(theme);
+
+        document.querySelectorAll('.guest-theme-option').forEach((el) => {
+          el.addEventListener('click', function (e) {
+            e.preventDefault();
+            const t = this.getAttribute('data-theme');
+            if (!t) return;
+            localStorage.setItem('theme', t);
+            htmlEl.setAttribute('data-theme', t);
+            htmlEl.setAttribute('data-theme-mode', t);
+            updateIcon(t);
+          });
+        });
+      })();
     </script>
     {% endif %}
 

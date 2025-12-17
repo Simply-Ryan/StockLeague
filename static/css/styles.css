@@ -167,6 +167,13 @@ main {
     padding-bottom: 2rem;
 }
 
+/* Ensure logged-out users see bordered containers similar to the registered user's light theme */
+[data-theme="light"] main {
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    background-color: var(--bg-secondary);
+}
+
 /* Navbar Customization */
 .navbar-brand {
     font-weight: bold;

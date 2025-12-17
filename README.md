@@ -112,7 +112,8 @@ StockLeague/
 │   ├── quote.html             # Get stock quote
 │   ├── quoted.html            # Display quote result
 │   ├── history.html           # Transaction history
-│   ├── add_cash.html          # Add cash to account
+│   ├── add_cash.html          # (deprecated) Add cash to account
+│   ├── edit_portfolio.html    # Edit personal portfolio cash (resets holdings/analytics)
 │   └── apology.html           # Error page
 │
 ├── static/

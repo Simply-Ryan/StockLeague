@@ -1,0 +1,106 @@
+{% extends "layout.html" %}
+
+{% block title %}Edit Portfolio - StockLeague{% endblock %}
+
+{% block main %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <!-- Portfolio Context Indicator -->
+        <div class="alert alert-primary alert-dismissible fade show mb-3" role="alert">
+            <i class="fas fa-user"></i> <strong>Personal Portfolio Only</strong>
+            <p class="mb-0 small">League portfolio cash cannot be modified directly - it can only change through trading.</p>
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+        
+        <div class="card shadow">
+            <div class="card-body">
+                <h2 class="card-title text-center mb-4">
+                    <i class="fas fa-wallet text-success"></i> Edit Portfolio Cash
+                </h2>
+                
+                {% if current_cash is defined %}
+                <div class="alert alert-info text-center mb-4">
+                    <strong>Current Balance:</strong> {{ current_cash | usd }}
+                </div>
+                {% endif %}
+                
+                <form id="editPortfolioForm" action="/edit_portfolio" method="post">
+                    <div class="mb-3">
+                        <label for="amount" class="form-label">New Cash Balance (USD)</label>
+                        <div class="input-group">
+                            <span class="input-group-text">$</span>
+                            <input type="number" class="form-control" id="amount" name="amount" 
+                                   min="0" step="0.01" placeholder="10000.00" {% if current_cash is defined %}value="{{ current_cash }}"{% endif %} required autofocus>
+                        </div>
+                        <div class="form-text">Enter the total cash amount for this personal portfolio. This action will <strong>delete your current holdings and reset analytics</strong>.</div>
+                    </div>
+                                        <button type="button" id="openConfirm" class="btn btn-danger w-100" data-bs-toggle="modal" data-bs-target="#confirmResetModal">
+                                                <i class="fas fa-exclamation-triangle"></i> Reset Portfolio & Set Cash
+                                        </button>
+                </form>
+                
+                                <!-- Confirmation Modal -->
+                                <div class="modal fade" id="confirmResetModal" tabindex="-1" aria-labelledby="confirmResetModalLabel" aria-hidden="true" style="z-index:2000;">
+                                    <div class="modal-dialog modal-dialog-centered">
+                                        <div class="modal-content">
+                                            <div class="modal-header">
+                                                <h5 class="modal-title" id="confirmResetModalLabel">Confirm Portfolio Reset</h5>
+                                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                            </div>
+                                            <div class="modal-body">
+                                                <p class="mb-2">This action will <strong>delete your current holdings</strong> and <strong>reset analytics</strong>. This cannot be undone.</p>
+                                                <p class="mb-0">Enter your new cash amount to confirm:</p>
+                                                <div class="mt-3">
+                                                    <div class="input-group">
+                                                        <span class="input-group-text">$</span>
+                                                        <input id="confirmAmount" type="number" class="form-control" min="0" step="0.01" placeholder="10000.00">
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="modal-footer">
+                                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                                <button type="button" id="confirmSubmit" class="btn btn-danger">Yes, Reset Portfolio</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <script>
+                                (function(){
+                                    const openBtn = document.getElementById('openConfirm');
+                                    const confirmAmount = document.getElementById('confirmAmount');
+                                    const confirmSubmit = document.getElementById('confirmSubmit');
+                                    const form = document.getElementById('editPortfolioForm');
+
+                                    // Move modal to document.body to avoid stacking-context issues
+                                    // (backdrop inserted into body can otherwise appear above the modal)
+                                    const modalEl = document.getElementById('confirmResetModal');
+                                    try{
+                                        if(modalEl && modalEl.parentElement !== document.body){
+                                            document.body.appendChild(modalEl);
+                                        }
+                                    }catch(e){
+                                        // if DOM manipulation fails, ignore and rely on z-index fallback
+                                        console.warn('Could not move modal to body:', e);
+                                    }
+
+                                    // When confirming, copy value into the hidden form field and submit
+                                    confirmSubmit.addEventListener('click', function(){
+                                        const amt = confirmAmount.value.trim();
+                                        if(!amt){
+                                            alert('Please enter the new cash amount to confirm the reset.');
+                                            return;
+                                        }
+                                        // set the main form amount input value to confirmed amount
+                                        const mainInput = document.getElementById('amount');
+                                        mainInput.value = amt;
+                                        // submit form
+                                        form.submit();
+                                    });
+                                })();
+                                </script>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
