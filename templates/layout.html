@@ -29,10 +29,11 @@
   <body>
     <!-- Navigation -->
     <nav
-      class="navbar navbar-expand-lg navbar-dark bg-dark sticky-top shadow-sm"
+      class="navbar navbar-expand-lg sticky-top shadow-sm navbar-theme" 
+      id="mainNavbar"
     >
       <div class="container-fluid px-3">
-        <a class="navbar-brand fw-bold" href="/home">
+        <a class="navbar-brand fw-bold text-white" href="/home" style="color: #ffffff !important;">
           <i class="fas fa-chart-line text-primary"></i> StockLeague
         </a>
         <button
@@ -461,7 +462,7 @@
           {% else %}
           <ul class="navbar-nav me-auto">
             <li class="nav-item">
-              <a class="nav-link" href="/about">
+              <a class="nav-link text-white" href="/about" style="color: #ffffff !important;">
                 <i class="fas fa-info-circle"></i> About
               </a>
             </li>
@@ -469,13 +470,14 @@
           <ul class="navbar-nav ms-auto">
             <li class="nav-item dropdown me-2">
               <a
-                class="nav-link"
+                class="nav-link text-white"
                 href="#"
                 id="guestThemeDropdown"
                 role="button"
                 data-bs-toggle="dropdown"
                 aria-expanded="false"
                 title="Theme"
+                style="color: #ffffff !important;"
               >
                 <i class="fas fa-palette" id="guest-theme-icon"></i>
               </a>
@@ -495,7 +497,7 @@
               </ul>
             </li>
             <li class="nav-item">
-              <a class="btn btn-outline-light btn-sm me-2" href="/register">
+              <a class="btn btn-light btn-sm me-2" href="/register" style="color: #1a1a1a;">
                 <i class="fas fa-user-plus"></i> Register
               </a>
             </li>
@@ -880,6 +882,9 @@
         if (themeIcon && themes[themeName]) {
           themeIcon.className = themes[themeName].icon;
         }
+
+        // Trigger a refresh of CSS variables for navbar and other elements
+        document.body.style.transition = 'background-color 0.3s ease, color 0.3s ease';
       }
 
       // Theme selection handlers

@@ -1112,10 +1112,18 @@ class DatabaseManager:
         
         invite_code = secrets.token_urlsafe(8)
         
-        cursor.execute("""
-            INSERT INTO leagues (name, description, creator_id, league_type, starting_cash, settings_json, invite_code)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        """, (name, description, creator_id, league_type, starting_cash, settings_json, invite_code))
+        # Try to insert with settings_json column first
+        try:
+            cursor.execute("""
+                INSERT INTO leagues (name, description, creator_id, league_type, starting_cash, settings_json, invite_code)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (name, description, creator_id, league_type, starting_cash, settings_json, invite_code))
+        except sqlite3.OperationalError:
+            # If settings_json doesn't exist, try without it
+            cursor.execute("""
+                INSERT INTO leagues (name, description, creator_id, league_type, starting_cash, invite_code)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (name, description, creator_id, league_type, starting_cash, invite_code))
         
         league_id = cursor.lastrowid
         
@@ -3704,3 +3712,107 @@ class DatabaseManager:
         conn.close()
         
         return result[0] if result else None
+    # =====================================================================
+    # League Activity Feed Methods
+    # =====================================================================
+    
+    def add_league_activity(self, league_id, activity_type, title, description, user_id=None, metadata=None, is_system=0):
+        """
+        Log an activity to a league's activity feed.
+        
+        Args:
+            league_id (int): ID of the league
+            activity_type (str): Type of activity (trade, achievement_unlocked, ranking_change, joined, milestone, ranking_reset)
+            title (str): Short title for the activity
+            description (str): Detailed description
+            user_id (int, optional): ID of the user who triggered the activity
+            metadata (dict, optional): JSON-serializable metadata (trade details, achievement info, etc.)
+            is_system (int): 1 if this is a system event, 0 for user activities
+        
+        Returns:
+            int: ID of the created activity record
+        """
+        import json
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        metadata_json = json.dumps(metadata) if metadata else None
+        
+        cursor.execute('''
+            INSERT INTO league_activity_feed (league_id, user_id, activity_type, title, description, metadata_json, is_system)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        ''', (league_id, user_id, activity_type, title, description, metadata_json, is_system))
+        
+        conn.commit()
+        activity_id = cursor.lastrowid
+        conn.close()
+        
+        return activity_id
+    
+    def get_league_activity_feed(self, league_id, limit=20, offset=0):
+        """
+        Get paginated activity feed for a league.
+        
+        Args:
+            league_id (int): ID of the league
+            limit (int): Number of activities to return (default 20)
+            offset (int): Pagination offset (default 0)
+        
+        Returns:
+            list: List of activity dicts, ordered by most recent first
+        """
+        import json
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            SELECT id, league_id, user_id, activity_type, title, description, 
+                   metadata_json, created_at, is_system
+            FROM league_activity_feed
+            WHERE league_id = ?
+            ORDER BY created_at DESC
+            LIMIT ? OFFSET ?
+        ''', (league_id, limit, offset))
+        
+        rows = cursor.fetchall()
+        conn.close()
+        
+        activities = []
+        for row in rows:
+            metadata = json.loads(row[6]) if row[6] else {}
+            activities.append({
+                'id': row[0],
+                'league_id': row[1],
+                'user_id': row[2],
+                'activity_type': row[3],
+                'title': row[4],
+                'description': row[5],
+                'metadata': metadata,
+                'created_at': row[7],
+                'is_system': row[8]
+            })
+        
+        return activities
+    
+    def get_league_activity_count(self, league_id):
+        """
+        Get total count of activities in a league's feed.
+        
+        Args:
+            league_id (int): ID of the league
+        
+        Returns:
+            int: Total number of activities
+        """
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            SELECT COUNT(*) FROM league_activity_feed
+            WHERE league_id = ?
+        ''', (league_id,))
+        
+        count = cursor.fetchone()[0]
+        conn.close()
+        
+        return count

@@ -83,7 +83,7 @@ def upgrade_leagues_table(cursor):
     
     try:
         cursor.execute("""
-            ALTER TABLE leagues ADD COLUMN league_settings_json TEXT
+            ALTER TABLE leagues ADD COLUMN settings_json TEXT
         """)
     except sqlite3.OperationalError:
         pass
@@ -91,6 +91,20 @@ def upgrade_leagues_table(cursor):
     try:
         cursor.execute("""
             ALTER TABLE leagues ADD COLUMN performance_tracking_enabled INTEGER DEFAULT 1
+        """)
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        cursor.execute("""
+            ALTER TABLE leagues ADD COLUMN mode TEXT DEFAULT 'standard'
+        """)
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        cursor.execute("""
+            ALTER TABLE leagues ADD COLUMN rules_json TEXT
         """)
     except sqlite3.OperationalError:
         pass
@@ -411,6 +425,30 @@ def create_fairplay_tables(cursor):
             FOREIGN KEY (league_id) REFERENCES leagues(id),
             FOREIGN KEY (user_id) REFERENCES users(id)
         )
+    """)
+
+
+def create_league_activity_feed_table(cursor):
+    """Create league-specific activity feed table for real-time engagement."""
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS league_activity_feed (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            league_id INTEGER NOT NULL,
+            user_id INTEGER,
+            activity_type TEXT NOT NULL,
+            title TEXT NOT NULL,
+            description TEXT,
+            metadata_json TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            is_system INTEGER DEFAULT 0,
+            FOREIGN KEY (league_id) REFERENCES leagues(id),
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        )
+    """)
+    
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_league_activity_feed_league_date
+        ON league_activity_feed(league_id, created_at DESC)
     """)
 
 

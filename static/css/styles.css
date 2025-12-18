@@ -178,6 +178,7 @@ main {
 .navbar-brand {
     font-weight: bold;
     font-size: 1.5rem;
+    color: var(--text-primary) !important;
 }
 
 .navbar-brand i {
@@ -187,23 +188,70 @@ main {
     background-clip: text;
 }
 
+/* Theme-aware navbar styling */
+.navbar-theme {
+    background: var(--bg-secondary) !important;
+    border-bottom: 2px solid var(--border-color);
+    transition: background-color 0.3s ease, border-color 0.3s ease;
+}
+
 /* Navigation styling with smooth transitions */
-.navbar-dark .navbar-nav .nav-link {
+.navbar .navbar-nav .nav-link {
     transition: color 0.2s ease, background-color 0.2s ease, transform 0.2s ease;
     border-radius: 6px;
     padding: 0.5rem 1rem;
+    color: var(--text-primary) !important;
 }
 
-.navbar-dark .navbar-nav .nav-link:hover {
+.navbar .navbar-nav .nav-link:hover {
     color: var(--primary-color) !important;
     background-color: rgba(99, 102, 241, 0.1);
     transform: translateY(-1px);
 }
 
-.navbar-dark .navbar-nav .nav-link.active {
+.navbar .navbar-nav .nav-link.active {
     color: var(--primary-color) !important;
     background-color: rgba(99, 102, 241, 0.15);
     font-weight: 600;
+}
+
+/* Dropdown text contrast for all themes */
+.dropdown-menu {
+    background: var(--card-bg) !important;
+    border: 1px solid var(--border-color) !important;
+}
+
+.dropdown-item {
+    color: var(--text-primary) !important;
+    transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.dropdown-item:hover,
+.dropdown-item:focus {
+    background-color: var(--bg-tertiary) !important;
+    color: var(--primary-color) !important;
+}
+
+.dropdown-header {
+    color: var(--text-primary) !important;
+    font-weight: 600;
+}
+
+.dropdown-divider {
+    border-color: var(--border-color) !important;
+    opacity: 0.5;
+}
+
+/* Theme option styling in dropdown */
+.theme-option,
+.guest-theme-option {
+    color: var(--text-primary) !important;
+}
+
+.theme-option:hover,
+.guest-theme-option:hover {
+    background-color: var(--bg-tertiary) !important;
+    color: var(--primary-color) !important;
 }
 
 /* Card Enhancements */
@@ -1258,6 +1306,34 @@ small.text-muted {
 
 .btn-primary:active {
     transform: translateY(0);
+}
+
+/* Blue background with white text - ensure high contrast */
+[style*="background: #1976d2"],
+[style*="background-color: #1976d2"],
+[style*="linear-gradient(135deg, #1976d2"],
+.bg-primary,
+.bg-info {
+    color: white !important;
+}
+
+[style*="background: #1976d2"] h1,
+[style*="background: #1976d2"] h2,
+[style*="background: #1976d2"] h3,
+[style*="background: #1976d2"] h4,
+[style*="background: #1976d2"] h5,
+[style*="background: #1976d2"] h6,
+[style*="background: #1976d2"] p,
+[style*="background: #1976d2"] a,
+[style*="linear-gradient(135deg, #1976d2"] h1,
+[style*="linear-gradient(135deg, #1976d2"] h2,
+[style*="linear-gradient(135deg, #1976d2"] h3,
+[style*="linear-gradient(135deg, #1976d2"] h4,
+[style*="linear-gradient(135deg, #1976d2"] h5,
+[style*="linear-gradient(135deg, #1976d2"] h6,
+[style*="linear-gradient(135deg, #1976d2"] p,
+[style*="linear-gradient(135deg, #1976d2"] a {
+    color: white !important;
 }
 
 /* Auth page specific improvements */

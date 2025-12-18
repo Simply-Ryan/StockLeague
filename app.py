@@ -15,6 +15,7 @@ import json
 import time
 import uuid
 import random
+import sqlite3
 import threading
 from apscheduler.schedulers.background import BackgroundScheduler
 from datetime import datetime, timedelta
@@ -32,7 +33,7 @@ from dotenv import load_dotenv
 # Local imports
 from helpers import apology, lookup, usd, get_chart_data, get_popular_stocks, get_market_movers, get_stock_news, get_option_price_and_greeks, analyze_sentiment, fetch_news_finnhub, get_cached_or_fetch_news
 from database.db_manager import DatabaseManager
-from database.league_schema_upgrade import upgrade_leagues_table, create_league_seasons_table, create_league_member_stats_table, create_league_divisions_table, create_tournament_tables, create_team_tables, create_achievement_tables, create_quest_tables, create_analytics_tables, create_fairplay_tables
+from database.league_schema_upgrade import upgrade_leagues_table, create_league_seasons_table, create_league_member_stats_table, create_league_divisions_table, create_tournament_tables, create_team_tables, create_achievement_tables, create_quest_tables, create_analytics_tables, create_fairplay_tables, create_league_activity_feed_table
 from league_modes import get_league_mode, get_available_modes, MODE_ABSOLUTE_VALUE
 from league_rules import LeagueRuleEngine
 from advanced_league_system import AdvancedLeagueManager, RatingSystem, AchievementEngine, QuestSystem, FairPlayEngine, AnalyticsCalculator
@@ -744,17 +745,25 @@ def init_advanced_league_system():
     """Initialize the advanced league system schema in the database."""
     try:
         logging.info("Initializing advanced league system schema...")
+        # Get database connection
+        conn = db.get_connection()
+        cursor = conn.cursor()
+        
         # Run all schema upgrade functions
-        upgrade_leagues_table(db)
-        create_league_seasons_table(db)
-        create_league_member_stats_table(db)
-        create_league_divisions_table(db)
-        create_tournament_tables(db)
-        create_team_tables(db)
-        create_achievement_tables(db)
-        create_quest_tables(db)
-        create_analytics_tables(db)
-        create_fairplay_tables(db)
+        upgrade_leagues_table(cursor)
+        create_league_seasons_table(cursor)
+        create_league_member_stats_table(cursor)
+        create_league_divisions_table(cursor)
+        create_tournament_tables(cursor)
+        create_team_tables(cursor)
+        create_achievement_tables(cursor)
+        create_quest_tables(cursor)
+        create_analytics_tables(cursor)
+        create_fairplay_tables(cursor)
+        create_league_activity_feed_table(cursor)
+        
+        conn.commit()
+        conn.close()
         logging.info("Advanced league system schema initialized successfully")
     except Exception as e:
         logging.error(f"Error initializing advanced league system: {e}")
@@ -1916,13 +1925,23 @@ def create_league():
             settings_json=json.dumps(settings)
         )
         
-        # Update mode and rules
+        # Update mode and rules with error handling
         conn = db.get_connection()
         cursor = conn.cursor()
-        cursor.execute("""
-            UPDATE leagues SET mode = ?, rules_json = ?, lifecycle_state = 'active'
-            WHERE id = ?
-        """, (mode, json.dumps(rules), league_id))
+        try:
+            cursor.execute("""
+                UPDATE leagues SET mode = ?, rules_json = ?, lifecycle_state = 'active'
+                WHERE id = ?
+            """, (mode, json.dumps(rules), league_id))
+        except sqlite3.OperationalError:
+            # Fallback if columns don't exist - just update lifecycle_state
+            try:
+                cursor.execute("""
+                    UPDATE leagues SET lifecycle_state = 'active'
+                    WHERE id = ?
+                """, (league_id,))
+            except sqlite3.OperationalError:
+                pass
         conn.commit()
         conn.close()
         
@@ -2073,6 +2092,30 @@ def join_league():
         # Create isolated league portfolio with starting cash
         starting_cash = league.get('starting_cash', 10000.0)
         db.create_league_portfolio(league_id, user_id, starting_cash)
+        
+        # Log activity to league activity feed
+        user = db.get_user(user_id)
+        username = user.get('username') if user else 'Unknown'
+        activity_id = db.add_league_activity(
+            league_id=league_id,
+            activity_type='joined',
+            title=f'{username} joined the league',
+            description=f'{username} has joined the league!',
+            user_id=user_id,
+            metadata={'starting_cash': starting_cash}
+        )
+        
+        # Emit real-time activity update
+        emit_league_activity(league_id, {
+            'id': activity_id,
+            'username': username,
+            'user_avatar': user.get('avatar_url') if user else None,
+            'activity_type': 'joined',
+            'title': f'{username} joined the league',
+            'description': f'{username} has joined the league!',
+            'created_at': datetime.now().isoformat(),
+            'metadata': {'starting_cash': starting_cash}
+        })
         
         flash("Successfully joined league!", "success")
         return redirect(f"/leagues/{league_id}")
@@ -2228,6 +2271,30 @@ def league_trade(league_id):
             db.update_league_holding(league_id, user_id, symbol, shares, price)
             db.record_league_transaction(league_id, user_id, symbol, shares, price, "buy", fee)
             
+            # Log activity to league activity feed
+            user = db.get_user(user_id)
+            username = user.get('username') if user else 'Unknown'
+            activity_id = db.add_league_activity(
+                league_id=league_id,
+                activity_type='trade',
+                title=f'{username} bought {shares} {symbol}',
+                description=f'Purchased {shares} shares of {symbol} at {usd(price)} per share',
+                user_id=user_id,
+                metadata={'symbol': symbol, 'shares': shares, 'price': price, 'type': 'buy', 'total': trade_value}
+            )
+            
+            # Emit real-time activity update
+            emit_league_activity(league_id, {
+                'id': activity_id,
+                'username': username,
+                'user_avatar': user.get('avatar_url') if user else None,
+                'activity_type': 'trade',
+                'title': f'{username} bought {shares} {symbol}',
+                'description': f'Purchased {shares} shares of {symbol} at {usd(price)} per share',
+                'created_at': datetime.now().isoformat(),
+                'metadata': {'symbol': symbol, 'shares': shares, 'price': price, 'type': 'buy', 'total': trade_value}
+            })
+            
             flash(f"Bought {shares} shares of {symbol} for {usd(trade_value)} (fee: {usd(fee)})", "success")
             
         elif trade_type == "sell":
@@ -2244,6 +2311,30 @@ def league_trade(league_id):
             db.update_league_cash(league_id, user_id, new_cash)
             db.update_league_holding(league_id, user_id, symbol, -shares, price)
             db.record_league_transaction(league_id, user_id, symbol, -shares, price, "sell", fee)
+            
+            # Log activity to league activity feed
+            user = db.get_user(user_id)
+            username = user.get('username') if user else 'Unknown'
+            activity_id = db.add_league_activity(
+                league_id=league_id,
+                activity_type='trade',
+                title=f'{username} sold {shares} {symbol}',
+                description=f'Sold {shares} shares of {symbol} at {usd(price)} per share',
+                user_id=user_id,
+                metadata={'symbol': symbol, 'shares': shares, 'price': price, 'type': 'sell', 'total': proceeds}
+            )
+            
+            # Emit real-time activity update
+            emit_league_activity(league_id, {
+                'id': activity_id,
+                'username': username,
+                'user_avatar': user.get('avatar_url') if user else None,
+                'activity_type': 'trade',
+                'title': f'{username} sold {shares} {symbol}',
+                'description': f'Sold {shares} shares of {symbol} at {usd(price)} per share',
+                'created_at': datetime.now().isoformat(),
+                'metadata': {'symbol': symbol, 'shares': shares, 'price': price, 'type': 'sell', 'total': proceeds}
+            })
             
             flash(f"Sold {shares} shares of {symbol} for {usd(proceeds)} (after {usd(fee)} fee)", "success")
         
@@ -2697,6 +2788,57 @@ def api_league_leaderboard(league_id):
             for entry in leaderboard
         ]
     })
+
+
+@app.route("/api/league/<int:league_id>/activity-feed")
+@login_required
+def api_league_activity_feed(league_id):
+    """API endpoint for league activity feed"""
+    try:
+        # Get pagination parameters
+        limit = int(request.args.get('limit', 20))
+        offset = int(request.args.get('offset', 0))
+        
+        # Validate limits
+        if limit < 1 or limit > 100:
+            limit = 20
+        if offset < 0:
+            offset = 0
+        
+        # Check league exists
+        league = db.get_league(league_id)
+        if not league:
+            return jsonify({"error": "League not found"}), 404
+        
+        # Get activity feed and total count
+        activities = db.get_league_activity_feed(league_id, limit=limit, offset=offset)
+        total_count = db.get_league_activity_count(league_id)
+        
+        # Enrich activities with user information
+        for activity in activities:
+            if activity['user_id']:
+                user = db.get_user(activity['user_id'])
+                if user:
+                    activity['username'] = user.get('username')
+                    activity['user_avatar'] = user.get('avatar_url')
+            
+            # Format timestamp
+            if isinstance(activity['created_at'], str):
+                activity['created_at'] = activity['created_at']
+            else:
+                activity['created_at'] = activity['created_at'].isoformat() if hasattr(activity['created_at'], 'isoformat') else str(activity['created_at'])
+        
+        return jsonify({
+            "activities": activities,
+            "total": total_count,
+            "limit": limit,
+            "offset": offset,
+            "has_more": (offset + limit) < total_count
+        })
+    
+    except Exception as e:
+        logging.error(f"Error fetching activity feed for league {league_id}: {e}")
+        return jsonify({"error": "Failed to fetch activity feed"}), 500
 
 
 @app.route("/api/league/<int:league_id>/analytics")
@@ -4177,6 +4319,16 @@ def sell_option():
 # WebSocket Events for Real-time Stock Updates
 # ============================================================================
 
+def emit_league_activity(league_id, activity):
+    """Emit a new league activity to all members in the league"""
+    try:
+        socketio.emit('league_activity_new', {
+            'league_id': league_id,
+            'activity': activity
+        }, room=f'league_{league_id}')
+    except Exception as e:
+        logging.error(f"Error emitting league activity: {e}")
+
 @socketio.on('connect')
 def handle_connect():
     """Handle client connection"""
@@ -4186,6 +4338,11 @@ def handle_connect():
     user_id = session.get('user_id')
     if user_id:
         join_room(f'user_{user_id}')
+        
+        # Join league-specific rooms for activity feeds
+        user_leagues = db.get_user_leagues(user_id)
+        for league in user_leagues:
+            join_room(f'league_{league["id"]}')
         
         # Send initial portfolio state based on active context
         try:
