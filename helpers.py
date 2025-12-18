@@ -1,3 +1,13 @@
+"""
+helpers.py
+
+Utility functions for market data, caching, and small helpers used by the
+StockLeague Flask app. This module wraps Yahoo Finance (yfinance) calls
+and provides light caching to reduce API usage. Functions here are
+designed to be lightweight and to gracefully degrade when `yfinance` is
+unavailable (useful for test environments).
+"""
+
 import os
 import requests
 from flask import redirect, render_template, session
@@ -8,6 +18,22 @@ import time
 import difflib
 from typing import List
 from utils import POPULAR_SYMBOLS
+import json
+
+# Optional Redis support for shared caching. If REDIS_URL is set and the
+# `redis` package is available we will use it for cross-process caching.
+try:
+    import redis as _redis_lib
+    _REDIS_URL = os.environ.get('REDIS_URL', 'redis://localhost:6379/0')
+    try:
+        _redis = _redis_lib.from_url(_REDIS_URL, decode_responses=True)
+        REDIS_AVAILABLE = True
+    except Exception:
+        _redis = None
+        REDIS_AVAILABLE = False
+except Exception:
+    _redis = None
+    REDIS_AVAILABLE = False
 
 # Try to import yfinance gracefully so editor/runtime show clear behavior
 try:
@@ -134,6 +160,24 @@ def get_chart_data(symbol, days=30):
     from datetime import datetime, timedelta
     
     try:
+        # Normalize symbol
+        symbol_key = symbol.upper()
+
+        # Attempt to read from Redis cache if available
+        if REDIS_AVAILABLE and _redis is not None:
+            cache_key = f"chart:{symbol_key}:{days}"
+            try:
+                cached = _redis.get(cache_key)
+                if cached:
+                    try:
+                        return json.loads(cached)
+                    except Exception:
+                        # If cached value is invalid, ignore and fetch fresh
+                        pass
+            except Exception:
+                # Non-fatal if Redis read fails
+                pass
+
         ticker = yf.Ticker(symbol.upper())
         
         # Get historical data
@@ -168,6 +212,27 @@ def get_chart_data(symbol, days=30):
     except Exception as e:
         print(f"Error fetching chart data for {symbol}: {str(e)}")
         return None
+
+
+def cache_chart_data(symbol, days=30, chart_data=None, ttl=600):
+    """If Redis is available, persist `chart_data` as JSON under a namespaced key.
+
+    Parameters:
+        symbol (str): stock symbol
+        days (int): days parameter used by chart generation
+        chart_data (dict): chart payload to cache
+        ttl (int): time-to-live in seconds (default 600s = 10min)
+    Returns:
+        bool: True if value was cached, False otherwise
+    """
+    if not REDIS_AVAILABLE or _redis is None or chart_data is None:
+        return False
+    try:
+        key = f"chart:{symbol.upper()}:{days}"
+        _redis.set(key, json.dumps(chart_data), ex=ttl)
+        return True
+    except Exception:
+        return False
 
 
 def get_popular_stocks():

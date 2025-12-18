@@ -1,3 +1,15 @@
+"""
+database/db_manager.py
+
+DatabaseManager: a lightweight wrapper around SQLite used by StockLeague.
+This module exposes `DatabaseManager` which initializes the schema and
+provides helper methods for common operations (users, trades, leagues,
+notifications, chat, moderation, and audit logs).
+
+Note: For production deployments consider migrating to Postgres and
+adopting a migration tool such as Alembic.
+"""
+
 import sqlite3
 from datetime import datetime
 
