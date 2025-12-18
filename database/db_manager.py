@@ -11,6 +11,7 @@ adopting a migration tool such as Alembic.
 """
 
 import sqlite3
+import os
 from datetime import datetime
 
 
@@ -18,6 +19,10 @@ class DatabaseManager:
     """Manages all database operations for the stock trading app."""
     def __init__(self, db_path="database/stocks.db"):
         self.db_path = db_path
+        # Ensure the database directory exists to avoid sqlite3 open errors
+        db_dir = os.path.dirname(self.db_path)
+        if db_dir and not os.path.exists(db_dir):
+            os.makedirs(db_dir, exist_ok=True)
         self.init_db()
         self.init_chat_table()
         self.init_activity_reactions_table()
@@ -293,6 +298,21 @@ class DatabaseManager:
                 FOREIGN KEY (user_id) REFERENCES users(id),
                 FOREIGN KEY (performed_by) REFERENCES users(id)
             )
+        """)
+
+        # Leaderboards cache table (used by API endpoints and background jobs)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS leaderboards (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                leaderboard_type TEXT NOT NULL,
+                period TEXT NOT NULL,
+                data_json TEXT,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_leaderboards_type ON leaderboards(leaderboard_type, period)
         """)
 
 

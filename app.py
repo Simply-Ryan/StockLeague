@@ -168,6 +168,21 @@ def validate_portfolio_context(user_id, context):
     return True, None
 
 
+def push_recent_quote(symbol, limit=10):
+    """Push a symbol into session-based recent quotes list (most-recent first)."""
+    if not symbol:
+        return
+    recent = session.get('recent_quotes', [])
+    symbol = symbol.upper()
+    # remove if exists
+    recent = [s for s in recent if s != symbol]
+    recent.insert(0, symbol)
+    # cap list
+    recent = recent[:limit]
+    session['recent_quotes'] = recent
+    session.modified = True
+
+
 # Load environment variables
 load_dotenv()
 
@@ -1013,7 +1028,7 @@ def buy():
             suggestions = search_tickers(symbol)
             if suggestions:
                 # Render the quote form again with suggestions for the user to pick
-                return render_template("quote.html", suggestions=suggestions, previous_query=symbol)
+                return render_template("quote.html", suggestions=suggestions, previous_query=symbol, recent_quotes=session.get('recent_quotes', []))
             else:
                 return apology("invalid symbol", 400)
         
@@ -1250,7 +1265,13 @@ def quote():
             for alert in triggered:
                 flash(f"🔔 Alert triggered: {symbol.upper()} {'reached above' if alert['alert_type'] == 'above' else 'fell below'} {usd(alert['target_price'])}!", "info")
         
-        return render_template("quoted.html", quote=quote, chart_data=chart_data, in_watchlist=in_watchlist, news=news)
+        # Record recent quote in session (most-recent first)
+        try:
+            push_recent_quote(symbol.upper())
+        except Exception:
+            pass
+
+        return render_template("quoted.html", quote=quote, chart_data=chart_data, in_watchlist=in_watchlist, news=news, recent_quotes=session.get('recent_quotes', []))
     
     else:
         # Support GET with query param: /quote?symbol=MSFT
@@ -1261,7 +1282,7 @@ def quote():
                 from helpers import search_tickers
                 suggestions = search_tickers(symbol)
                 if suggestions:
-                    return render_template("quote.html", suggestions=suggestions, previous_query=symbol)
+                    return render_template("quote.html", suggestions=suggestions, previous_query=symbol, recent_quotes=session.get('recent_quotes', []))
                 else:
                     return apology("invalid symbol", 400)
 
@@ -1281,9 +1302,14 @@ def quote():
                 for alert in triggered:
                     flash(f"🔔 Alert triggered: {symbol.upper()} {'reached above' if alert['alert_type'] == 'above' else 'fell below'} {usd(alert['target_price'])}!", "info")
 
-            return render_template("quoted.html", quote=quote, chart_data=chart_data, in_watchlist=in_watchlist, news=news)
+            try:
+                push_recent_quote(symbol.upper())
+            except Exception:
+                pass
 
-        return render_template("quote.html")
+            return render_template("quoted.html", quote=quote, chart_data=chart_data, in_watchlist=in_watchlist, news=news, recent_quotes=session.get('recent_quotes', []))
+
+        return render_template("quote.html", recent_quotes=session.get('recent_quotes', []))
 
 
 # Registration route moved to `blueprints/auth_bp.py`.
@@ -1787,9 +1813,14 @@ def leagues():
     # Get active context
     context = get_active_portfolio_context()
     
+    # Compute visible public leagues server-side to avoid template-time filtering
+    joined_ids = [l['id'] for l in user_leagues]
+    visible_public = [l for l in public_leagues if l.get('id') not in joined_ids]
+
     return render_template("leagues.html",
                          user_leagues=user_leagues,
                          public_leagues=public_leagues,
+                         visible_public=visible_public,
                          active_context=context)
 
 
@@ -1889,6 +1920,71 @@ def league_detail(league_id):
                          leaderboard=leaderboard,
                          is_member=is_member,
                          is_admin=is_admin)
+
+
+@app.route("/leagues/<int:league_id>/preview")
+@login_required
+def league_preview(league_id):
+    """Return a small JSON preview for a league (used by client-side modal)."""
+    league = db.get_league(league_id)
+    if not league:
+        return jsonify({"error": "not found"}), 404
+
+    # Top 3 leaderboard entries
+    try:
+        top = db.get_league_leaderboard(league_id)[:3]
+    except Exception:
+        top = []
+
+    members = db.get_league_members(league_id)
+    preview = {
+        "id": league["id"],
+        "name": league.get("name"),
+        "description": league.get("description"),
+        "starting_cash": league.get("starting_cash"),
+        "is_active": league.get("is_active"),
+        "top": [{"username": e.get("username"), "total_value": e.get("total_value")} for e in top],
+        "member_count": len(members),
+        "rules": league.get("rules_json") if league.get("rules_json") else None
+    }
+
+    return jsonify(preview)
+
+
+@app.route("/leagues/<int:league_id>/track_view", methods=["POST"])
+@login_required
+def league_track_view(league_id):
+    """Basic analytics: increment view counter for a league.
+
+    Uses a JSON file in `instance/league_analytics.json` to avoid DB migrations.
+    This is lightweight and non-atomic; for high-traffic apps replace with Redis or DB.
+    """
+    analytics_path = os.path.join(app.instance_path, "league_analytics.json")
+    try:
+        os.makedirs(app.instance_path, exist_ok=True)
+    except Exception:
+        pass
+
+    data = {}
+    try:
+        if os.path.exists(analytics_path):
+            with open(analytics_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+    except Exception:
+        data = {}
+
+    key = str(league_id)
+    entry = data.get(key, {"views": 0, "joins": 0})
+    entry["views"] = entry.get("views", 0) + 1
+    data[key] = entry
+
+    try:
+        with open(analytics_path, "w", encoding="utf-8") as f:
+            json.dump(data, f)
+    except Exception:
+        pass
+
+    return jsonify({"ok": True, "views": entry["views"]})
 
 
 @app.route("/leagues/join", methods=["POST"])

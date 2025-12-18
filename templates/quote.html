@@ -21,6 +21,15 @@
                         <i class="fas fa-search"></i> Get Quote
                     </button>
                 </form>
+                {% if recent_quotes %}
+                <hr>
+                <h5 class="mt-3">Recent Quotes</h5>
+                <div class="d-flex flex-wrap gap-2 mt-2">
+                    {% for s in recent_quotes %}
+                    <button type="button" class="btn btn-outline-secondary btn-sm quick-quote" data-symbol="{{ s }}">{{ s }}</button>
+                    {% endfor %}
+                </div>
+                {% endif %}
                 {% if suggestions %}
                 <hr>
                 <h5 class="mt-3">Did you mean one of these?</h5>

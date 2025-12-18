@@ -134,6 +134,59 @@
                     {% endif %}
                 </div>
             </div>
+
+            <!-- League Summary & Utilities -->
+            <div class="card mt-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0"><i class="fas fa-info-circle"></i> League Summary</h5>
+                    <div>
+                        <button class="btn btn-sm btn-outline-primary" id="export-leaderboard">Export CSV</button>
+                        <a href="/leagues/{{ league.id }}" class="btn btn-sm btn-outline-secondary ms-2">View League</a>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <label class="small text-muted">Participants</label>
+                            <div class="h4">{{ leaderboard|length }}</div>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="small text-muted">Starting Cash</label>
+                            <div class="h4">{{ starting_cash | usd }}</div>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="small text-muted">Avg Portfolio Value</label>
+                            {% set total_vals = 0 %}
+                            {% for e in leaderboard %}
+                                {% set total_vals = total_vals + (e.total_value if e.total_value else 0) %}
+                            {% endfor %}
+                            {% set avg = (total_vals / (leaderboard|length)) if leaderboard|length > 0 else 0 %}
+                            <div class="h4">{{ avg | usd }}</div>
+                        </div>
+                    </div>
+
+                    <hr>
+
+                    <div class="d-flex align-items-center">
+                        <div class="me-3">
+                            <label class="small text-muted">Invite Code</label>
+                            <div class="d-flex">
+                                <input type="text" readonly class="form-control form-control-sm" id="invite-code" value="{{ league.invite_code if league.invite_code else '' }}" placeholder="No invite code">
+                                <button class="btn btn-sm btn-outline-secondary ms-2" id="copy-invite">Copy</button>
+                            </div>
+                        </div>
+
+                        <div class="ms-4">
+                            <label class="small text-muted">Season Ends</label>
+                            {% if league.season_end %}
+                            <div id="season-countdown" data-end="{{ league.season_end }}">Calculating...</div>
+                            {% else %}
+                            <div class="text-muted">No end date</div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- Sidebar -->
@@ -241,4 +294,84 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+// Copy invite code to clipboard
+document.addEventListener('click', function(e) {
+    if (e.target && e.target.id === 'copy-invite') {
+        const input = document.getElementById('invite-code');
+        if (!input) return;
+        input.select();
+        input.setSelectionRange(0, 99999);
+        try {
+            navigator.clipboard.writeText(input.value || window.location.href).then(() => {
+                e.target.classList.add('btn-success');
+                setTimeout(() => e.target.classList.remove('btn-success'), 1200);
+            }).catch(() => {
+                // fallback
+                document.execCommand('copy');
+            });
+        } catch (err) {
+            console.warn('copy failed', err);
+        }
+    }
+
+    if (e.target && e.target.id === 'export-leaderboard') {
+        // Build CSV from embedded leaderboard data
+        try {
+            const data = {{ leaderboard|tojson | safe }};
+            if (!data || !data.length) {
+                alert('No leaderboard data to export');
+                return;
+            }
+            const headers = ['rank','username','total_value','return_pct','score'];
+            const rows = [headers.join(',')];
+            for (const r of data) {
+                rows.push([r.current_rank || '', '"' + (r.username || '') + '"', r.total_value || '', r.return_pct || '', r.score || ''].join(','));
+            }
+            const csv = rows.join('\n');
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'league_{{ league.id }}_leaderboard.csv';
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
+        } catch (err) {
+            console.error('Export failed', err);
+            alert('Export failed');
+        }
+    }
+});
+
+// Season countdown
+function startCountdown() {
+    const el = document.getElementById('season-countdown');
+    if (!el) return;
+    const end = el.dataset.end;
+    if (!end) return;
+    const target = new Date(end);
+    function tick() {
+        const now = new Date();
+        const diff = target - now;
+        if (diff <= 0) {
+            el.textContent = 'Season ended';
+            return;
+        }
+        const days = Math.floor(diff / (1000*60*60*24));
+        const hours = Math.floor((diff / (1000*60*60)) % 24);
+        const minutes = Math.floor((diff / (1000*60)) % 60);
+        const seconds = Math.floor((diff / 1000) % 60);
+        el.textContent = `${days}d ${hours}h ${minutes}m ${seconds}s`;
+    }
+    tick();
+    setInterval(tick, 1000);
+}
+document.addEventListener('DOMContentLoaded', startCountdown);
+</script>
 {% endblock %}
