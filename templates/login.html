@@ -3,33 +3,68 @@
 {% block title %}Login - StockLeague{% endblock %}
 
 {% block main %}
-<div class="row justify-content-center">
-    <div class="col-md-6">
-        <div class="card shadow">
-            <div class="card-body">
-                <h2 class="card-title text-center mb-4">
-                    <i class="fas fa-sign-in-alt"></i> Login
-                </h2>
-                <form action="/login" method="post">
-                    <div class="mb-3">
-                        <label for="username" class="form-label">Username</label>
-                        <input type="text" class="form-control" id="username" name="username" 
-                               placeholder="Enter username" autocomplete="username" required autofocus>
-                    </div>
-                    <div class="mb-3">
-                        <label for="password" class="form-label">Password</label>
-                        <input type="password" class="form-control" id="password" name="password" 
-                               placeholder="Enter password" autocomplete="current-password" required>
-                    </div>
-                    <button type="submit" class="btn btn-primary w-100">
-                        <i class="fas fa-sign-in-alt"></i> Login
-                    </button>
-                </form>
-                <hr>
-                <p class="text-center mb-0">
-                    Don't have an account? <a href="/register">Register here</a>
-                </p>
+<div class="container-fluid d-flex align-items-center justify-content-center" style="min-height: calc(100vh - 70px);">
+    <div class="row justify-content-center w-100">
+        <div class="col-lg-5 col-md-7">
+            <!-- Header Section with Gradient -->
+            <div class="text-center mb-4">
+                <div class="display-4 mb-3" style="background: var(--gradient-accent); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">
+                    <i class="fas fa-sign-in-alt"></i>
+                </div>
+                <h1 class="h2 fw-bold" style="color: var(--text-primary);">Welcome Back</h1>
+                <p style="color: var(--text-secondary);">Log in to your StockLeague account</p>
             </div>
+
+            <!-- Login Card -->
+            <div class="card shadow-lg border-0" style="border-radius: 20px; overflow: hidden;">
+                <div class="card-body p-4">
+                    <form action="/login" method="post" class="login-form">
+                        <!-- Username Input -->
+                        <div class="mb-4">
+                            <label for="username" class="form-label fw-600 mb-2">
+                                <i class="fas fa-user text-primary me-2"></i>Username
+                            </label>
+                            <input type="text" class="form-control form-control-lg" id="username" name="username" 
+                                   placeholder="Enter your username" autocomplete="username" required autofocus>
+                        </div>
+
+                        <!-- Password Input -->
+                        <div class="mb-4">
+                            <label for="password" class="form-label fw-600 mb-2">
+                                <i class="fas fa-lock text-primary me-2"></i>Password
+                            </label>
+                            <input type="password" class="form-control form-control-lg" id="password" name="password" 
+                                   placeholder="Enter your password" autocomplete="current-password" required>
+                        </div>
+
+                        <!-- Submit Button -->
+                        <button type="submit" class="btn btn-primary btn-lg w-100 fw-600 py-2 mt-3" style="border-radius: 10px; font-size: 1.1rem;">
+                            <i class="fas fa-sign-in-alt me-2"></i>Sign In
+                        </button>
+                    </form>
+
+                    <!-- Divider -->
+                    <div class="position-relative my-4">
+                        <hr style="border-color: var(--border-color);">
+                        <span style="position: absolute; left: 50%; top: -12px; transform: translateX(-50%); background: var(--card-bg); padding: 0 12px; color: var(--text-muted); font-size: 0.85rem;">
+                            New here?
+                        </span>
+                    </div>
+
+                    <!-- Register Link -->
+                    <p class="text-center mb-0" style="color: var(--text-secondary);">
+                        Don't have an account? 
+                        <a href="/register" class="fw-600" style="color: var(--primary-color); text-decoration: none;">
+                            Create one now
+                        </a>
+                    </p>
+                </div>
+            </div>
+
+            <!-- Footer Note -->
+            <p class="text-center mt-4 small" style="color: var(--text-muted);">
+                💡 Tip: Use your registered username and password to log in
+            </p>
         </div>
     </div>
 </div>

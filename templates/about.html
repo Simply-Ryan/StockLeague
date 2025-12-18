@@ -3,111 +3,180 @@
 {% block title %}About - StockLeague{% endblock %}
 
 {% block main %}
-<div class="container">
+<div class="container py-5">
     <div class="row justify-content-center">
-        <div class="col-lg-8">
-            <h1 class="text-center mb-4">
-                <i class="fas fa-info-circle text-primary"></i> About StockLeague
-            </h1>
+        <div class="col-lg-9">
+            <!-- Header with Icon -->
+            <div class="text-center mb-5">
+                <div style="font-size: 3.5rem; margin-bottom: 1rem; background: var(--gradient-accent); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">
+                    <i class="fas fa-info-circle"></i>
+                </div>
+                <h1 class="display-5 fw-bold" style="color: var(--text-primary);">About StockLeague</h1>
+                <p class="lead" style="color: var(--text-secondary);">Learn how to trade stocks risk-free with a competitive community</p>
+            </div>
 
-            <div class="card shadow mb-4">
-                <div class="card-body">
-                    <h3 class="card-title">What is StockLeague?</h3>
-                    <p class="card-text">
+            <!-- What is StockLeague Card -->
+            <div class="card shadow-lg mb-4 border-0" style="border-radius: 15px;">
+                <div class="card-body p-4">
+                    <h3 class="card-title h4" style="color: var(--primary-color); margin-bottom: 1rem;">
+                        <i class="fas fa-star me-2"></i>What is StockLeague?
+                    </h3>
+                    <p class="card-text" style="color: var(--text-secondary); line-height: 1.7;">
                         StockLeague is a competitive paper trading platform where you can practice trading stocks 
                         with virtual money in a risk-free environment. Compete with friends, join leagues, 
                         and climb the leaderboard to become the top trader!
                     </p>
+                    <div style="background: rgba(99, 102, 241, 0.1); padding: 1rem; border-radius: 10px; border-left: 4px solid var(--primary-color);">
+                        <p style="color: var(--text-secondary); margin: 0;">
+                            <strong>Perfect for:</strong> Beginners learning to trade, students, seasoned investors practicing strategies, or anyone wanting to compete in a fun, risk-free environment.
+                        </p>
+                    </div>
                 </div>
             </div>
 
-            <div class="card shadow mb-4">
-                <div class="card-body">
-                    <h3 class="card-title"><i class="fas fa-rocket text-success"></i> Key Features</h3>
-                    <ul class="list-group list-group-flush">
-                        <li class="list-group-item">
-                            <i class="fas fa-chart-line text-primary"></i> 
-                            <strong>Real-Time Stock Data:</strong> Live quotes powered by Yahoo Finance API
-                        </li>
-                        <li class="list-group-item">
-                            <i class="fas fa-chart-area text-info"></i> 
-                            <strong>Interactive Charts:</strong> 30-day price history with Chart.js visualization
-                        </li>
-                        <li class="list-group-item">
-                            <i class="fas fa-wallet text-success"></i> 
-                            <strong>Portfolio Management:</strong> Track your investments with detailed metrics
-                        </li>
-                        <li class="list-group-item">
-                            <i class="fas fa-trophy text-warning"></i> 
-                            <strong>Leaderboard:</strong> Compete with other traders globally
-                        </li>
-                        <li class="list-group-item">
-                            <i class="fas fa-history text-secondary"></i> 
-                            <strong>Transaction History:</strong> Complete record of all your trades
-                        </li>
-                        <li class="list-group-item">
-                            <i class="fas fa-fire text-danger"></i> 
-                            <strong>Market Overview:</strong> Track popular stocks at a glance
-                        </li>
-                    </ul>
-                </div>
-            </div>
-
-            <div class="card shadow mb-4">
-                <div class="card-body">
-                    <h3 class="card-title"><i class="fas fa-play-circle text-primary"></i> Getting Started</h3>
-                    <ol>
-                        <li><strong>Register</strong> for a free account with $10,000 virtual cash</li>
-                        <li><strong>Research</strong> stocks using our quote tool with charts</li>
-                        <li><strong>Trade</strong> by buying and selling stocks</li>
-                        <li><strong>Track</strong> your portfolio performance and gain/loss</li>
-                        <li><strong>Compete</strong> on the leaderboard with other traders</li>
-                    </ol>
-                </div>
-            </div>
-
-            <div class="card shadow mb-4">
-                <div class="card-body">
-                    <h3 class="card-title"><i class="fas fa-code text-dark"></i> Technology Stack</h3>
-                    <div class="row">
+            <!-- Key Features Card -->
+            <div class="card shadow-lg mb-4 border-0" style="border-radius: 15px;">
+                <div class="card-body p-4">
+                    <h3 class="card-title h4" style="color: var(--primary-color); margin-bottom: 1.5rem;">
+                        <i class="fas fa-rocket me-2"></i>Key Features
+                    </h3>
+                    <div class="row g-3">
                         <div class="col-md-6">
-                            <h5>Backend</h5>
-                            <ul>
-                                <li>Python 3.13</li>
-                                <li>Flask 3.0</li>
-                                <li>SQLite Database</li>
-                                <li>Yahoo Finance API</li>
-                            </ul>
+                            <div class="feature-item p-3" style="background: rgba(10, 184, 181, 0.08); border-radius: 10px; border-left: 3px solid var(--info-color);">
+                                <h5 style="color: var(--primary-color); font-size: 0.95rem; font-weight: 600; margin-bottom: 0.5rem;">
+                                    <i class="fas fa-chart-line me-2"></i>Real-Time Stock Data
+                                </h5>
+                                <p style="color: var(--text-secondary); font-size: 0.9rem; margin: 0;">
+                                    Live quotes powered by Yahoo Finance API
+                                </p>
+                            </div>
                         </div>
                         <div class="col-md-6">
-                            <h5>Frontend</h5>
-                            <ul>
-                                <li>HTML5 & CSS3</li>
-                                <li>Bootstrap 5</li>
-                                <li>Chart.js</li>
-                                <li>Font Awesome</li>
+                            <div class="feature-item p-3" style="background: rgba(99, 102, 241, 0.08); border-radius: 10px; border-left: 3px solid var(--primary-color);">
+                                <h5 style="color: var(--primary-color); font-size: 0.95rem; font-weight: 600; margin-bottom: 0.5rem;">
+                                    <i class="fas fa-chart-area me-2"></i>Interactive Charts
+                                </h5>
+                                <p style="color: var(--text-secondary); font-size: 0.9rem; margin: 0;">
+                                    30-day price history with Chart.js visualization
+                                </p>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="feature-item p-3" style="background: rgba(16, 185, 129, 0.08); border-radius: 10px; border-left: 3px solid var(--success-color);">
+                                <h5 style="color: var(--primary-color); font-size: 0.95rem; font-weight: 600; margin-bottom: 0.5rem;">
+                                    <i class="fas fa-wallet me-2"></i>Portfolio Management
+                                </h5>
+                                <p style="color: var(--text-secondary); font-size: 0.9rem; margin: 0;">
+                                    Track your investments with detailed metrics
+                                </p>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="feature-item p-3" style="background: rgba(245, 158, 11, 0.08); border-radius: 10px; border-left: 3px solid var(--warning-color);">
+                                <h5 style="color: var(--primary-color); font-size: 0.95rem; font-weight: 600; margin-bottom: 0.5rem;">
+                                    <i class="fas fa-trophy me-2"></i>Global Leaderboard
+                                </h5>
+                                <p style="color: var(--text-secondary); font-size: 0.9rem; margin: 0;">
+                                    Compete with traders worldwide in real-time
+                                </p>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="feature-item p-3" style="background: rgba(139, 92, 246, 0.08); border-radius: 10px; border-left: 3px solid var(--secondary-color);">
+                                <h5 style="color: var(--primary-color); font-size: 0.95rem; font-weight: 600; margin-bottom: 0.5rem;">
+                                    <i class="fas fa-history me-2"></i>Transaction History
+                                </h5>
+                                <p style="color: var(--text-secondary); font-size: 0.9rem; margin: 0;">
+                                    Complete record of all your trades and performance
+                                </p>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="feature-item p-3" style="background: rgba(239, 68, 68, 0.08); border-radius: 10px; border-left: 3px solid var(--danger-color);">
+                                <h5 style="color: var(--primary-color); font-size: 0.95rem; font-weight: 600; margin-bottom: 0.5rem;">
+                                    <i class="fas fa-fire me-2"></i>Market Overview
+                                </h5>
+                                <p style="color: var(--text-secondary); font-size: 0.9rem; margin: 0;">
+                                    Track trending stocks and market movements at a glance
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Getting Started Card -->
+            <div class="card shadow-lg mb-4 border-0" style="border-radius: 15px;">
+                <div class="card-body p-4">
+                    <h3 class="card-title h4" style="color: var(--primary-color); margin-bottom: 1.5rem;">
+                        <i class="fas fa-play-circle me-2"></i>Getting Started in 5 Steps
+                    </h3>
+                    <div class="row">
+                        <div class="col-12">
+                            <ol style="color: var(--text-secondary); line-height: 2; padding-left: 1.5rem;">
+                                <li><strong style="color: var(--text-primary);">Register</strong> for a free account with $10,000 virtual cash</li>
+                                <li><strong style="color: var(--text-primary);">Research</strong> stocks using our quote tool with detailed charts</li>
+                                <li><strong style="color: var(--text-primary);">Trade</strong> by buying and selling stocks without any risk</li>
+                                <li><strong style="color: var(--text-primary);">Track</strong> your portfolio performance, gains, and losses in real-time</li>
+                                <li><strong style="color: var(--text-primary);">Compete</strong> on the global leaderboard and climb the ranks</li>
+                            </ol>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Technology Stack Card -->
+            <div class="card shadow-lg mb-4 border-0" style="border-radius: 15px;">
+                <div class="card-body p-4">
+                    <h3 class="card-title h4" style="color: var(--primary-color); margin-bottom: 1.5rem;">
+                        <i class="fas fa-code me-2"></i>Technology Stack
+                    </h3>
+                    <div class="row">
+                        <div class="col-md-6 mb-4">
+                            <h5 style="color: var(--text-primary); font-weight: 600; margin-bottom: 1rem;">Backend</h5>
+                            <ul style="color: var(--text-secondary); list-style: none; padding: 0;">
+                                <li><i class="fas fa-check text-success me-2"></i>Python 3.13</li>
+                                <li><i class="fas fa-check text-success me-2"></i>Flask 3.0 Web Framework</li>
+                                <li><i class="fas fa-check text-success me-2"></i>SQLite Database</li>
+                                <li><i class="fas fa-check text-success me-2"></i>Yahoo Finance API</li>
+                            </ul>
+                        </div>
+                        <div class="col-md-6 mb-4">
+                            <h5 style="color: var(--text-primary); font-weight: 600; margin-bottom: 1rem;">Frontend</h5>
+                            <ul style="color: var(--text-secondary); list-style: none; padding: 0;">
+                                <li><i class="fas fa-check text-success me-2"></i>HTML5 & CSS3</li>
+                                <li><i class="fas fa-check text-success me-2"></i>Bootstrap 5 Framework</li>
+                                <li><i class="fas fa-check text-success me-2"></i>Chart.js Visualization</li>
+                                <li><i class="fas fa-check text-success me-2"></i>Font Awesome Icons</li>
                             </ul>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <div class="card shadow mb-4 border-warning">
-                <div class="card-body">
-                    <h3 class="card-title"><i class="fas fa-exclamation-triangle text-warning"></i> Disclaimer</h3>
-                    <p class="card-text text-muted">
-                        StockLeague is a paper trading platform for educational purposes only. 
-                        All trades are simulated with virtual money. Stock prices are real but delayed. 
-                        This is not financial advice. Always consult with a qualified financial advisor 
-                        before making real investment decisions.
+            <!-- Disclaimer Card -->
+            <div class="card shadow-lg mb-5 border-0" style="border-radius: 15px; border-left: 4px solid var(--warning-color);">
+                <div class="card-body p-4">
+                    <h3 class="card-title h5" style="color: var(--warning-color); margin-bottom: 1rem;">
+                        <i class="fas fa-exclamation-triangle me-2"></i>Important Disclaimer
+                    </h3>
+                    <p style="color: var(--text-secondary); margin: 0; line-height: 1.7;">
+                        StockLeague is a <strong>paper trading platform for educational purposes only</strong>. 
+                        All trades are simulated with virtual money and no real transactions occur. Stock prices are real-time or near real-time data. 
+                        <strong>This is not financial advice.</strong> Always consult with a qualified financial advisor 
+                        before making real investment decisions. Trading stocks carries risk of loss.
                     </p>
                 </div>
             </div>
 
+            <!-- CTA Button -->
             <div class="text-center mb-4">
-                <a href="/register" class="btn btn-primary btn-lg">
-                    <i class="fas fa-user-plus"></i> Get Started Now
+                <a href="/register" class="btn btn-lg px-5 py-3" style="background: var(--gradient-accent); color: white; border: none; border-radius: 10px; font-weight: 600; transition: transform 0.2s ease, box-shadow 0.2s ease;">
+                    <i class="fas fa-user-plus me-2"></i>Get Started Now
                 </a>
+                <p style="color: var(--text-muted); margin-top: 1rem; font-size: 0.9rem;">
+                    ✨ Completely free to play. No credit card required.
+                </p>
             </div>
         </div>
     </div>

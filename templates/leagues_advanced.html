@@ -1,0 +1,977 @@
+{% extends "layout.html" %}
+
+{% block title %}Competitive Leagues - StockLeague{% endblock %}
+
+{% block main %}
+<style>
+    * {
+        --rarity-common: #888888;
+        --rarity-rare: #0066ff;
+        --rarity-epic: #9933ff;
+        --rarity-legendary: #ffaa00;
+    }
+
+    .leagues-container {
+        max-width: 1400px;
+        margin: 0 auto;
+        padding: 0 1rem;
+    }
+
+    /* ============ HERO SECTION ============ */
+    .leagues-hero {
+        background: linear-gradient(135deg, var(--primary-color), var(--primary-color-dark, #0056b3));
+        padding: 3rem 2rem;
+        border-radius: 1rem;
+        margin-bottom: 2rem;
+        color: white;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+        position: relative;
+        overflow: hidden;
+    }
+
+    .leagues-hero::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        right: 0;
+        width: 300px;
+        height: 300px;
+        background: rgba(255,255,255,0.1);
+        border-radius: 50%;
+        transform: translate(100px, -100px);
+    }
+
+    .hero-content {
+        position: relative;
+        z-index: 1;
+    }
+
+    .leagues-hero h1 {
+        font-size: 2.5rem;
+        font-weight: 700;
+        margin-bottom: 0.5rem;
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    .leagues-hero p {
+        font-size: 1.1rem;
+        opacity: 0.95;
+        margin-bottom: 2rem;
+    }
+
+    .hero-stats {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+        gap: 1.5rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .hero-stat {
+        background: rgba(255,255,255,0.1);
+        padding: 1rem;
+        border-radius: 0.5rem;
+        text-align: center;
+        backdrop-filter: blur(10px);
+    }
+
+    .hero-stat-value {
+        font-size: 2rem;
+        font-weight: 700;
+        display: block;
+        margin-bottom: 0.25rem;
+    }
+
+    .hero-stat-label {
+        font-size: 0.85rem;
+        opacity: 0.9;
+    }
+
+    .hero-actions {
+        display: flex;
+        gap: 1rem;
+        flex-wrap: wrap;
+    }
+
+    .hero-actions .btn {
+        flex: 1;
+        min-width: 150px;
+    }
+
+    /* ============ FILTERS & SEARCH ============ */
+    .filters-section {
+        background: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 0.75rem;
+        padding: 1.5rem;
+        margin-bottom: 2rem;
+    }
+
+    .filter-title {
+        font-weight: 700;
+        margin-bottom: 1rem;
+        color: var(--text-primary);
+    }
+
+    .filter-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    .filter-group {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .filter-group label {
+        font-size: 0.85rem;
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+        color: var(--text-secondary);
+    }
+
+    .filter-group select,
+    .filter-group input {
+        padding: 0.6rem;
+        border: 1px solid var(--border-color);
+        border-radius: 0.4rem;
+        background: var(--card-bg);
+        color: var(--text-primary);
+        font-size: 0.9rem;
+    }
+
+    .filter-tags {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+
+    .filter-tag {
+        background: var(--primary-color-light);
+        color: var(--primary-color);
+        padding: 0.5rem 1rem;
+        border-radius: 2rem;
+        font-size: 0.85rem;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        border: 1px solid var(--primary-color);
+    }
+
+    .filter-tag:hover {
+        background: var(--primary-color);
+        color: white;
+    }
+
+    .filter-tag.active {
+        background: var(--primary-color);
+        color: white;
+    }
+
+    /* ============ SECTION HEADERS ============ */
+    .section-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1.5rem;
+        padding-bottom: 1rem;
+        border-bottom: 2px solid var(--border-color);
+    }
+
+    .section-title {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: var(--text-primary);
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        margin: 0;
+    }
+
+    .section-title i {
+        color: var(--primary-color);
+        font-size: 1.75rem;
+    }
+
+    .section-controls {
+        display: flex;
+        gap: 1rem;
+        flex-wrap: wrap;
+    }
+
+    .view-toggle {
+        display: flex;
+        gap: 0.5rem;
+        background: var(--border-color);
+        padding: 0.25rem;
+        border-radius: 0.4rem;
+    }
+
+    .view-toggle button {
+        padding: 0.5rem 1rem;
+        border: none;
+        background: transparent;
+        cursor: pointer;
+        color: var(--text-secondary);
+        transition: all 0.3s ease;
+    }
+
+    .view-toggle button.active {
+        background: var(--card-bg);
+        color: var(--primary-color);
+    }
+
+    /* ============ LEAGUE CARDS ============ */
+    .leagues-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+        gap: 1.5rem;
+        margin-bottom: 2rem;
+    }
+
+    .league-card {
+        background: var(--card-bg);
+        border: 2px solid var(--border-color);
+        border-radius: 0.75rem;
+        overflow: hidden;
+        transition: all 0.3s ease;
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        position: relative;
+    }
+
+    .league-card:hover {
+        border-color: var(--primary-color);
+        box-shadow: 0 12px 24px rgba(0,0,0,0.15);
+        transform: translateY(-6px);
+    }
+
+    .league-card.my-league {
+        border-left: 5px solid var(--primary-color);
+    }
+
+    .league-card.ended {
+        opacity: 0.7;
+        border-left-color: var(--secondary-color);
+    }
+
+    .league-card.featured {
+        border: 2px solid var(--primary-color);
+        background: linear-gradient(135deg, rgba(var(--primary-rgb,25),118,210,0.05), var(--card-bg));
+    }
+
+    .league-card.featured::before {
+        content: '★ FEATURED';
+        position: absolute;
+        top: 0;
+        right: 0;
+        background: var(--primary-color);
+        color: white;
+        padding: 0.5rem 1rem;
+        font-size: 0.75rem;
+        font-weight: 700;
+        border-radius: 0 0 0 0.5rem;
+    }
+
+    .league-cover {
+        height: 140px;
+        background: linear-gradient(135deg, var(--primary-color), var(--primary-color-dark));
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-size: 2.5rem;
+    }
+
+    .league-info {
+        padding: 1.5rem;
+        flex-grow: 1;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .league-header {
+        margin-bottom: 1rem;
+    }
+
+    .league-title {
+        font-size: 1.2rem;
+        font-weight: 700;
+        color: var(--text-primary);
+        margin-bottom: 0.25rem;
+    }
+
+    .league-creator {
+        font-size: 0.85rem;
+        color: var(--text-secondary);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .league-description {
+        font-size: 0.9rem;
+        color: var(--text-secondary);
+        line-height: 1.5;
+        margin-bottom: 1rem;
+        min-height: 2.7rem;
+    }
+
+    .league-stats {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1rem;
+        margin-bottom: 1rem;
+        padding-bottom: 1rem;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .stat-item {
+        text-align: center;
+    }
+
+    .stat-value {
+        font-weight: 700;
+        font-size: 1.3rem;
+        color: var(--primary-color);
+        display: block;
+    }
+
+    .stat-label {
+        font-size: 0.75rem;
+        color: var(--text-secondary);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .league-badges {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        margin-bottom: 1rem;
+    }
+
+    .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+        padding: 0.4rem 0.8rem;
+        border-radius: 0.3rem;
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .badge-tier {
+        background: linear-gradient(135deg, var(--primary-color), var(--primary-color-dark));
+        color: white;
+    }
+
+    .badge-mode {
+        background: var(--secondary-color-light, #f0f0f0);
+        color: var(--secondary-color, #666);
+    }
+
+    .badge-type {
+        background: #e3f2fd;
+        color: var(--primary-color);
+    }
+
+    .league-actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.75rem;
+        margin-top: auto;
+    }
+
+    .league-actions .btn {
+        font-size: 0.85rem;
+        padding: 0.6rem 1rem;
+    }
+
+    /* ============ LEADERBOARDS ============ */
+    .leaderboard-section {
+        background: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 0.75rem;
+        padding: 2rem;
+        margin-bottom: 2rem;
+    }
+
+    .leaderboard-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .leaderboard-table th {
+        background: var(--border-color);
+        padding: 1rem;
+        text-align: left;
+        font-weight: 700;
+        color: var(--text-secondary);
+        font-size: 0.85rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .leaderboard-table td {
+        padding: 1rem;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .leaderboard-table tbody tr:hover {
+        background: rgba(var(--primary-rgb,25),118,210,0.05);
+    }
+
+    .rank-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 2.5rem;
+        height: 2.5rem;
+        border-radius: 50%;
+        font-weight: 700;
+        color: white;
+        margin-right: 0.5rem;
+    }
+
+    .rank-badge.gold {
+        background: linear-gradient(135deg, #FFD700, #FFA500);
+    }
+
+    .rank-badge.silver {
+        background: linear-gradient(135deg, #C0C0C0, #808080);
+    }
+
+    .rank-badge.bronze {
+        background: linear-gradient(135deg, #CD7F32, #8B4513);
+    }
+
+    .rank-badge.other {
+        background: var(--primary-color);
+    }
+
+    .player-cell {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    .player-avatar {
+        width: 2rem;
+        height: 2rem;
+        border-radius: 50%;
+        background: var(--primary-color);
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+    }
+
+    .player-info {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .player-name {
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+
+    .player-title {
+        font-size: 0.8rem;
+        color: var(--text-secondary);
+    }
+
+    .score-highlight {
+        font-weight: 700;
+        font-size: 1.1rem;
+        color: var(--primary-color);
+    }
+
+    .score-positive {
+        color: var(--success-color, #28a745);
+    }
+
+    .score-negative {
+        color: var(--danger-color, #dc3545);
+    }
+
+    /* ============ MODALS ============ */
+    .modal-content {
+        max-height: 90vh;
+        overflow-y: auto;
+    }
+
+    /* ============ RESPONSIVE ============ */
+    @media (max-width: 768px) {
+        .leagues-hero h1 {
+            font-size: 1.8rem;
+        }
+
+        .hero-stats {
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+        }
+
+        .hero-actions {
+            flex-direction: column;
+        }
+
+        .leagues-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .league-stats {
+            grid-template-columns: 1fr;
+        }
+
+        .league-actions {
+            grid-template-columns: 1fr;
+        }
+
+        .section-header {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 1rem;
+        }
+
+        .section-controls {
+            width: 100%;
+        }
+
+        .filter-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+
+<div class="leagues-container">
+    <!-- HERO SECTION -->
+    <div class="leagues-hero">
+        <div class="hero-content">
+            <h1>
+                <i class="fas fa-trophy"></i>
+                Competitive Leagues
+            </h1>
+            <p>Join leagues, compete with traders worldwide, and climb the rankings</p>
+            
+            <div class="hero-stats">
+                <div class="hero-stat">
+                    <span class="hero-stat-value">{{ total_leagues | default('0') }}</span>
+                    <span class="hero-stat-label">Active Leagues</span>
+                </div>
+                <div class="hero-stat">
+                    <span class="hero-stat-value">{{ user_leagues | default('0') }}</span>
+                    <span class="hero-stat-label">My Leagues</span>
+                </div>
+                <div class="hero-stat">
+                    <span class="hero-stat-value">{{ global_players | default('0') }}</span>
+                    <span class="hero-stat-label">Global Players</span>
+                </div>
+                <div class="hero-stat">
+                    <span class="hero-stat-value">{{ seasons_running | default('0') }}</span>
+                    <span class="hero-stat-label">Seasons</span>
+                </div>
+            </div>
+
+            <div class="hero-actions">
+                <a href="#" class="btn btn-light" data-bs-toggle="modal" data-bs-target="#createLeagueModal">
+                    <i class="fas fa-plus"></i> Create League
+                </a>
+                <a href="#" class="btn btn-outline-light" data-bs-toggle="modal" data-bs-target="#joinLeagueModal">
+                    <i class="fas fa-door-open"></i> Join League
+                </a>
+                <a href="#" class="btn btn-outline-light">
+                    <i class="fas fa-trophy"></i> Browse Tournaments
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- FILTERS SECTION -->
+    <div class="filters-section">
+        <div class="filter-title">
+            <i class="fas fa-filter"></i> Filter Leagues
+        </div>
+        
+        <div class="filter-grid">
+            <div class="filter-group">
+                <label>Tier</label>
+                <select id="tierFilter">
+                    <option value="">All Tiers</option>
+                    <option value="bronze">Bronze</option>
+                    <option value="silver">Silver</option>
+                    <option value="gold">Gold</option>
+                    <option value="platinum">Platinum</option>
+                    <option value="diamond">Diamond</option>
+                </select>
+            </div>
+            
+            <div class="filter-group">
+                <label>Competition Mode</label>
+                <select id="modeFilter">
+                    <option value="">All Modes</option>
+                    <option value="percentage">Percentage Return</option>
+                    <option value="absolute">Absolute Value</option>
+                    <option value="risk_adjusted">Risk-Adjusted</option>
+                    <option value="limited_capital">Limited Capital</option>
+                </select>
+            </div>
+            
+            <div class="filter-group">
+                <label>Status</label>
+                <select id="statusFilter">
+                    <option value="">All Statuses</option>
+                    <option value="active">Active</option>
+                    <option value="upcoming">Upcoming</option>
+                    <option value="ended">Ended</option>
+                </select>
+            </div>
+            
+            <div class="filter-group">
+                <label>Search</label>
+                <input type="text" id="leagueSearch" placeholder="Search by name..." class="form-control">
+            </div>
+        </div>
+
+        <div class="filter-tags">
+            <span class="filter-tag active" data-filter="all">All Leagues</span>
+            <span class="filter-tag" data-filter="my">My Leagues</span>
+            <span class="filter-tag" data-filter="public">Public</span>
+            <span class="filter-tag" data-filter="friends">Friends Only</span>
+            <span class="filter-tag" data-filter="featured">Featured</span>
+        </div>
+    </div>
+
+    <!-- MY LEAGUES SECTION -->
+    {% if user_leagues_list %}
+    <div>
+        <div class="section-header">
+            <h2 class="section-title">
+                <i class="fas fa-star"></i> My Leagues
+            </h2>
+            <div class="section-controls">
+                <div class="view-toggle">
+                    <button class="active" onclick="setView('card')">
+                        <i class="fas fa-th"></i> Cards
+                    </button>
+                    <button onclick="setView('list')">
+                        <i class="fas fa-list"></i> List
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="leagues-grid" id="myLeaguesGrid">
+            {% for league in user_leagues_list %}
+            <div class="league-card my-league" data-league-id="{{ league.id }}">
+                <div class="league-cover">{{ league.league_type[0] | upper }}</div>
+                <div class="league-info">
+                    <div class="league-header">
+                        <div class="league-title">{{ league.name }}</div>
+                        <div class="league-creator">
+                            <i class="fas fa-user-circle"></i>
+                            {{ league.creator_name }}
+                        </div>
+                    </div>
+
+                    <p class="league-description">{{ league.description | truncate(80) }}</p>
+
+                    <div class="league-stats">
+                        <div class="stat-item">
+                            <span class="stat-value">{{ league.member_count }}</span>
+                            <span class="stat-label">Members</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-value">{{ league.competition_mode | default('%') }}</span>
+                            <span class="stat-label">Mode</span>
+                        </div>
+                    </div>
+
+                    <div class="league-badges">
+                        <span class="badge badge-tier">{{ league.league_tier | default('Bronze') }}</span>
+                        <span class="badge badge-type">{{ league.lifecycle_state | default('Active') }}</span>
+                    </div>
+
+                    <div class="league-actions">
+                        <a href="/league/{{ league.id }}" class="btn btn-primary btn-sm">
+                            View League
+                        </a>
+                        <button class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#leagueDetailsModal" onclick="showLeagueDetails({{ league.id }})">
+                            Details
+                        </button>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- FEATURED LEAGUES SECTION -->
+    <div style="margin-top: 3rem;">
+        <div class="section-header">
+            <h2 class="section-title">
+                <i class="fas fa-fire"></i> Featured Leagues
+            </h2>
+        </div>
+
+        <div class="leagues-grid">
+            {% for league in featured_leagues | default([]) %}
+            <div class="league-card featured">
+                <div class="league-cover">
+                    <i class="fas fa-fire"></i>
+                </div>
+                <div class="league-info">
+                    <div class="league-header">
+                        <div class="league-title">{{ league.name }}</div>
+                        <div class="league-creator">
+                            <i class="fas fa-user-circle"></i>
+                            {{ league.creator_name }}
+                        </div>
+                    </div>
+
+                    <p class="league-description">{{ league.description | truncate(80) }}</p>
+
+                    <div class="league-stats">
+                        <div class="stat-item">
+                            <span class="stat-value">{{ league.member_count }}</span>
+                            <span class="stat-label">Members</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-value">${{ league.prize_pool | default('0') | int }}</span>
+                            <span class="stat-label">Prize Pool</span>
+                        </div>
+                    </div>
+
+                    <div class="league-badges">
+                        <span class="badge badge-tier">{{ league.league_tier | default('Diamond') }}</span>
+                        <span class="badge badge-mode">{{ league.competition_mode | default('Percentage') }}</span>
+                    </div>
+
+                    <div class="league-actions">
+                        <a href="/league/{{ league.id }}" class="btn btn-primary btn-sm">
+                            View League
+                        </a>
+                        <button class="btn btn-outline-success btn-sm" onclick="joinLeague({{ league.id }})">
+                            Join Now
+                        </button>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- ALL LEAGUES SECTION -->
+    <div style="margin-top: 3rem;">
+        <div class="section-header">
+            <h2 class="section-title">
+                <i class="fas fa-list"></i> Browse All Leagues
+            </h2>
+            <select class="form-select" style="max-width: 200px;">
+                <option value="">Sort By: Newest</option>
+                <option value="active">Most Active</option>
+                <option value="members">Most Members</option>
+                <option value="prize">Highest Prize Pool</option>
+            </select>
+        </div>
+
+        <div class="leagues-grid" id="allLeaguesGrid">
+            <!-- Leagues will be loaded here -->
+        </div>
+    </div>
+
+    <!-- TOURNAMENTS SECTION -->
+    <div style="margin-top: 3rem; margin-bottom: 2rem;">
+        <div class="section-header">
+            <h2 class="section-title">
+                <i class="fas fa-crown"></i> Active Tournaments
+            </h2>
+            <a href="#" class="btn btn-primary">View All Tournaments</a>
+        </div>
+
+        <div class="leagues-grid">
+            <!-- Tournament cards will be loaded here -->
+        </div>
+    </div>
+</div>
+
+<!-- MODALS -->
+
+<!-- Create League Modal -->
+<div class="modal fade" id="createLeagueModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-plus-circle"></i> Create New League
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="/leagues/create">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">League Name</label>
+                        <input type="text" class="form-control" name="name" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Description</label>
+                        <textarea class="form-control" name="description" rows="3"></textarea>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">League Type</label>
+                                <select class="form-select" name="league_type">
+                                    <option value="public">Public</option>
+                                    <option value="private">Private</option>
+                                    <option value="friends">Friends Only</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Competition Mode</label>
+                                <select class="form-select" name="mode">
+                                    <option value="percentage">Percentage Return</option>
+                                    <option value="absolute">Absolute Value</option>
+                                    <option value="risk_adjusted">Risk-Adjusted</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Starting Cash</label>
+                                <input type="number" class="form-control" name="starting_cash" value="10000" min="1000" step="1000">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Max Members</label>
+                                <input type="number" class="form-control" name="max_members" min="2">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Create League</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Join League Modal -->
+<div class="modal fade" id="joinLeagueModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-door-open"></i> Join a League
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="/leagues/join">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Invite Code</label>
+                        <input type="text" class="form-control" name="invite_code" placeholder="Enter invite code..." required>
+                    </div>
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i>
+                        Ask a league member for the invite code to join.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Join League</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- League Details Modal -->
+<div class="modal fade" id="leagueDetailsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="leagueDetailsTitle">League Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="leagueDetailsBody">
+                <!-- Content loaded dynamically -->
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+function setView(view) {
+    const grid = document.getElementById('myLeaguesGrid');
+    if (view === 'list') {
+        grid.style.gridTemplateColumns = '1fr';
+    } else {
+        grid.style.gridTemplateColumns = 'repeat(auto-fill, minmax(340px, 1fr))';
+    }
+}
+
+function joinLeague(leagueId) {
+    // Show join modal with league pre-selected
+    const modal = new bootstrap.Modal(document.getElementById('joinLeagueModal'));
+    modal.show();
+}
+
+function showLeagueDetails(leagueId) {
+    // Load and display league details
+    fetch(`/api/league/${leagueId}`)
+        .then(r => r.json())
+        .then(data => {
+            document.getElementById('leagueDetailsTitle').textContent = data.name;
+            document.getElementById('leagueDetailsBody').innerHTML = `
+                <p><strong>${data.description}</strong></p>
+                <dl class="row">
+                    <dt class="col-sm-3">Members:</dt>
+                    <dd class="col-sm-9">${data.member_count}</dd>
+                    <dt class="col-sm-3">Mode:</dt>
+                    <dd class="col-sm-9">${data.competition_mode}</dd>
+                    <dt class="col-sm-3">Tier:</dt>
+                    <dd class="col-sm-9">${data.league_tier}</dd>
+                </dl>
+            `;
+        });
+}
+
+// Filter functionality
+document.addEventListener('DOMContentLoaded', function() {
+    const filterTags = document.querySelectorAll('.filter-tag');
+    filterTags.forEach(tag => {
+        tag.addEventListener('click', function() {
+            filterTags.forEach(t => t.classList.remove('active'));
+            this.classList.add('active');
+            // Load filtered leagues
+            loadLeagues(this.dataset.filter);
+        });
+    });
+});
+
+function loadLeagues(filter = 'all') {
+    // Load leagues based on filter
+    console.log('Loading leagues with filter:', filter);
+}
+</script>
+{% endblock %}

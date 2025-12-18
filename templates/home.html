@@ -1,0 +1,424 @@
+{% extends "layout.html" %}
+
+{% block title %}Home - StockLeague{% endblock %}
+
+{% block main %}
+<style>
+    .home-hero {
+        background: linear-gradient(135deg, var(--primary-color), var(--primary-color-dark, #0056b3));
+        color: white;
+        padding: 4rem 2rem;
+        border-radius: 0.75rem;
+        margin-bottom: 3rem;
+        text-align: center;
+        box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+    }
+
+    .home-hero h1 {
+        font-size: 2.75rem;
+        font-weight: 700;
+        margin-bottom: 1rem;
+        line-height: 1.2;
+    }
+
+    .home-hero p {
+        font-size: 1.1rem;
+        opacity: 0.95;
+        margin-bottom: 2rem;
+        max-width: 600px;
+        margin-left: auto;
+        margin-right: auto;
+    }
+
+    .hero-cta {
+        display: flex;
+        gap: 1rem;
+        justify-content: center;
+        flex-wrap: wrap;
+    }
+
+    .hero-cta a {
+        padding: 0.75rem 2rem;
+        font-size: 1rem;
+        border-radius: 0.5rem;
+        font-weight: 600;
+        transition: all 0.3s ease;
+    }
+
+    .hero-cta .btn-light {
+        background: white;
+        color: var(--primary-color);
+    }
+
+    .hero-cta .btn-light:hover {
+        background: #f8f9fa;
+        transform: translateY(-2px);
+        box-shadow: 0 8px 15px rgba(0,0,0,0.2);
+    }
+
+    .hero-cta .btn-outline-light {
+        border-color: white;
+        color: white;
+    }
+
+    .hero-cta .btn-outline-light:hover {
+        background: rgba(255,255,255,0.1);
+        transform: translateY(-2px);
+    }
+
+    .feature-section {
+        margin-bottom: 4rem;
+    }
+
+    .section-title {
+        font-size: 2rem;
+        font-weight: 700;
+        color: var(--text-primary);
+        margin-bottom: 0.5rem;
+        text-align: center;
+    }
+
+    .section-subtitle {
+        text-align: center;
+        color: var(--text-secondary);
+        margin-bottom: 3rem;
+        font-size: 1.1rem;
+    }
+
+    .feature-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 2rem;
+        margin-bottom: 3rem;
+    }
+
+    .feature-card {
+        background: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 0.75rem;
+        padding: 2rem;
+        text-align: center;
+        transition: all 0.3s ease;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .feature-card:hover {
+        border-color: var(--primary-color);
+        box-shadow: 0 12px 30px rgba(0,0,0,0.12);
+        transform: translateY(-6px);
+    }
+
+    .feature-icon {
+        font-size: 3rem;
+        color: var(--primary-color);
+        margin-bottom: 1rem;
+    }
+
+    .feature-card h4 {
+        font-weight: 700;
+        color: var(--text-primary);
+        margin-bottom: 0.75rem;
+    }
+
+    .feature-card p {
+        color: var(--text-secondary);
+        line-height: 1.6;
+        margin-bottom: 0;
+    }
+
+    .stats-section {
+        background: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 0.75rem;
+        padding: 3rem 2rem;
+        margin-bottom: 3rem;
+    }
+
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 2rem;
+        text-align: center;
+    }
+
+    .stat-item h3 {
+        font-size: 2.5rem;
+        font-weight: 700;
+        color: var(--primary-color);
+        margin-bottom: 0.5rem;
+    }
+
+    .stat-item p {
+        color: var(--text-secondary);
+        font-size: 1rem;
+    }
+
+    .cta-section {
+        background: linear-gradient(135deg, var(--primary-color), var(--primary-color-dark, #0056b3));
+        color: white;
+        padding: 3rem 2rem;
+        border-radius: 0.75rem;
+        text-align: center;
+        margin-bottom: 3rem;
+    }
+
+    .cta-section h2 {
+        font-size: 2rem;
+        font-weight: 700;
+        margin-bottom: 1rem;
+    }
+
+    .cta-section p {
+        font-size: 1.1rem;
+        opacity: 0.95;
+        margin-bottom: 2rem;
+    }
+
+    .how-it-works {
+        margin-bottom: 3rem;
+    }
+
+    .steps-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 2rem;
+    }
+
+    .step-card {
+        text-align: center;
+        position: relative;
+    }
+
+    .step-number {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 50px;
+        height: 50px;
+        background: var(--primary-color);
+        color: white;
+        border-radius: 50%;
+        font-weight: 700;
+        font-size: 1.5rem;
+        margin-bottom: 1rem;
+    }
+
+    .step-card h4 {
+        color: var(--text-primary);
+        font-weight: 700;
+        margin-bottom: 0.75rem;
+    }
+
+    .step-card p {
+        color: var(--text-secondary);
+        line-height: 1.6;
+    }
+
+    @media (max-width: 768px) {
+        .home-hero {
+            padding: 2.5rem 1rem;
+        }
+
+        .home-hero h1 {
+            font-size: 2rem;
+        }
+
+        .home-hero p {
+            font-size: 1rem;
+        }
+
+        .hero-cta {
+            flex-direction: column;
+        }
+
+        .hero-cta a {
+            width: 100%;
+        }
+
+        .feature-grid {
+            gap: 1.5rem;
+        }
+
+        .section-title {
+            font-size: 1.5rem;
+        }
+
+        .stats-grid {
+            gap: 1.5rem;
+        }
+
+        .stat-item h3 {
+            font-size: 2rem;
+        }
+    }
+</style>
+
+<div class="container-fluid">
+    <!-- Hero Section -->
+    <div class="home-hero">
+        <h1>Welcome to StockLeague</h1>
+        <p>Learn to trade, compete with friends, and master the stock market—all in a risk-free paper trading environment</p>
+        
+        <div class="hero-cta">
+            {% if session.get('user_id') %}
+            <a href="/dashboard" class="btn btn-light">
+                <i class="fas fa-arrow-right"></i> Go to Dashboard
+            </a>
+            <a href="/explore" class="btn btn-outline-light">
+                <i class="fas fa-compass"></i> Explore Stocks
+            </a>
+            {% else %}
+            <a href="/register" class="btn btn-light">
+                <i class="fas fa-rocket"></i> Get Started Free
+            </a>
+            <a href="/login" class="btn btn-outline-light">
+                <i class="fas fa-sign-in-alt"></i> Sign In
+            </a>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Features Section -->
+    <section class="feature-section">
+        <h2 class="section-title">What You Can Do</h2>
+        <p class="section-subtitle">Master stock trading with real market data, no real money at stake</p>
+
+        <div class="feature-grid">
+            <div class="feature-card">
+                <div class="feature-icon"><i class="fas fa-chart-line"></i></div>
+                <h4>Paper Trading</h4>
+                <p>Trade real stocks with virtual money. Practice strategies and build confidence without financial risk.</p>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon"><i class="fas fa-users"></i></div>
+                <h4>Compete in Leagues</h4>
+                <p>Create or join trading leagues to compete with friends, colleagues, and traders worldwide.</p>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon"><i class="fas fa-trophy"></i></div>
+                <h4>Climb Rankings</h4>
+                <p>Track your performance against others, earn badges, and prove your trading skills on the leaderboard.</p>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon"><i class="fas fa-bell"></i></div>
+                <h4>Price Alerts</h4>
+                <p>Set custom price alerts for your watched stocks and get notified when targets are reached.</p>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon"><i class="fas fa-star"></i></div>
+                <h4>Watchlists</h4>
+                <p>Build custom watchlists to track potential investments and monitor market opportunities.</p>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon"><i class="fas fa-chart-bar"></i></div>
+                <h4>Real Market Data</h4>
+                <p>Access live stock quotes, charts, and market analysis powered by real financial data.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Stats Section -->
+    <section class="stats-section">
+        <h2 class="section-title mb-3">By The Numbers</h2>
+        <div class="stats-grid">
+            <div class="stat-item">
+                <h3>1000+</h3>
+                <p>Active Traders</p>
+            </div>
+            <div class="stat-item">
+                <h3>500+</h3>
+                <p>Trading Leagues</p>
+            </div>
+            <div class="stat-item">
+                <h3>$100M+</h3>
+                <p>Virtual Trading Volume</p>
+            </div>
+            <div class="stat-item">
+                <h3>24/7</h3>
+                <p>Live Market Data</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- How It Works Section -->
+    <section class="how-it-works">
+        <h2 class="section-title">How It Works</h2>
+        <p class="section-subtitle">Get started trading in just a few minutes</p>
+
+        <div class="steps-grid">
+            <div class="step-card">
+                <div class="step-number">1</div>
+                <h4>Create Account</h4>
+                <p>Sign up for free with your email and password. Your account starts with $10,000 in virtual cash.</p>
+            </div>
+
+            <div class="step-card">
+                <div class="step-number">2</div>
+                <h4>Explore Markets</h4>
+                <p>Browse stocks, check real-time prices, view charts, and research companies to find your opportunities.</p>
+            </div>
+
+            <div class="step-card">
+                <div class="step-number">3</div>
+                <h4>Start Trading</h4>
+                <p>Buy and sell stocks using real market prices. Track your performance and learn from your trades.</p>
+            </div>
+
+            <div class="step-card">
+                <div class="step-number">4</div>
+                <h4>Join Leagues</h4>
+                <p>Create or join a league with friends to compete, track rankings, and earn achievements and badges.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA Section -->
+    <div class="cta-section">
+        <h2>Ready to Start Trading?</h2>
+        <p>Join thousands of traders improving their skills with StockLeague</p>
+        
+        {% if not session.get('user_id') %}
+        <div class="hero-cta">
+            <a href="/register" class="btn btn-light">
+                <i class="fas fa-rocket"></i> Sign Up for Free
+            </a>
+            <a href="/login" class="btn btn-outline-light">
+                <i class="fas fa-sign-in-alt"></i> Already have an account?
+            </a>
+        </div>
+        {% else %}
+        <a href="/dashboard" class="btn btn-light btn-lg">
+            <i class="fas fa-arrow-right"></i> Go to Your Dashboard
+        </a>
+        {% endif %}
+    </div>
+
+    <!-- About Section -->
+    <section class="mb-5">
+        <h2 class="section-title">About StockLeague</h2>
+        <p class="section-subtitle">Learn investing with zero risk</p>
+
+        <div style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 0.75rem; padding: 2rem; line-height: 1.8; color: var(--text-secondary);">
+            <p>
+                StockLeague is a free platform designed to teach people the fundamentals of stock trading and investing. 
+                Our mission is to empower traders with the knowledge and experience they need to make informed investment decisions.
+            </p>
+            <p>
+                By providing real market data in a risk-free environment, we allow traders to practice strategies, 
+                test their skills, and learn from mistakes without putting real money at stake.
+            </p>
+            <p style="margin-bottom: 0;">
+                Whether you're a complete beginner or an experienced trader, StockLeague offers the tools and community 
+                you need to grow your skills and connect with other traders.
+            </p>
+        </div>
+    </section>
+</div>
+
+{% endblock %}

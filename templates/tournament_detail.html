@@ -1,0 +1,351 @@
+{% extends "layout.html" %}
+
+{% block title %}{{ tournament.name }} - Tournament{% endblock %}
+
+{% block main %}
+<style>
+    .tournament-container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 0 1rem;
+    }
+
+    .tournament-header {
+        background: linear-gradient(135deg, #9933ff, #6600cc);
+        color: white;
+        padding: 3rem 2rem;
+        border-radius: 1rem;
+        margin-bottom: 2rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .tournament-header h1 {
+        margin: 0;
+        font-size: 2.5rem;
+    }
+
+    .tournament-header-meta {
+        color: rgba(255,255,255,0.9);
+        margin-top: 1rem;
+    }
+
+    .tournament-header-meta p {
+        margin: 0.25rem 0;
+    }
+
+    .tournament-header-actions {
+        display: flex;
+        gap: 1rem;
+        flex-direction: column;
+        min-width: 150px;
+    }
+
+    .stats-row {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1.5rem;
+        margin-bottom: 2rem;
+    }
+
+    .stat-box {
+        background: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 0.75rem;
+        padding: 1.5rem;
+        text-align: center;
+    }
+
+    .stat-value {
+        font-size: 2rem;
+        font-weight: 700;
+        color: #9933ff;
+    }
+
+    .stat-label {
+        font-size: 0.85rem;
+        color: var(--text-secondary);
+        text-transform: uppercase;
+        margin-top: 0.5rem;
+    }
+
+    .section-title {
+        font-size: 1.5rem;
+        font-weight: 700;
+        margin-bottom: 1.5rem;
+        padding-bottom: 1rem;
+        border-bottom: 2px solid var(--border-color);
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .section-title i {
+        color: #9933ff;
+        font-size: 1.75rem;
+    }
+
+    .bracket-container {
+        background: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 0.75rem;
+        padding: 2rem;
+        overflow-x: auto;
+        margin-bottom: 2rem;
+    }
+
+    .bracket-round {
+        display: inline-flex;
+        flex-direction: column;
+        gap: 2rem;
+        margin-right: 3rem;
+        min-width: 200px;
+        justify-content: center;
+    }
+
+    .round-title {
+        font-weight: 700;
+        font-size: 0.9rem;
+        text-transform: uppercase;
+        color: var(--text-secondary);
+        margin-bottom: 1rem;
+        text-align: center;
+    }
+
+    .match-card {
+        background: white;
+        border: 1px solid var(--border-color);
+        border-radius: 0.5rem;
+        padding: 1rem;
+        min-width: 180px;
+    }
+
+    .match-participant {
+        padding: 0.5rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-bottom: 1px solid var(--border-color);
+        font-size: 0.9rem;
+    }
+
+    .match-participant:last-child {
+        border-bottom: none;
+    }
+
+    .participant-name {
+        font-weight: 500;
+    }
+
+    .participant-score {
+        font-weight: 700;
+        color: #9933ff;
+    }
+
+    .participant-winner {
+        background: rgba(153, 51, 255, 0.1);
+    }
+
+    .participants-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        gap: 1.5rem;
+        margin-bottom: 2rem;
+    }
+
+    .participant-card {
+        background: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 0.75rem;
+        padding: 1.5rem;
+        text-align: center;
+        transition: all 0.3s ease;
+    }
+
+    .participant-card:hover {
+        border-color: #9933ff;
+        box-shadow: 0 8px 16px rgba(153, 51, 255, 0.1);
+    }
+
+    .participant-avatar {
+        width: 3rem;
+        height: 3rem;
+        border-radius: 50%;
+        background: #9933ff;
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        margin: 0 auto 1rem;
+    }
+
+    .participant-rank {
+        display: inline-block;
+        background: #9933ff;
+        color: white;
+        padding: 0.4rem 0.8rem;
+        border-radius: 0.3rem;
+        font-size: 0.85rem;
+        font-weight: 600;
+        margin-top: 0.75rem;
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 3rem;
+        color: var(--text-secondary);
+    }
+
+    @media (max-width: 768px) {
+        .tournament-header {
+            flex-direction: column;
+            align-items: flex-start;
+        }
+
+        .tournament-header h1 {
+            font-size: 1.8rem;
+        }
+
+        .bracket-container {
+            padding: 1rem;
+        }
+
+        .stats-row {
+            grid-template-columns: repeat(2, 1fr);
+        }
+    }
+</style>
+
+<div class="tournament-container">
+    <!-- HEADER -->
+    <div class="tournament-header">
+        <div>
+            <h1>
+                <i class="fas fa-crown"></i> {{ tournament.name }}
+            </h1>
+            <div class="tournament-header-meta">
+                <p><strong>League:</strong> {{ tournament.league_name }}</p>
+                <p><strong>Format:</strong> {{ tournament.format | default('Single Elimination') }}</p>
+                <p><strong>Status:</strong> {{ tournament.status | default('Active') | upper }}</p>
+            </div>
+        </div>
+        <div class="tournament-header-actions">
+            {% if is_participant %}
+                <button class="btn btn-light">
+                    <i class="fas fa-logout"></i> Leave Tournament
+                </button>
+            {% else %}
+                <button class="btn btn-light">
+                    <i class="fas fa-door-open"></i> Join Tournament
+                </button>
+            {% endif %}
+            <a href="/league/{{ tournament.league_id }}/detail" class="btn btn-outline-light">
+                Back to League
+            </a>
+        </div>
+    </div>
+
+    <!-- STATS -->
+    <div class="stats-row">
+        <div class="stat-box">
+            <div class="stat-value">{{ participants | length }}</div>
+            <div class="stat-label">Participants</div>
+        </div>
+        <div class="stat-box">
+            <div class="stat-value">{{ matches | length }}</div>
+            <div class="stat-label">Total Matches</div>
+        </div>
+        <div class="stat-box">
+            <div class="stat-value">{{ tournament.start_date | default('TBD') }}</div>
+            <div class="stat-label">Start Date</div>
+        </div>
+        <div class="stat-box">
+            <div class="stat-value">${{ tournament.prize_pool | default(0) | int }}</div>
+            <div class="stat-label">Prize Pool</div>
+        </div>
+    </div>
+
+    <!-- BRACKET SECTION -->
+    {% if matches %}
+    <h2 class="section-title">
+        <i class="fas fa-diagram-project"></i> Tournament Bracket
+    </h2>
+    
+    <div class="bracket-container">
+        <div class="bracket-round">
+            <div class="round-title">Round 1</div>
+            {% for match in matches[:4] %}
+            <div class="match-card">
+                <div class="match-participant {% if match.get('winner_id') == match.get('participant1_id') %}participant-winner{% endif %}">
+                    <span class="participant-name">
+                        Player 1
+                    </span>
+                    <span class="participant-score">
+                        {{ match.get('participant1_score', 0) }}
+                    </span>
+                </div>
+                <div class="match-participant {% if match.get('winner_id') == match.get('participant2_id') %}participant-winner{% endif %}">
+                    <span class="participant-name">
+                        Player 2
+                    </span>
+                    <span class="participant-score">
+                        {{ match.get('participant2_score', 0) }}
+                    </span>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        
+        {% if matches | length > 4 %}
+        <div class="bracket-round">
+            <div class="round-title">Round 2</div>
+            {% for match in matches[4:8] %}
+            <div class="match-card">
+                <div class="match-participant">
+                    <span class="participant-name">TBD</span>
+                    <span class="participant-score">-</span>
+                </div>
+                <div class="match-participant">
+                    <span class="participant-name">TBD</span>
+                    <span class="participant-score">-</span>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- PARTICIPANTS SECTION -->
+    <h2 class="section-title">
+        <i class="fas fa-users"></i> Participants ({{ participants | length }})
+    </h2>
+
+    {% if participants %}
+    <div class="participants-grid">
+        {% for participant in participants %}
+        <div class="participant-card">
+            <div class="participant-avatar">
+                {{ participant.username[0] | upper }}
+            </div>
+            <div class="participant-name">{{ participant.username }}</div>
+            <div class="participant-rank">
+                #{{ participant.rank or loop.index }}
+            </div>
+            {% if participant.get('seed') %}
+            <small class="text-muted d-block mt-2">Seed {{ participant.seed }}</small>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <i class="fas fa-info-circle" style="font-size: 3rem; opacity: 0.5; margin-bottom: 1rem; display: block;"></i>
+        <p>No participants yet. Be the first to join!</p>
+    </div>
+    {% endif %}
+</div>
+
+{% endblock %}

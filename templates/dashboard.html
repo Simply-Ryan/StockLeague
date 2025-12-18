@@ -1,0 +1,567 @@
+{% extends "layout.html" %}
+
+{% block title %}Dashboard - StockLeague{% endblock %}
+
+{% block main %}
+<style>
+    .dashboard-container {
+        max-width: 1400px;
+        margin: 0 auto;
+    }
+
+    .dashboard-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 2rem;
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+
+    .dashboard-title {
+        font-size: 2rem;
+        font-weight: 700;
+        color: var(--text-primary);
+        margin: 0;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .dashboard-actions {
+        display: flex;
+        gap: 1rem;
+        flex-wrap: wrap;
+    }
+
+    .dashboard-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 1.5rem;
+        margin-bottom: 2rem;
+    }
+
+    .stat-card {
+        background: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 0.75rem;
+        padding: 1.5rem;
+        text-align: center;
+    }
+
+    .stat-card.highlight {
+        border-color: var(--primary-color);
+        background: linear-gradient(135deg, var(--card-bg), rgba(var(--primary-rgb, 25), 118, 210, 0.05));
+    }
+
+    .stat-label {
+        font-size: 0.85rem;
+        color: var(--text-secondary);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 0.5rem;
+    }
+
+    .stat-value {
+        font-size: 1.75rem;
+        font-weight: 700;
+        color: var(--text-primary);
+        margin-bottom: 0.25rem;
+    }
+
+    .stat-change {
+        font-size: 0.85rem;
+        font-weight: 600;
+    }
+
+    .stat-change.positive {
+        color: var(--success-color);
+    }
+
+    .stat-change.negative {
+        color: var(--danger-color);
+    }
+
+    .context-alert {
+        background: linear-gradient(135deg, var(--warning-color, #ffc107), var(--warning-color-dark, #ff9800));
+        color: white;
+        border: none;
+        border-radius: 0.75rem;
+        padding: 1.5rem;
+        margin-bottom: 2rem;
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    .context-alert i {
+        font-size: 1.5rem;
+        flex-shrink: 0;
+    }
+
+    .context-alert-content h5 {
+        margin: 0 0 0.25rem 0;
+        font-weight: 700;
+    }
+
+    .context-alert-content p {
+        margin: 0;
+        font-size: 0.9rem;
+        opacity: 0.95;
+    }
+
+    .personal-alert {
+        background: linear-gradient(135deg, var(--primary-color), var(--primary-color-dark, #0056b3));
+    }
+
+    .live-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        background: var(--success-color);
+        color: white;
+        padding: 0.4rem 0.8rem;
+        border-radius: 0.3rem;
+        font-size: 0.75rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .live-badge::before {
+        content: '';
+        width: 6px;
+        height: 6px;
+        background: white;
+        border-radius: 50%;
+        animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+        0%, 100% {
+            opacity: 1;
+        }
+        50% {
+            opacity: 0.5;
+        }
+    }
+
+    .section-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1.5rem;
+        padding-bottom: 1rem;
+        border-bottom: 2px solid var(--border-color);
+    }
+
+    .section-title {
+        font-size: 1.4rem;
+        font-weight: 700;
+        color: var(--text-primary);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin: 0;
+    }
+
+    .section-title i {
+        color: var(--primary-color);
+    }
+
+    .quick-actions {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+        margin-bottom: 2rem;
+    }
+
+    .action-btn {
+        background: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 0.75rem;
+        padding: 1.25rem;
+        text-align: center;
+        transition: all 0.3s ease;
+        text-decoration: none;
+        color: inherit;
+        cursor: pointer;
+    }
+
+    .action-btn:hover {
+        border-color: var(--primary-color);
+        box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+        transform: translateY(-4px);
+    }
+
+    .action-btn i {
+        display: block;
+        font-size: 2rem;
+        color: var(--primary-color);
+        margin-bottom: 0.75rem;
+    }
+
+    .action-btn span {
+        font-weight: 600;
+        color: var(--text-primary);
+        display: block;
+        font-size: 0.9rem;
+    }
+
+    .portfolio-section {
+        background: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 0.75rem;
+        padding: 2rem;
+        margin-bottom: 2rem;
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 3rem 1rem;
+        color: var(--text-secondary);
+    }
+
+    .empty-state-icon {
+        font-size: 3rem;
+        color: var(--primary-color);
+        opacity: 0.3;
+        margin-bottom: 1rem;
+    }
+
+    .empty-state h4 {
+        color: var(--text-primary);
+        margin-bottom: 0.5rem;
+    }
+
+    @media (max-width: 768px) {
+        .dashboard-header {
+            flex-direction: column;
+            align-items: flex-start;
+        }
+
+        .dashboard-actions {
+            width: 100%;
+        }
+
+        .dashboard-actions button,
+        .dashboard-actions a {
+            flex: 1;
+        }
+
+        .section-header {
+            flex-direction: column;
+            align-items: flex-start;
+        }
+
+        .quick-actions {
+            grid-template-columns: repeat(2, 1fr);
+        }
+
+        .context-alert {
+            flex-direction: column;
+            text-align: center;
+        }
+    }
+</style>
+
+<div class="dashboard-container">
+    <!-- Dashboard Header -->
+    <div class="dashboard-header">
+        <h1 class="dashboard-title">
+            <i class="fas fa-chart-pie"></i> Trading Dashboard
+        </h1>
+        <div class="dashboard-actions">
+            <a href="/buy" class="btn btn-success">
+                <i class="fas fa-arrow-up"></i> Buy Stocks
+            </a>
+            <a href="/explore" class="btn btn-primary">
+                <i class="fas fa-compass"></i> Explore
+            </a>
+        </div>
+    </div>
+
+    <!-- Portfolio Context Alert -->
+    {% if active_context and active_context.type == 'league' %}
+    <div class="context-alert">
+        <i class="fas fa-trophy"></i>
+        <div class="context-alert-content">
+            <h5><i class="fas fa-shield-alt"></i> League Portfolio Mode</h5>
+            <p>You're viewing your portfolio in <strong>{{ active_context.league_name }}</strong>. This is separate from your personal account. Trades here only affect your league ranking.</p>
+        </div>
+    </div>
+    {% else %}
+    <div class="context-alert personal-alert">
+        <i class="fas fa-wallet"></i>
+        <div class="context-alert-content">
+            <h5><i class="fas fa-user"></i> Personal Portfolio</h5>
+            <p>You're viewing your main trading account. This is separate from any league competitions you join.</p>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Live Update Indicator -->
+    <div style="margin-bottom: 2rem;">
+        <span class="live-badge">Live Real-Time Updates</span>
+    </div>
+
+    <!-- Performance Stats -->
+    <div class="dashboard-grid">
+        <div class="stat-card highlight">
+            <div class="stat-label">Total Portfolio Value</div>
+            <div class="stat-value" id="portfolio-value">{{ grand_total | usd }}</div>
+            <div class="stat-change">
+                <i class="fas fa-sync-alt fa-spin"></i> Updating...
+            </div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-label">Cash Available</div>
+            <div class="stat-value">{{ cash | usd }}</div>
+            <div class="stat-change positive">Ready to invest</div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-label">Stocks Holdings</div>
+            <div class="stat-value">{{ total_value | usd }}</div>
+            <div class="stat-change">{{ stocks|length }} position(s)</div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-label">Today's Change</div>
+            <div class="stat-value {% if total_gain_loss >= 0 %}text-success{% else %}text-danger{% endif %}">
+                {{ total_gain_loss | usd }}
+            </div>
+            <div class="stat-change {% if total_gain_loss >= 0 %}positive{% else %}negative{% endif %}">
+                {% if total_gain_loss >= 0 %}<i class="fas fa-arrow-up"></i>{% else %}<i class="fas fa-arrow-down"></i>{% endif %} 
+                {{ '%.2f'|format(total_percent_change) }}%
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div>
+        <h3 class="section-title mb-3"><i class="fas fa-lightning-bolt"></i> Quick Actions</h3>
+        <div class="quick-actions">
+            <a href="/buy" class="action-btn">
+                <i class="fas fa-arrow-up"></i>
+                <span>Buy Stocks</span>
+            </a>
+            <a href="/sell" class="action-btn">
+                <i class="fas fa-arrow-down"></i>
+                <span>Sell Stocks</span>
+            </a>
+            <a href="/watchlist" class="action-btn">
+                <i class="fas fa-star"></i>
+                <span>Watchlist</span>
+            </a>
+            <a href="/leagues" class="action-btn">
+                <i class="fas fa-trophy"></i>
+                <span>My Leagues</span>
+            </a>
+        </div>
+    </div>
+
+    <!-- Portfolio Chart -->
+    {% if portfolio_history and portfolio_history|length > 1 %}
+    <div class="portfolio-section">
+        <div class="section-header">
+            <h3 class="section-title"><i class="fas fa-chart-area"></i> Portfolio Performance (30 Days)</h3>
+            <span class="live-badge">Live</span>
+        </div>
+        <canvas id="portfolioChart" style="max-height: 300px;"></canvas>
+    </div>
+    {% endif %}
+
+    <!-- Holdings Section -->
+    <div>
+        <div class="section-header">
+            <h3 class="section-title"><i class="fas fa-list"></i> Your Holdings</h3>
+            <a href="/explore" class="btn btn-sm btn-outline-primary">Add Stocks</a>
+        </div>
+
+        {% if stocks %}
+        <div class="portfolio-section">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th>Symbol</th>
+                            <th>Shares</th>
+                            <th>Current Price</th>
+                            <th>Avg Cost</th>
+                            <th>Value</th>
+                            <th>Gain/Loss</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for stock in stocks %}
+                        <tr>
+                            <td><strong><a href="/quote?symbol={{ stock.symbol }}">{{ stock.symbol }}</a></strong></td>
+                            <td>{{ stock.shares }}</td>
+                            <td>{{ stock.price | usd }}</td>
+                            <td>{{ stock.avg_cost | usd }}</td>
+                            <td>{{ stock.total_value | usd }}</td>
+                            <td class="{% if stock.gain_loss >= 0 %}text-success{% else %}text-danger{% endif %}">
+                                {{ stock.gain_loss | usd }} ({{ '%.2f'|format(stock.percent_gain_loss) }}%)
+                            </td>
+                            <td>
+                                <a href="/sell?symbol={{ stock.symbol }}" class="btn btn-sm btn-outline-danger">
+                                    Sell
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% else %}
+        <div class="portfolio-section">
+            <div class="empty-state">
+                <div class="empty-state-icon"><i class="fas fa-inbox"></i></div>
+                <h4>No Holdings Yet</h4>
+                <p>You haven't purchased any stocks yet. Start by exploring the market and finding interesting opportunities!</p>
+                <a href="/explore" class="btn btn-primary mt-3">Explore Stocks</a>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Recent Transactions -->
+    <div style="margin-top: 2rem;">
+        <div class="section-header">
+            <h3 class="section-title"><i class="fas fa-history"></i> Recent Transactions</h3>
+            <a href="/history" class="btn btn-sm btn-outline-primary">View All</a>
+        </div>
+
+        {% if transactions %}
+        <div class="portfolio-section">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Symbol</th>
+                            <th>Type</th>
+                            <th>Shares</th>
+                            <th>Price</th>
+                            <th>Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for txn in transactions[:5] %}
+                        <tr>
+                            <td><small>{{ txn.timestamp }}</small></td>
+                            <td><strong>{{ txn.symbol }}</strong></td>
+                            <td>
+                                {% if txn.type == 'buy' %}
+                                <span class="badge bg-success">Buy</span>
+                                {% else %}
+                                <span class="badge bg-danger">Sell</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ txn.shares }}</td>
+                            <td>{{ txn.price | usd }}</td>
+                            <td>{{ (txn.shares * txn.price) | usd }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% else %}
+        <div class="portfolio-section">
+            <div class="empty-state">
+                <div class="empty-state-icon"><i class="fas fa-inbox"></i></div>
+                <h4>No Transactions Yet</h4>
+                <p>Your trading activity will appear here</p>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+    // Portfolio performance chart (if data exists)
+    {% if portfolio_history and portfolio_history|length > 1 %}
+    const chartCanvas = document.getElementById('portfolioChart');
+    if (chartCanvas) {
+        const dates = {{ portfolio_dates | tojson | safe }};
+        const values = {{ portfolio_values | tojson | safe }};
+        
+        new Chart(chartCanvas, {
+            type: 'line',
+            data: {
+                labels: dates,
+                datasets: [{
+                    label: 'Portfolio Value',
+                    data: values,
+                    borderColor: 'var(--primary-color)',
+                    backgroundColor: 'rgba(var(--primary-rgb, 25, 118, 210), 0.05)',
+                    borderWidth: 2,
+                    fill: true,
+                    tension: 0.4,
+                    pointRadius: 4,
+                    pointBackgroundColor: 'var(--primary-color)',
+                    pointBorderColor: 'white',
+                    pointBorderWidth: 2,
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: {
+                    legend: {
+                        display: true,
+                        labels: {
+                            usePointStyle: true,
+                            padding: 15,
+                            color: 'var(--text-secondary)'
+                        }
+                    },
+                    tooltip: {
+                        mode: 'index',
+                        intersect: false,
+                        backgroundColor: 'rgba(0,0,0,0.8)',
+                        callbacks: {
+                            label: function(context) {
+                                return 'Value: $' + context.parsed.y.toFixed(2);
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: false,
+                        ticks: {
+                            callback: function(value) {
+                                return '$' + value.toFixed(0);
+                            },
+                            color: 'var(--text-secondary)'
+                        },
+                        grid: {
+                            color: 'rgba(0,0,0,0.05)'
+                        }
+                    },
+                    x: {
+                        ticks: {
+                            color: 'var(--text-secondary)'
+                        },
+                        grid: {
+                            color: 'rgba(0,0,0,0.05)'
+                        }
+                    }
+                }
+            }
+        });
+    }
+    {% endif %}
+</script>
+{% endblock %}

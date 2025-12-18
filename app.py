@@ -32,8 +32,10 @@ from dotenv import load_dotenv
 # Local imports
 from helpers import apology, lookup, usd, get_chart_data, get_popular_stocks, get_market_movers, get_stock_news, get_option_price_and_greeks, analyze_sentiment, fetch_news_finnhub, get_cached_or_fetch_news
 from database.db_manager import DatabaseManager
+from database.league_schema_upgrade import upgrade_leagues_table, create_league_seasons_table, create_league_member_stats_table, create_league_divisions_table, create_tournament_tables, create_team_tables, create_achievement_tables, create_quest_tables, create_analytics_tables, create_fairplay_tables
 from league_modes import get_league_mode, get_available_modes, MODE_ABSOLUTE_VALUE
 from league_rules import LeagueRuleEngine
+from advanced_league_system import AdvancedLeagueManager, RatingSystem, AchievementEngine, QuestSystem, FairPlayEngine, AnalyticsCalculator
 
 
 # --- Login Required Decorator (move up) ---
@@ -112,6 +114,10 @@ def get_portfolio_cash(user_id, context):
     
     if context["type"] == "personal":
         user = db.get_user(user_id)
+        if not user:
+            logging.error(f"ERROR get_portfolio_cash: User not found for user_id={user_id}")
+            # Return default cash for new users
+            return 10000.0
         cash = user["cash"]
         logging.debug(f"DEBUG get_portfolio_cash: Personal portfolio - user_id={user_id}, cash=${cash}")
         return cash
@@ -733,6 +739,32 @@ def handle_disconnect():
 # Initialize database manager
 db = DatabaseManager()
 
+# Initialize advanced league system schema (run migrations if needed)
+def init_advanced_league_system():
+    """Initialize the advanced league system schema in the database."""
+    try:
+        logging.info("Initializing advanced league system schema...")
+        # Run all schema upgrade functions
+        upgrade_leagues_table(db)
+        create_league_seasons_table(db)
+        create_league_member_stats_table(db)
+        create_league_divisions_table(db)
+        create_tournament_tables(db)
+        create_team_tables(db)
+        create_achievement_tables(db)
+        create_quest_tables(db)
+        create_analytics_tables(db)
+        create_fairplay_tables(db)
+        logging.info("Advanced league system schema initialized successfully")
+    except Exception as e:
+        logging.error(f"Error initializing advanced league system: {e}")
+
+# Run initialization on startup
+init_advanced_league_system()
+
+# Initialize AdvancedLeagueManager
+league_manager = AdvancedLeagueManager(db)
+
 # Ensure templates are auto-reloaded
 app.config["TEMPLATES_AUTO_RELOAD"] = True
 
@@ -765,6 +797,9 @@ def create_portfolio_snapshot(user_id):
     # Get user's stocks and cash
     stocks = db.get_user_stocks(user_id)
     user = db.get_user(user_id)
+    if not user:
+        logging.warning(f"create_portfolio_snapshot: User {user_id} not found")
+        return
     cash = user["cash"]
     
     # Calculate total portfolio value
@@ -791,6 +826,9 @@ def create_portfolio_snapshot(user_id):
 def check_achievements(user_id):
     """Check and award achievements for a user"""
     user = db.get_user(user_id)
+    if not user:
+        logging.warning(f"check_achievements: User {user_id} not found")
+        return
     transactions = db.get_transactions(user_id)
     
     # Get user's stocks
@@ -871,14 +909,26 @@ def after_request(response):
 
 
 @app.route("/")
+def home():
+    """Show landing/home page - public route"""
+    return render_template("home.html")
+
+
+@app.route("/home")
+def home_alias():
+    """Alias for home page"""
+    return render_template("home.html")
+
+
+@app.route("/dashboard")
 @login_required
-def index():
-    """Show portfolio of stocks"""
+def dashboard():
+    """Show trading dashboard - private route"""
     user_id = session["user_id"]
     
     # Get active portfolio context
     context = get_active_portfolio_context()
-    logging.debug(f"DEBUG INDEX: user_id={user_id}, context={context}")
+    logging.debug(f"DEBUG DASHBOARD: user_id={user_id}, context={context}")
     
     # Get stocks and transactions based on active portfolio
     stocks = get_portfolio_stocks(user_id, context)
@@ -916,29 +966,29 @@ def index():
         if quote:
             stock["price"] = quote["price"]
             stock["change_percent"] = quote.get("change_percent", 0)
-            stock["total"] = stock["shares"] * quote["price"]
-            total_value += stock["total"]
+            stock["total_value"] = stock["shares"] * quote["price"]
+            total_value += stock["total_value"]
             
             # Calculate gain/loss
             if stock["symbol"] in cost_basis and cost_basis[stock["symbol"]]["shares"] > 0:
                 avg_cost = cost_basis[stock["symbol"]]["total_cost"] / cost_basis[stock["symbol"]]["shares"]
                 stock["avg_cost"] = avg_cost
-                stock["gain_loss"] = stock["total"] - (stock["shares"] * avg_cost)
-                stock["gain_loss_percent"] = ((stock["price"] - avg_cost) / avg_cost) * 100 if avg_cost > 0 else 0
+                stock["gain_loss"] = stock["total_value"] - (stock["shares"] * avg_cost)
+                stock["percent_gain_loss"] = ((stock["price"] - avg_cost) / avg_cost) * 100 if avg_cost > 0 else 0
                 total_gain_loss += stock["gain_loss"]
             else:
                 stock["avg_cost"] = stock["price"]
                 stock["gain_loss"] = 0
-                stock["gain_loss_percent"] = 0
+                stock["percent_gain_loss"] = 0
         else:
             stock["price"] = 0
-            stock["total"] = 0
+            stock["total_value"] = 0
             stock["gain_loss"] = 0
-            stock["gain_loss_percent"] = 0
+            stock["percent_gain_loss"] = 0
     
     # Get cash balance from active portfolio
     cash = get_portfolio_cash(user_id, context)
-    logging.debug(f"DEBUG: Rendering index with cash=${cash} for user {user_id} in context {context}")
+    logging.debug(f"DEBUG: Rendering dashboard with cash=${cash} for user {user_id} in context {context}")
     
     # Calculate grand total and overall performance
     grand_total = cash + total_value
@@ -949,43 +999,42 @@ def index():
         league = db.get_league(context["league_id"])
         starting_cash = league.get("starting_cash", 10000.00) if league else 10000.00
     total_return = grand_total - starting_cash
-    total_return_percent = (total_return / starting_cash) * 100 if starting_cash > 0 else 0
-    
-    # Get popular stocks for market overview (limited to 4 for speed)
-    popular_symbols = ['AAPL', 'MSFT', 'GOOGL', 'AMZN']
-    popular_stocks = []
-    for symbol in popular_symbols:
-        quote = lookup(symbol)
-        if quote:
-            popular_stocks.append(quote)
-    # Add volume leaders to homepage
-    try:
-        homepage_volume_leaders = get_volume_leaders()
-    except Exception:
-        homepage_volume_leaders = []
-    
-    # Get watchlist count only (don't fetch prices for speed)
-    watchlist = db.get_watchlist(user_id)
+    total_percent_change = (total_return / starting_cash) * 100 if starting_cash > 0 else 0
     
     # Get portfolio history for chart (personal only for now)
     if context["type"] == "personal":
         portfolio_history = db.get_portfolio_history(user_id, days=30)
+        # Format for chart
+        portfolio_dates = []
+        portfolio_values = []
+        if portfolio_history:
+            for entry in portfolio_history:
+                portfolio_dates.append(entry.get("date", ""))
+                portfolio_values.append(entry.get("value", 0))
     else:
         portfolio_history = []  # TODO: Implement league portfolio history
-    
-    return render_template("index.html", 
+        portfolio_dates = []
+        portfolio_values = []
+
+    return render_template("dashboard.html", 
                          stocks=stocks, 
                          cash=cash, 
                          grand_total=grand_total,
                          total_value=total_value,
                          total_gain_loss=total_gain_loss,
-                         total_return=total_return,
-                         total_return_percent=total_return_percent,
-                         popular_stocks=popular_stocks,
-                         homepage_volume_leaders=homepage_volume_leaders,
-                         watchlist_count=len(watchlist),
+                         total_percent_change=total_percent_change,
                          portfolio_history=portfolio_history,
+                         portfolio_dates=portfolio_dates,
+                         portfolio_values=portfolio_values,
+                         transactions=transactions,
                          active_context=context)
+
+
+@app.route("/index")
+@login_required
+def index():
+    """Redirect legacy /index to /dashboard"""
+    return redirect("/dashboard")
 
 
 @app.route("/buy", methods=["GET", "POST"])
@@ -2342,6 +2391,348 @@ def league_dashboard(league_id):
 
 
 
+# ============ ADVANCED LEAGUE SYSTEM ROUTES ============
+
+@app.route("/leagues/advanced")
+@login_required
+def leagues_advanced():
+    """Show advanced leagues page with new features"""
+    user_id = session["user_id"]
+    
+    # Get user's leagues
+    user_leagues_list = db.get_user_leagues(user_id)
+    
+    # Get featured leagues
+    conn = db.get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT l.*, 
+               COUNT(DISTINCT lm.user_id) as member_count,
+               u.username as creator_name
+        FROM leagues l
+        LEFT JOIN league_members lm ON l.id = lm.league_id
+        LEFT JOIN users u ON l.creator_id = u.id
+        WHERE l.visibility = 'public' AND l.lifecycle_state = 'active'
+        ORDER BY member_count DESC
+        LIMIT 6
+    """)
+    featured_leagues = [dict(row) for row in cursor.fetchall()]
+    conn.close()
+    
+    # Get stats
+    conn = db.get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT COUNT(*) FROM leagues WHERE visibility = 'public'")
+    total_leagues = cursor.fetchone()[0]
+    cursor.execute("SELECT COUNT(DISTINCT user_id) FROM league_members")
+    global_players = cursor.fetchone()[0]
+    cursor.execute("SELECT COUNT(*) FROM league_seasons WHERE is_active = 1")
+    seasons_running = cursor.fetchone()[0]
+    conn.close()
+    
+    return render_template("leagues_advanced.html",
+                         user_leagues_list=user_leagues_list,
+                         featured_leagues=featured_leagues,
+                         total_leagues=total_leagues,
+                         user_leagues=len(user_leagues_list),
+                         global_players=global_players,
+                         seasons_running=seasons_running)
+
+
+@app.route("/league/<int:league_id>/detail")
+@login_required
+def league_detail_advanced(league_id):
+    """Show advanced league detail page with all features"""
+    user_id = session["user_id"]
+    
+    league = db.get_league(league_id)
+    if not league:
+        return apology("league not found", 404)
+    
+    # Check if user is member
+    is_member = db.is_league_member(user_id, league_id)
+    
+    # Get league details
+    members = db.get_league_members(league_id)
+    leaderboard = db.get_league_leaderboard(league_id)
+    
+    # Get advanced stats if AdvancedLeagueManager is available
+    try:
+        # Get league member statistics
+        conn = db.get_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT user_id, rank, score, trades_count, win_rate, volatility, sharpe_ratio, max_drawdown
+            FROM league_member_stats
+            WHERE league_id = ?
+            ORDER BY rank ASC
+        """, (league_id,))
+        advanced_stats = [dict(row) for row in cursor.fetchall()]
+        conn.close()
+    except:
+        advanced_stats = []
+    
+    # Get achievements for this league
+    try:
+        conn = db.get_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT la.id, la.key, la.name, la.description, la.rarity, COUNT(DISTINCT lab.user_id) as unlock_count
+            FROM league_achievements la
+            LEFT JOIN league_badges lab ON la.id = lab.achievement_id
+            WHERE la.league_id = ?
+            GROUP BY la.id
+            ORDER BY la.rarity DESC
+        """, (league_id,))
+        achievements = [dict(row) for row in cursor.fetchall()]
+        conn.close()
+    except:
+        achievements = []
+    
+    # Get tournaments for this league
+    try:
+        conn = db.get_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT * FROM tournaments
+            WHERE league_id = ?
+            ORDER BY start_date DESC
+            LIMIT 5
+        """, (league_id,))
+        tournaments = [dict(row) for row in cursor.fetchall()]
+        conn.close()
+    except:
+        tournaments = []
+    
+    return render_template("league_detail.html",
+                         league=league,
+                         is_member=is_member,
+                         members=members,
+                         leaderboard=leaderboard,
+                         advanced_stats=advanced_stats,
+                         achievements=achievements,
+                         tournaments=tournaments)
+
+
+@app.route("/tournaments")
+@login_required
+def tournaments():
+    """Show all tournaments"""
+    user_id = session["user_id"]
+    
+    # Get active tournaments
+    conn = db.get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT t.*, l.name as league_name, l.id as league_id,
+               COUNT(DISTINCT tp.user_id) as participant_count
+        FROM tournaments t
+        LEFT JOIN leagues l ON t.league_id = l.id
+        LEFT JOIN tournament_participants tp ON t.id = tp.tournament_id
+        WHERE t.status = 'active'
+        GROUP BY t.id
+        ORDER BY t.start_date DESC
+    """)
+    active_tournaments = [dict(row) for row in cursor.fetchall()]
+    conn.close()
+    
+    # Get user's tournament participations
+    user_tournaments = db.execute("""
+        SELECT DISTINCT t.*, l.name as league_name
+        FROM tournaments t
+        LEFT JOIN league_members lm ON lm.league_id = t.league_id
+        LEFT JOIN tournament_participants tp ON t.id = tp.tournament_id AND tp.user_id = ?
+        LEFT JOIN leagues l ON t.league_id = l.id
+        WHERE (lm.user_id = ? AND lm.league_id = t.league_id) OR tp.user_id = ?
+        ORDER BY t.start_date DESC
+    """, (user_id, user_id, user_id))
+    
+    return render_template("tournaments.html",
+                         active_tournaments=active_tournaments,
+                         user_tournaments=user_tournaments)
+
+
+@app.route("/tournament/<int:tournament_id>")
+@login_required
+def tournament_detail(tournament_id):
+    """Show tournament details and bracket"""
+    user_id = session["user_id"]
+    
+    conn = db.get_connection()
+    cursor = conn.cursor()
+    
+    # Get tournament info
+    cursor.execute("""
+        SELECT t.*, l.name as league_name, l.id as league_id
+        FROM tournaments t
+        LEFT JOIN leagues l ON t.league_id = l.id
+        WHERE t.id = ?
+    """, (tournament_id,))
+    tournament = dict(cursor.fetchone())
+    
+    if not tournament:
+        return apology("tournament not found", 404)
+    
+    # Get participants
+    cursor.execute("""
+        SELECT tp.*, u.username
+        FROM tournament_participants tp
+        LEFT JOIN users u ON tp.user_id = u.id
+        WHERE tp.tournament_id = ?
+        ORDER BY tp.rank ASC
+    """, (tournament_id,))
+    participants = [dict(row) for row in cursor.fetchall()]
+    
+    # Get matches
+    cursor.execute("""
+        SELECT * FROM tournament_matches
+        WHERE tournament_id = ?
+        ORDER BY round ASC, match_number ASC
+    """, (tournament_id,))
+    matches = [dict(row) for row in cursor.fetchall()]
+    
+    conn.close()
+    
+    # Check if user is participating
+    is_participant = any(p['user_id'] == user_id for p in participants)
+    
+    return render_template("tournament_detail.html",
+                         tournament=tournament,
+                         participants=participants,
+                         matches=matches,
+                         is_participant=is_participant)
+
+
+@app.route("/achievements")
+@login_required
+def achievements():
+    """Show achievements and badges"""
+    user_id = session["user_id"]
+    
+    # Get user's achievements across all leagues
+    conn = db.get_connection()
+    cursor = conn.cursor()
+    
+    # Get user's earned badges
+    cursor.execute("""
+        SELECT lab.*, la.name, la.description, la.icon, la.rarity, l.name as league_name
+        FROM league_badges lab
+        LEFT JOIN league_achievements la ON lab.achievement_id = la.id
+        LEFT JOIN leagues l ON la.league_id = l.id
+        WHERE lab.user_id = ?
+        ORDER BY lab.unlocked_at DESC
+    """, (user_id,))
+    user_badges = [dict(row) for row in cursor.fetchall()]
+    
+    # Get all available achievements
+    cursor.execute("""
+        SELECT la.*, COUNT(DISTINCT lab.user_id) as unlock_count
+        FROM league_achievements la
+        LEFT JOIN league_badges lab ON la.id = lab.achievement_id AND lab.user_id = ?
+        GROUP BY la.id
+        ORDER BY la.rarity DESC, la.name ASC
+    """, (user_id,))
+    all_achievements = [dict(row) for row in cursor.fetchall()]
+    
+    conn.close()
+    
+    # Group achievements by rarity
+    achievements_by_rarity = {}
+    for ach in all_achievements:
+        rarity = ach.get('rarity', 'common')
+        if rarity not in achievements_by_rarity:
+            achievements_by_rarity[rarity] = []
+        achievements_by_rarity[rarity].append(ach)
+    
+    # Count stats
+    total_badges = len(user_badges)
+    total_achievements = len(all_achievements)
+    unlock_rate = (total_badges / max(total_achievements, 1)) * 100 if total_achievements > 0 else 0
+    
+    return render_template("achievements.html",
+                         user_badges=user_badges,
+                         achievements_by_rarity=achievements_by_rarity,
+                         total_badges=total_badges,
+                         total_achievements=total_achievements,
+                         unlock_rate=int(unlock_rate))
+
+
+@app.route("/api/league/<int:league_id>")
+@login_required
+def api_league_details(league_id):
+    """API endpoint for league details"""
+    league = db.get_league(league_id)
+    if not league:
+        return jsonify({"error": "League not found"}), 404
+    
+    members = db.get_league_members(league_id)
+    
+    return jsonify({
+        "id": league.get("id"),
+        "name": league.get("name"),
+        "description": league.get("description"),
+        "member_count": len(members),
+        "competition_mode": league.get("competition_mode_name"),
+        "league_tier": league.get("league_tier", "Bronze"),
+        "lifecycle_state": league.get("lifecycle_state", "Active"),
+        "prize_pool": league.get("prize_pool", 0),
+        "creator_name": league.get("creator_name", "Unknown")
+    })
+
+
+@app.route("/api/league/<int:league_id>/leaderboard")
+@login_required
+def api_league_leaderboard(league_id):
+    """API endpoint for real-time leaderboard"""
+    leaderboard = db.get_league_leaderboard(league_id)
+    
+    return jsonify({
+        "leaderboard": [
+            {
+                "rank": entry.get("rank"),
+                "username": entry.get("username"),
+                "score": entry.get("score"),
+                "portfolio_value": entry.get("portfolio_value")
+            }
+            for entry in leaderboard
+        ]
+    })
+
+
+@app.route("/api/league/<int:league_id>/analytics")
+@login_required
+def api_league_analytics(league_id):
+    """API endpoint for league analytics"""
+    try:
+        conn = db.get_connection()
+        cursor = conn.cursor()
+        
+        # Get league-wide metrics
+        cursor.execute("""
+            SELECT 
+                AVG(sharpe_ratio) as avg_sharpe,
+                AVG(max_drawdown) as avg_drawdown,
+                AVG(win_rate) as avg_win_rate,
+                SUM(trades_count) as total_trades,
+                COUNT(*) as member_count
+            FROM league_member_stats
+            WHERE league_id = ?
+        """, (league_id,))
+        
+        result = cursor.fetchone()
+        conn.close()
+        
+        return jsonify({
+            "avg_sharpe_ratio": result[0] or 0,
+            "avg_max_drawdown": result[1] or 0,
+            "avg_win_rate": result[2] or 0,
+            "total_trades": result[3] or 0,
+            "member_count": result[4] or 0
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route("/challenges")
 @login_required
 def challenges():
@@ -2622,6 +3013,9 @@ def settings():
     """Show settings page"""
     user_id = session["user_id"]
     user = db.get_user(user_id)
+    if not user:
+        flash("User not found", "danger")
+        return redirect("/login")
     return render_template("settings.html", user=user)
 
 
@@ -3190,24 +3584,7 @@ def get_chart_api(symbol):
     return jsonify(data)
 
 
-@app.route("/achievements")
-@login_required
-def achievements():
-    """Show achievements page"""
-    user_id = session["user_id"]
-    
-    # Get user's achievements
-    earned_achievements = db.get_achievements(user_id)
-    earned_keys = [a["achievement_key"] for a in earned_achievements]
-    
-    # Define all possible achievements
-    total_count = 7  # Total number of achievements
-    earned_count = len(earned_achievements)
-    
-    return render_template("achievements.html",
-                         earned_keys=earned_keys,
-                         earned_count=earned_count,
-                         total_count=total_count)
+
 
 
 @app.route("/watchlist")
@@ -3248,10 +3625,13 @@ def add_to_watchlist():
         flash("Stock symbol is required.", "danger")
         return redirect("/quote")
 
-    db = DatabaseManager()
-
+    db_local = DatabaseManager()
+    conn = db_local.get_connection()
+    cursor = conn.cursor()
     # Add to watchlist
-    db.execute("INSERT INTO watchlist (user_id, symbol, shares) VALUES (?, ?, ?) ON CONFLICT(user_id, symbol) DO UPDATE SET shares = excluded.shares", (user_id, symbol, shares))
+    cursor.execute("INSERT INTO watchlist (user_id, symbol, shares) VALUES (?, ?, ?) ON CONFLICT(user_id, symbol) DO UPDATE SET shares = excluded.shares", (user_id, symbol, shares))
+    conn.commit()
+    conn.close()
 
     flash(f"{symbol} has been added to your watchlist.", "success")
     return redirect("/quote")

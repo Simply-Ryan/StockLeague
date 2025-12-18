@@ -3,130 +3,459 @@
 {% block title %}Explore - StockLeague{% endblock %}
 
 {% block main %}
-<div class="row justify-content-center">
-    <div class="col-md-8">
-        <h2 class="mb-3"><i class="fas fa-search"></i> Explore</h2>
+<style>
+    .explore-hero {
+        background: linear-gradient(135deg, var(--primary-color), var(--primary-color-dark, #0056b3));
+        padding: 2rem;
+        border-radius: 0.75rem;
+        margin-bottom: 2rem;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    }
 
-        <!-- Search -->
-        <div class="card mb-4">
-            <div class="card-body">
-                <form action="/quote" method="get">
-                    <div class="input-group">
-                        <input type="text" class="form-control" name="symbol" placeholder="Search symbol or company (e.g., AAPL)" required>
-                        <button class="btn btn-primary" type="submit"><i class="fas fa-search"></i> Search</button>
-                    </div>
-                </form>
-            </div>
-        </div>
+    .explore-hero h1 {
+        color: white;
+        margin-bottom: 0.5rem;
+    }
 
-        <!-- Market Summary -->
-        <div class="card mb-3">
-            <div class="card-body">
-                <h5 class="card-title"><i class="fas fa-globe-americas"></i> Market Summary</h5>
-                <p class="small text-muted">Market trend: <strong>{{ market_trend|capitalize }}</strong></p>
-                <div class="row align-items-center">
-                    {% for idx in market_indices %}
-                    <div class="col-12 col-md-4 mb-2">
-                        <div class="border rounded p-2 text-center">
-                            <div class="small text-muted">{{ idx.display_name }}</div>
-                            <div class="h5 mb-0">{{ idx.price | usd }}</div>
-                            <div class="d-flex justify-content-center align-items-center mt-2">
-                                <div id="spinner_index_{{ idx.symbol }}" class="spinner-border spinner-border-sm text-secondary me-2" role="status"></div>
-                                <canvas id="index_{{ idx.symbol }}" class="sparkline-canvas" width="160" height="40" style="display:none;"></canvas>
-                            </div>
-                            <div class="small {% if idx.change >= 0 %}text-success{% else %}text-danger{% endif %} mt-2">
-                                {{ '%.2f'|format(idx.change) }} ({{ '%.2f'|format(idx.change_percent) }}%)
-                            </div>
-                        </div>
-                    </div>
-                    {% endfor %}
-                </div>
-            </div>
-        </div>
+    .explore-hero p {
+        color: rgba(255,255,255,0.9);
+        margin-bottom: 1.5rem;
+    }
 
-        <!-- Market Movers -->
-        <div class="card mb-3">
-            <div class="card-body">
-                <h5 class="card-title"><i class="fas fa-chart-line"></i> Market Movers</h5>
-                <div class="row">
-                    <div class="col-md-6">
-                        <h6>Top Gainers</h6>
-                        <ul class="list-group mb-2">
-                            {% for s in market_movers.gainers %}
-                            <li class="list-group-item d-flex justify-content-between align-items-center">
-                                <div><strong>{{ s.symbol }}</strong> <small class="text-muted">{{ s.name }}</small></div>
-                                <div class="text-end"><div>{{ s.price | usd }}</div><div class="small text-success">{{ '%.2f'|format(s.change_percent) }}%</div></div>
-                            </li>
-                            {% else %}
-                            <li class="list-group-item">No gainers</li>
-                            {% endfor %}
-                        </ul>
-                    </div>
-                    <div class="col-md-6">
-                        <h6>Top Losers</h6>
-                        <ul class="list-group mb-2">
-                            {% for s in market_movers.losers %}
-                            <li class="list-group-item d-flex justify-content-between align-items-center">
-                                <div><strong>{{ s.symbol }}</strong> <small class="text-muted">{{ s.name }}</small></div>
-                                <div class="text-end"><div>{{ s.price | usd }}</div><div class="small text-danger">{{ '%.2f'|format(s.change_percent) }}%</div></div>
-                            </li>
-                            {% else %}
-                            <li class="list-group-item">No losers</li>
-                            {% endfor %}
-                        </ul>
-                    </div>
-                </div>
-            </div>
-        </div>
+    .search-container {
+        position: relative;
+    }
 
-        <!-- Popular Stocks -->
-        <div class="card mb-3">
-            <div class="card-body">
-                <h5 class="card-title"><i class="fas fa-star"></i> Popular Stocks</h5>
-                <div class="row">
-                    {% for stock in popular_stocks %}
-                    <div class="col-12 col-md-6 mb-2">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <div style="min-width: 0;">
-                                <strong>{{ stock.symbol }}</strong>
-                                <div class="small text-muted">{{ stock.name }}</div>
-                                <div class="mt-1 d-flex align-items-center">
-                                    <div id="spinner_stock_{{ stock.symbol }}" class="spinner-border spinner-border-sm text-secondary me-2" role="status"></div>
-                                    <canvas id="stock_{{ stock.symbol }}" class="sparkline-canvas" width="120" height="30" style="display:none;"></canvas>
-                                </div>
-                            </div>
-                            <div class="text-end"><div>{{ stock.price | usd }}</div><div class="small {{ 'text-success' if stock.change >= 0 else 'text-danger' }}">{{ '%.2f'|format(stock.change_percent) }}%</div></div>
-                        </div>
-                    </div>
-                    {% else %}
-                    <div class="col-12">No popular stocks</div>
-                    {% endfor %}
-                </div>
-            </div>
-        </div>
-    </div>
+    .search-input {
+        border: none;
+        border-radius: 0.5rem;
+        padding: 0.75rem 1rem;
+        font-size: 1rem;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
 
-    <div class="col-md-4">
-        <div class="card mb-3">
-            <div class="card-body">
-                <h5 class="card-title">Volume Leaders</h5>
-                <ul class="list-unstyled mb-0">
-                    {% for v in volume_leaders %}
-                    <li class="mb-2">
-                        <a href="/quote?symbol={{ v.symbol }}"><strong>{{ v.symbol }}</strong></a>
-                        <div class="small text-muted">Volume: {{ v.volume or 'N/A' }} — Price: {{ v.price | usd }}</div>
-                    </li>
-                    {% else %}
-                    <li>No volume leaders</li>
-                    {% endfor %}
-                </ul>
-            </div>
-        </div>
+    .search-input::placeholder {
+        color: #aaa;
+    }
 
-        {# About This Page removed per request #}
-    </div>
-</div>
+    .market-status {
+        display: inline-block;
+        background: var(--success-color);
+        color: white;
+        padding: 0.25rem 0.75rem;
+        border-radius: 1rem;
+        font-size: 0.85rem;
+        font-weight: 500;
+        margin-bottom: 1rem;
+    }
+
+    .market-status.closed {
+        background: var(--danger-color);
+    }
+
+    .index-card {
+        background: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 0.75rem;
+        padding: 1.25rem;
+        text-align: center;
+        transition: all 0.3s ease;
+        cursor: pointer;
+    }
+
+    .index-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+    }
+
+    .index-name {
+        font-weight: 600;
+        color: var(--text-primary);
+        margin-bottom: 0.5rem;
+    }
+
+    .index-price {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+
+    .movers-section {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1.5rem;
+    }
+
+    .mover-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+    }
+
+    .mover-item {
+        padding: 1rem;
+        border-radius: 0.5rem;
+        margin-bottom: 0.75rem;
+        background: var(--card-bg);
+        border-left: 4px solid var(--primary-color);
+        transition: all 0.2s ease;
+    }
+
+    .mover-item:hover {
+        transform: translateX(4px);
+    }
+
+    .mover-item.gainer {
+        border-left-color: var(--success-color);
+    }
+
+    .mover-item.loser {
+        border-left-color: var(--danger-color);
+    }
+
+    .mover-symbol {
+        font-weight: 700;
+        color: var(--text-primary);
+        margin-bottom: 0.25rem;
+    }
+
+    .mover-name {
+        font-size: 0.85rem;
+        color: var(--text-secondary);
+    }
+
+    .mover-price {
+        font-weight: 600;
+    }
+
+    .stock-card {
+        background: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 0.75rem;
+        padding: 1.25rem;
+        transition: all 0.3s ease;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+    }
+
+    .stock-card:hover {
+        border-color: var(--primary-color);
+        box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+        transform: translateY(-2px);
+    }
+
+    .stock-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 1rem;
+    }
+
+    .stock-symbol {
+        font-size: 1.25rem;
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+
+    .stock-name {
+        font-size: 0.85rem;
+        color: var(--text-secondary);
+        margin-top: 0.25rem;
+    }
+
+    .stock-price {
+        font-size: 1.25rem;
+        font-weight: 700;
+        text-align: right;
+    }
+
+    .stock-change {
+        font-size: 0.9rem;
+        font-weight: 600;
+        text-align: right;
+        margin-top: 0.25rem;
+    }
+
+    .stock-chart {
+        margin: 0.75rem 0;
+        flex-grow: 1;
+    }
+
+    .stock-action {
+        display: flex;
+        gap: 0.5rem;
+        margin-top: 1rem;
+    }
+
+    .stock-action button {
+        flex: 1;
+        padding: 0.5rem;
+        font-size: 0.85rem;
+        border-radius: 0.4rem;
+    }
+
+    .volume-leaders {
+        background: var(--card-bg);
+        border-radius: 0.75rem;
+        border: 1px solid var(--border-color);
+    }
+
+    .volume-item {
+        padding: 1rem;
+        border-bottom: 1px solid var(--border-color);
+        transition: background 0.2s ease;
+    }
+
+    .volume-item:last-child {
+        border-bottom: none;
+    }
+
+    .volume-item:hover {
+        background: rgba(0,0,0,0.02);
+    }
+
+    .volume-symbol {
+        font-weight: 700;
+        color: var(--text-primary);
+        text-decoration: none;
+        margin-bottom: 0.25rem;
+    }
+
+    .volume-symbol:hover {
+        color: var(--primary-color);
+    }
+
+    .volume-meta {
+        font-size: 0.85rem;
+        color: var(--text-secondary);
+        margin-top: 0.25rem;
+    }
+
+    .section-title {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: var(--text-primary);
+        margin-bottom: 1.5rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .section-title i {
+        color: var(--primary-color);
+    }
+
+    @media (max-width: 768px) {
+        .explore-hero {
+            padding: 1.5rem;
+        }
+
+        .movers-section {
+            grid-template-columns: 1fr;
+        }
+
+        .stock-card {
+            margin-bottom: 1rem;
+        }
+    }
+</style>
+
+<!-- Hero Section with Search -->
+<div class="explore-hero">
+    <h1><i class="fas fa-compass"></i> Explore Markets</h1>
+    <p>Discover stocks, track market trends, and find your next investment opportunity</p>
     
+    <form action="/quote" method="get" class="search-container">
+        <div class="input-group input-group-lg">
+            <span class="input-group-text" style="background: transparent; border: none;"><i class="fas fa-search"></i></span>
+            <input type="text" class="form-control search-input" name="symbol" 
+                   placeholder="Search by symbol or company name (e.g., AAPL, Apple)" required 
+                   style="border: none;">
+            <button class="btn btn-light" type="submit" style="border-radius: 0 0.5rem 0.5rem 0; font-weight: 600;">
+                Search
+            </button>
+        </div>
+    </form>
+</div>
+
+<div class="container-fluid">
+    <!-- Market Summary Section -->
+    <section class="mb-5">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h2 class="section-title"><i class="fas fa-globe-americas"></i> Market Overview</h2>
+            <span class="market-status">📊 Market {{ market_trend|capitalize }}</span>
+        </div>
+        
+        <div class="row g-3 mb-4">
+            {% for idx in market_indices %}
+            <div class="col-12 col-md-4">
+                <div class="index-card">
+                    <div class="index-name">{{ idx.display_name }}</div>
+                    <div class="index-price">{{ idx.price | usd }}</div>
+                    <div class="d-flex justify-content-center align-items-center mt-3 mb-3">
+                        <div id="spinner_index_{{ idx.symbol }}" class="spinner-border spinner-border-sm text-secondary me-2" role="status"></div>
+                        <canvas id="index_{{ idx.symbol }}" class="sparkline-canvas" width="180" height="50" style="display:none;"></canvas>
+                    </div>
+                    <div class="d-flex justify-content-around text-center">
+                        <div>
+                            <div class="small text-muted">Change</div>
+                            <div class="small font-weight-bold {% if idx.change >= 0 %}text-success{% else %}text-danger{% endif %}">
+                                {{ '%.2f'|format(idx.change) }}
+                            </div>
+                        </div>
+                        <div>
+                            <div class="small text-muted">Percent</div>
+                            <div class="small font-weight-bold {% if idx.change_percent >= 0 %}text-success{% else %}text-danger{% endif %}">
+                                {{ '%.2f'|format(idx.change_percent) }}%
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+
+    <!-- Market Movers Section -->
+    <section class="mb-5">
+        <h2 class="section-title"><i class="fas fa-fire"></i> Market Movers</h2>
+        <div class="movers-section">
+            <!-- Top Gainers -->
+            <div>
+                <div style="margin-bottom: 1rem;">
+                    <h5 style="color: var(--text-primary); font-weight: 700; margin-bottom: 1rem;">
+                        <i class="fas fa-arrow-up" style="color: var(--success-color); margin-right: 0.5rem;"></i>
+                        Top Gainers
+                    </h5>
+                    <ul class="mover-list">
+                        {% for s in market_movers.gainers %}
+                        <li class="mover-item gainer">
+                            <a href="/quote?symbol={{ s.symbol }}" style="text-decoration: none; color: inherit;">
+                                <div class="mover-symbol">{{ s.symbol }}</div>
+                                <div class="mover-name">{{ s.name }}</div>
+                                <div class="d-flex justify-content-between mt-2">
+                                    <span class="mover-price">{{ s.price | usd }}</span>
+                                    <span class="text-success font-weight-bold">+{{ '%.2f'|format(s.change_percent) }}%</span>
+                                </div>
+                            </a>
+                        </li>
+                        {% else %}
+                        <li class="text-muted text-center py-3">No gainers at this time</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Top Losers -->
+            <div>
+                <div style="margin-bottom: 1rem;">
+                    <h5 style="color: var(--text-primary); font-weight: 700; margin-bottom: 1rem;">
+                        <i class="fas fa-arrow-down" style="color: var(--danger-color); margin-right: 0.5rem;"></i>
+                        Top Losers
+                    </h5>
+                    <ul class="mover-list">
+                        {% for s in market_movers.losers %}
+                        <li class="mover-item loser">
+                            <a href="/quote?symbol={{ s.symbol }}" style="text-decoration: none; color: inherit;">
+                                <div class="mover-symbol">{{ s.symbol }}</div>
+                                <div class="mover-name">{{ s.name }}</div>
+                                <div class="d-flex justify-content-between mt-2">
+                                    <span class="mover-price">{{ s.price | usd }}</span>
+                                    <span class="text-danger font-weight-bold">{{ '%.2f'|format(s.change_percent) }}%</span>
+                                </div>
+                            </a>
+                        </li>
+                        {% else %}
+                        <li class="text-muted text-center py-3">No losers at this time</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Popular Stocks Section -->
+    <section class="mb-5">
+        <h2 class="section-title"><i class="fas fa-star"></i> Popular Stocks</h2>
+        <div class="row g-3">
+            {% for stock in popular_stocks %}
+            <div class="col-12 col-md-6 col-lg-4">
+                <div class="stock-card">
+                    <div class="stock-header">
+                        <div>
+                            <div class="stock-symbol">{{ stock.symbol }}</div>
+                            <div class="stock-name">{{ stock.name }}</div>
+                        </div>
+                        <div>
+                            <div class="stock-price">{{ stock.price | usd }}</div>
+                            <div class="stock-change {% if stock.change >= 0 %}text-success{% else %}text-danger{% endif %}">
+                                {% if stock.change >= 0 %}↑{% else %}↓{% endif %} {{ '%.2f'|format(stock.change_percent)|abs }}%
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="stock-chart">
+                        <div id="spinner_stock_{{ stock.symbol }}" class="spinner-border spinner-border-sm text-secondary d-flex justify-content-center" role="status"></div>
+                        <canvas id="stock_{{ stock.symbol }}" class="sparkline-canvas" width="100%" height="50" style="display:none;"></canvas>
+                    </div>
+                    
+                    <div class="stock-action">
+                        <a href="/quote?symbol={{ stock.symbol }}" class="btn btn-outline-primary btn-sm">
+                            <i class="fas fa-chart-line"></i> View
+                        </a>
+                        <button class="btn btn-outline-secondary btn-sm" onclick="addToWatchlist('{{ stock.symbol }}')">
+                            <i class="fas fa-bookmark"></i> Watch
+                        </button>
+                    </div>
+                </div>
+            </div>
+            {% else %}
+            <div class="col-12 text-center py-5 text-muted">
+                <i class="fas fa-inbox" style="font-size: 3rem; opacity: 0.3;"></i>
+                <p class="mt-3">No popular stocks available</p>
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+
+    <!-- Volume Leaders Sidebar -->
+    <section class="mb-5">
+        <h2 class="section-title"><i class="fas fa-volume-up"></i> Volume Leaders</h2>
+        <div class="row">
+            <div class="col-lg-4">
+                <div class="volume-leaders">
+                    {% for v in volume_leaders %}
+                    <div class="volume-item">
+                        <a href="/quote?symbol={{ v.symbol }}" class="volume-symbol">
+                            {{ v.symbol }}
+                        </a>
+                        <div class="volume-meta">
+                            <span class="d-block">{{ v.price | usd }}</span>
+                            <span class="d-block"><i class="fas fa-chart-bar"></i> Vol: {{ v.volume or 'N/A' }}</span>
+                        </div>
+                    </div>
+                    {% else %}
+                    <div class="volume-item text-center text-muted py-4">
+                        <p>No volume leaders at this time</p>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            <div class="col-lg-8">
+                <div style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 0.75rem; padding: 2rem; text-align: center;">
+                    <i class="fas fa-lightbulb" style="font-size: 3rem; color: var(--primary-color); opacity: 0.3;"></i>
+                    <h5 style="margin-top: 1rem; color: var(--text-primary);">Pro Tip</h5>
+                    <p style="color: var(--text-secondary); margin-bottom: 0;">
+                        Use the search bar above to explore any stock. Check out market movers to find trending opportunities, and add stocks to your watchlist to track them over time.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </section>
+</div>
+
 <!-- Chart.js for sparklines (pinned version for reliability) -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
@@ -151,7 +480,7 @@ function renderSparkline(canvasId, prices){
         if(spinner) spinner.style.display = 'none';
         new Chart(el.getContext('2d'), {
             type: 'line',
-            data: { labels: data.map((_,i)=>i), datasets:[{data: data, borderColor: data[0] <= data[data.length-1] ? '#198754' : '#dc3545', backgroundColor: 'rgba(0,0,0,0)', pointRadius:0, borderWidth:1}]},
+            data: { labels: data.map((_,i)=>i), datasets:[{data: data, borderColor: data[0] <= data[data.length-1] ? '#198754' : '#dc3545', backgroundColor: 'rgba(0,0,0,0)', pointRadius:0, borderWidth:2}]},
             options: { responsive:true, maintainAspectRatio:false, elements:{line:{tension:0.3}}, scales:{x:{display:false}, y:{display:false}}, plugins:{legend:{display:false}, tooltip:{enabled:false}} }
         });
     }catch(e){
@@ -170,6 +499,38 @@ function fetchAndRender(symbol, prefix){
         const spinner = document.getElementById('spinner_' + prefix + symbol);
         if(spinner) spinner.style.display = 'none';
         console.warn('fetch spark error', e);
+    });
+}
+
+function addToWatchlist(symbol) {
+    fetch('/api/watchlist/add', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({symbol: symbol})
+    })
+    .then(r => r.json())
+    .then(data => {
+        if(data.success) {
+            // Show success toast
+            const button = event.target.closest('button');
+            const originalText = button.innerHTML;
+            button.innerHTML = '<i class="fas fa-check"></i> Added!';
+            button.classList.add('btn-success');
+            button.classList.remove('btn-outline-secondary');
+            setTimeout(() => {
+                button.innerHTML = originalText;
+                button.classList.remove('btn-success');
+                button.classList.add('btn-outline-secondary');
+            }, 2000);
+        } else {
+            alert('Failed to add to watchlist: ' + (data.message || 'Unknown error'));
+        }
+    })
+    .catch(err => {
+        console.error('Error:', err);
+        alert('Error adding to watchlist');
     });
 }
 

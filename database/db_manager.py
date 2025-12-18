@@ -12,6 +12,7 @@ adopting a migration tool such as Alembic.
 
 import sqlite3
 import os
+import logging
 from datetime import datetime
 
 
@@ -268,6 +269,23 @@ class DatabaseManager:
             )
         """)
 
+        # Personal transactions table (for personal portfolio trading)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS transactions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                symbol TEXT NOT NULL,
+                shares INTEGER NOT NULL,
+                price NUMERIC NOT NULL,
+                type TEXT NOT NULL,
+                fee NUMERIC DEFAULT 0,
+                strategy TEXT,
+                notes TEXT,
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id)
+            )
+        """)
+
         # Notifications table (minimal)
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS notifications (
@@ -314,6 +332,232 @@ class DatabaseManager:
         cursor.execute("""
             CREATE INDEX IF NOT EXISTS idx_leaderboards_type ON leaderboards(leaderboard_type, period)
         """)
+
+        # Friends table for social features
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS friends (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                friend_id INTEGER NOT NULL,
+                status TEXT DEFAULT 'pending',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id),
+                FOREIGN KEY (friend_id) REFERENCES users(id),
+                UNIQUE(user_id, friend_id)
+            )
+        """)
+
+        # Pending orders table (limit, stop, trailing stop orders, etc.)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS pending_orders (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                symbol TEXT NOT NULL,
+                shares INTEGER NOT NULL,
+                order_type TEXT NOT NULL,
+                action TEXT NOT NULL,
+                limit_price NUMERIC,
+                stop_price NUMERIC,
+                trailing_percent NUMERIC,
+                trailing_amount NUMERIC,
+                status TEXT DEFAULT 'pending',
+                expiration TIMESTAMP,
+                notes TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                executed_at TIMESTAMP,
+                cancelled_at TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id)
+            )
+        """)
+
+        # Challenges table for gamified goals
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS challenges (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                description TEXT,
+                challenge_type TEXT NOT NULL,
+                rules_json TEXT,
+                creator_id INTEGER,
+                start_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                end_time TIMESTAMP,
+                reward_json TEXT,
+                is_active INTEGER DEFAULT 1,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (creator_id) REFERENCES users(id)
+            )
+        """)
+
+        # Watchlist table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS watchlist (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                symbol TEXT NOT NULL,
+                added_price NUMERIC,
+                notes TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id),
+                UNIQUE(user_id, symbol)
+            )
+        """)
+
+        # Portfolio snapshots for tracking history
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS portfolio_snapshots (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                total_value NUMERIC NOT NULL,
+                cash NUMERIC NOT NULL,
+                stocks_json TEXT,
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id)
+            )
+        """)
+
+        # League portfolio snapshots
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS league_portfolio_snapshots (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                league_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                total_value NUMERIC NOT NULL,
+                cash NUMERIC NOT NULL,
+                holdings_json TEXT,
+                snapshot_date TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (league_id) REFERENCES leagues(id),
+                FOREIGN KEY (user_id) REFERENCES users(id),
+                UNIQUE(league_id, user_id, snapshot_date)
+            )
+        """)
+
+        # Achievements system
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS achievements (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE,
+                description TEXT,
+                category TEXT,
+                icon TEXT,
+                rarity TEXT DEFAULT 'common',
+                points INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        # User achievements (awarded to users)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS user_achievements (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                achievement_id INTEGER NOT NULL,
+                unlocked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                progress INTEGER DEFAULT 0,
+                FOREIGN KEY (user_id) REFERENCES users(id),
+                FOREIGN KEY (achievement_id) REFERENCES achievements(id),
+                UNIQUE(user_id, achievement_id)
+            )
+        """)
+
+        # Options trading positions
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS options_positions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                symbol TEXT NOT NULL,
+                contract_type TEXT NOT NULL,
+                strike_price NUMERIC NOT NULL,
+                expiration_date TEXT NOT NULL,
+                quantity INTEGER NOT NULL,
+                entry_price NUMERIC NOT NULL,
+                current_price NUMERIC,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id),
+                UNIQUE(user_id, symbol, contract_type, strike_price, expiration_date)
+            )
+        """)
+
+        # Options trading transactions
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS options_transactions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                symbol TEXT NOT NULL,
+                contract_type TEXT NOT NULL,
+                strike_price NUMERIC NOT NULL,
+                expiration_date TEXT NOT NULL,
+                quantity INTEGER NOT NULL,
+                price NUMERIC NOT NULL,
+                transaction_type TEXT NOT NULL,
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id)
+            )
+        """)
+
+        # Copy trading / trader following
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS trader_following (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                follower_id INTEGER NOT NULL,
+                trader_id INTEGER NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (follower_id) REFERENCES users(id),
+                FOREIGN KEY (trader_id) REFERENCES users(id),
+                UNIQUE(follower_id, trader_id)
+            )
+        """)
+
+        # Copied trades tracking
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS copy_trading (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                follower_id INTEGER NOT NULL,
+                trader_id INTEGER NOT NULL,
+                allocation_percent NUMERIC DEFAULT 100,
+                is_active INTEGER DEFAULT 1,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (follower_id) REFERENCES users(id),
+                FOREIGN KEY (trader_id) REFERENCES users(id),
+                UNIQUE(follower_id, trader_id)
+            )
+        """)
+
+        # Trader statistics
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS trader_stats (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL UNIQUE,
+                total_trades INTEGER DEFAULT 0,
+                winning_trades INTEGER DEFAULT 0,
+                losing_trades INTEGER DEFAULT 0,
+                win_rate NUMERIC DEFAULT 0,
+                total_return NUMERIC DEFAULT 0,
+                followers_count INTEGER DEFAULT 0,
+                copiers_count INTEGER DEFAULT 0,
+                last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id)
+            )
+        """)
+
+        # Price alerts table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS price_alerts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                symbol TEXT NOT NULL,
+                target_price NUMERIC NOT NULL,
+                alert_type TEXT NOT NULL,
+                status TEXT DEFAULT 'active',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                triggered_at TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id)
+            )
+        """)
+
+        conn.commit()
+        conn.close()
 
 
     def get_user_badges(self, user_id):
@@ -424,8 +668,15 @@ class DatabaseManager:
         
         user_id = cursor.lastrowid
         conn.commit()
-        conn.close()
         
+        # Verify the user was actually created
+        cursor.execute("SELECT id FROM users WHERE id = ?", (user_id,))
+        if not cursor.fetchone():
+            logging.error(f"CRITICAL: User {user_id} was not persisted to database after creation!")
+            conn.close()
+            return None
+        
+        conn.close()
         return user_id
     
     def get_user(self, user_id):

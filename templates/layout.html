@@ -32,7 +32,7 @@
       class="navbar navbar-expand-lg navbar-dark bg-dark sticky-top shadow-sm"
     >
       <div class="container-fluid px-3">
-        <a class="navbar-brand fw-bold" href="/">
+        <a class="navbar-brand fw-bold" href="/home">
           <i class="fas fa-chart-line text-primary"></i> StockLeague
         </a>
         <button
@@ -46,11 +46,11 @@
         <div class="collapse navbar-collapse" id="navbarNav">
           {% if session["user_id"] %}
           <ul class="navbar-nav me-auto">
-            <!-- Portfolio -->
+            <!-- Dashboard -->
             <li class="nav-item">
-              <a class="nav-link" href="/">
-                <i class="fas fa-home"></i>
-                <span class="d-lg-none d-inline">Portfolio</span>
+              <a class="nav-link" href="/dashboard">
+                <i class="fas fa-chart-pie"></i>
+                <span class="d-lg-none d-inline">Dashboard</span>
               </a>
             </li>
 

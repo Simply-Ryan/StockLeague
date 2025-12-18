@@ -3,214 +3,592 @@
 {% block title %}Leagues - StockLeague{% endblock %}
 
 {% block main %}
-<div class="container mt-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <div>
-            <h2 class="mb-0"><i class="fas fa-trophy"></i> Trading Leagues</h2>
-            <small class="text-muted">Discover and join public competitions</small>
-        </div>
-        <div class="d-flex align-items-center">
-            <div class="me-3">
-                <input id="league-search" class="form-control form-control-sm" placeholder="Search leagues by name, creator or description">
+<style>
+    .leagues-hero {
+        background: linear-gradient(135deg, var(--primary-color), var(--primary-color-dark, #0056b3));
+        padding: 2.5rem 2rem;
+        border-radius: 0.75rem;
+        margin-bottom: 2rem;
+        color: white;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    }
+
+    .leagues-hero h1 {
+        margin-bottom: 0.5rem;
+        font-size: 2rem;
+    }
+
+    .leagues-hero p {
+        margin-bottom: 1.5rem;
+        opacity: 0.95;
+    }
+
+    .hero-stats {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 2rem;
+        margin-top: 1.5rem;
+    }
+
+    .hero-stat {
+        text-align: center;
+    }
+
+    .hero-stat-value {
+        font-size: 2rem;
+        font-weight: 700;
+        display: block;
+    }
+
+    .hero-stat-label {
+        font-size: 0.9rem;
+        opacity: 0.85;
+    }
+
+    .section-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1.5rem;
+        padding-bottom: 1rem;
+        border-bottom: 2px solid var(--border-color);
+    }
+
+    .section-title {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: var(--text-primary);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin: 0;
+    }
+
+    .section-title i {
+        color: var(--primary-color);
+    }
+
+    .controls-group {
+        display: flex;
+        gap: 1rem;
+        flex-wrap: wrap;
+        align-items: center;
+    }
+
+    .search-box {
+        flex: 1;
+        min-width: 200px;
+    }
+
+    .league-card {
+        background: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 0.75rem;
+        padding: 1.5rem;
+        transition: all 0.3s ease;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+    }
+
+    .league-card:hover {
+        border-color: var(--primary-color);
+        box-shadow: 0 8px 20px rgba(0,0,0,0.12);
+        transform: translateY(-4px);
+    }
+
+    .league-card.my-league {
+        border-left: 4px solid var(--primary-color);
+    }
+
+    .league-card.my-league.ended {
+        border-left-color: var(--secondary-color);
+    }
+
+    .league-header {
+        margin-bottom: 1rem;
+    }
+
+    .league-title {
+        font-size: 1.1rem;
+        font-weight: 700;
+        color: var(--text-primary);
+        margin-bottom: 0.25rem;
+    }
+
+    .league-creator {
+        font-size: 0.85rem;
+        color: var(--text-secondary);
+    }
+
+    .league-description {
+        font-size: 0.9rem;
+        color: var(--text-secondary);
+        margin-bottom: 1rem;
+        line-height: 1.4;
+    }
+
+    .league-meta {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.75rem;
+        margin-bottom: 1rem;
+        padding-bottom: 1rem;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .meta-item {
+        font-size: 0.85rem;
+    }
+
+    .meta-label {
+        color: var(--text-secondary);
+        display: block;
+        margin-bottom: 0.25rem;
+    }
+
+    .meta-value {
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+
+    .league-badges {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        margin-bottom: 1rem;
+    }
+
+    .league-badges .badge {
+        font-size: 0.75rem;
+        padding: 0.4rem 0.7rem;
+    }
+
+    .league-actions {
+        display: flex;
+        gap: 0.5rem;
+        margin-top: auto;
+    }
+
+    .league-actions button,
+    .league-actions a {
+        flex: 1;
+        font-size: 0.85rem;
+        padding: 0.6rem;
+        border-radius: 0.4rem;
+    }
+
+    .invite-section {
+        background: var(--card-bg);
+        border: 2px solid var(--primary-color);
+        border-radius: 0.75rem;
+        padding: 2rem;
+        margin-bottom: 2rem;
+    }
+
+    .invite-section h3 {
+        color: var(--text-primary);
+        margin-bottom: 1rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .invite-section .input-group {
+        margin-bottom: 1rem;
+    }
+
+    .status-badge {
+        display: inline-block;
+        padding: 0.4rem 0.8rem;
+        border-radius: 0.4rem;
+        font-size: 0.8rem;
+        font-weight: 600;
+    }
+
+    .status-badge.active {
+        background: rgba(25, 135, 84, 0.1);
+        color: var(--success-color);
+    }
+
+    .status-badge.ended {
+        background: rgba(108, 117, 125, 0.1);
+        color: var(--secondary-color);
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 3rem 1rem;
+        color: var(--text-secondary);
+    }
+
+    .empty-state-icon {
+        font-size: 3rem;
+        color: var(--primary-color);
+        opacity: 0.3;
+        margin-bottom: 1rem;
+    }
+
+    .empty-state h4 {
+        color: var(--text-primary);
+        margin-bottom: 0.5rem;
+    }
+
+    .leagues-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+        gap: 1.5rem;
+        margin-bottom: 2rem;
+    }
+
+    .filter-pills {
+        display: flex;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+        margin-bottom: 1.5rem;
+    }
+
+    .filter-pill {
+        padding: 0.4rem 0.8rem;
+        border: 1px solid var(--border-color);
+        border-radius: 2rem;
+        background: var(--card-bg);
+        cursor: pointer;
+        transition: all 0.2s ease;
+        font-size: 0.85rem;
+    }
+
+    .filter-pill:hover {
+        border-color: var(--primary-color);
+        color: var(--primary-color);
+    }
+
+    .filter-pill.active {
+        background: var(--primary-color);
+        color: white;
+        border-color: var(--primary-color);
+    }
+
+    @media (max-width: 768px) {
+        .leagues-hero {
+            padding: 1.5rem;
+        }
+
+        .leagues-hero h1 {
+            font-size: 1.5rem;
+        }
+
+        .hero-stats {
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+        }
+
+        .section-header {
+            flex-direction: column;
+            align-items: flex-start;
+        }
+
+        .controls-group {
+            width: 100%;
+        }
+
+        .search-box {
+            width: 100%;
+        }
+
+        .leagues-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+
+<div class="container-fluid">
+    <!-- Hero Section -->
+    <div class="leagues-hero">
+        <h1><i class="fas fa-trophy"></i> Trading Leagues</h1>
+        <p>Compete with other traders, climb the leaderboard, and prove your trading skills</p>
+        
+        <div class="hero-stats">
+            <div class="hero-stat">
+                <span class="hero-stat-value" id="total-leagues">0</span>
+                <span class="hero-stat-label">Total Leagues</span>
             </div>
-            <div class="me-3">
-                <select id="league-sort" class="form-select form-select-sm">
-                    <option value="recent">Sort: Recent</option>
-                    <option value="members">Sort: Members</option>
-                    <option value="starting_cash">Sort: Starting Cash</option>
-                </select>
+            <div class="hero-stat">
+                <span class="hero-stat-value" id="my-leagues-count">0</span>
+                <span class="hero-stat-label">My Leagues</span>
             </div>
-            <a href="/leagues/create" class="btn btn-primary ms-2">
-                <i class="fas fa-plus"></i> Create League
-            </a>
+            <div class="hero-stat">
+                <span class="hero-stat-value" id="active-leagues">0</span>
+                <span class="hero-stat-label">Active Now</span>
+            </div>
         </div>
     </div>
 
-    <!-- My Leagues -->
+    <!-- My Leagues Section -->
     {% if user_leagues %}
-    <div class="card mb-4">
-        <div class="card-header bg-primary text-white">
-            <h5 class="mb-0"><i class="fas fa-users"></i> My Leagues</h5>
+    <section class="mb-5">
+        <div class="section-header">
+            <h2 class="section-title"><i class="fas fa-star"></i> My Leagues</h2>
+            <a href="/leagues/create" class="btn btn-primary">
+                <i class="fas fa-plus"></i> Create New League
+            </a>
         </div>
-        <div class="card-body">
-            <div class="row">
-                {% for league in user_leagues %}
-                <div class="col-md-6 col-lg-4 mb-3">
-                    <div class="card h-100 {% if league.is_active %}border-success{% else %}border-secondary{% endif %}">
-                        <div class="card-body">
-                            <h6 class="card-title">
-                                {{ league.name }}
-                                {% if league.is_admin %}
-                                <span class="badge bg-warning text-dark">Admin</span>
-                                {% endif %}
-                            </h6>
-                            <p class="card-text small text-muted">{{ league.description[:100] }}{% if league.description|length > 100 %}...{% endif %}</p>
-                            <div class="mb-2">
-                                {% if league.is_active %}
-                                <span class="badge bg-success">Active</span>
-                                {% else %}
-                                <span class="badge bg-secondary">Ended</span>
-                                {% endif %}
-                                {% if league.league_type == 'private' %}
-                                <span class="badge bg-info">Private</span>
-                                {% endif %}
-                            </div>
-                            {% if league.current_rank %}
-                            <div class="mb-2">
-                                <strong>Your Rank:</strong> #{{ league.current_rank }}
-                            </div>
-                            {% endif %}
-                            <div class="mb-2">
-                                <strong>Score:</strong> {{ league.score | usd }}
-                            </div>
+
+        <div class="leagues-grid">
+            {% for league in user_leagues %}
+            <div class="league-card my-league {% if not league.is_active %}ended{% endif %}">
+                <div class="league-header">
+                    <div class="league-title">{{ league.name }}</div>
+                    <div class="league-creator" style="margin-bottom: 0.5rem;">Created by You</div>
+                    {% if league.is_admin %}
+                    <span class="badge bg-warning text-dark" style="font-size: 0.75rem;">Admin</span>
+                    {% endif %}
+                </div>
+
+                <div class="league-description">
+                    {{ league.description[:120] }}{% if league.description|length > 120 %}...{% endif %}
+                </div>
+
+                <div class="league-meta">
+                    <div class="meta-item">
+                        <div class="meta-label">Starting Cash</div>
+                        <div class="meta-value">{{ league.starting_cash | usd }}</div>
+                    </div>
+                    <div class="meta-item">
+                        <div class="meta-label">Your Rank</div>
+                        <div class="meta-value">{% if league.current_rank %}#{{ league.current_rank }}{% else %}—{% endif %}</div>
+                    </div>
+                </div>
+
+                <div class="league-badges">
+                    {% if league.is_active %}
+                    <span class="status-badge active"><i class="fas fa-circle"></i> Active</span>
+                    {% else %}
+                    <span class="status-badge ended"><i class="fas fa-check-circle"></i> Ended</span>
+                    {% endif %}
+                    {% if league.league_type == 'private' %}
+                    <span class="badge bg-info"><i class="fas fa-lock"></i> Private</span>
+                    {% endif %}
+                </div>
+
+                <div class="league-actions">
+                    <a href="/leagues/{{ league.id }}" class="btn btn-primary btn-sm">
+                        <i class="fas fa-arrow-right"></i> View
+                    </a>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+    {% else %}
+    <section class="mb-5">
+        <div class="section-header">
+            <h2 class="section-title"><i class="fas fa-star"></i> My Leagues</h2>
+            <a href="/leagues/create" class="btn btn-primary">
+                <i class="fas fa-plus"></i> Create New League
+            </a>
+        </div>
+
+        <div class="empty-state">
+            <div class="empty-state-icon"><i class="fas fa-inbox"></i></div>
+            <h4>No Leagues Yet</h4>
+            <p>You haven't created or joined any leagues. Create one or join a public league to get started!</p>
+        </div>
+    </section>
+    {% endif %}
+
+    <!-- Quick Join Section -->
+    <div class="invite-section">
+        <h3><i class="fas fa-ticket-alt"></i> Join with Invite Code</h3>
+        <form action="/leagues/join" method="post">
+            <div class="input-group input-group-lg">
+                <input type="text" class="form-control" name="invite_code" 
+                       placeholder="Enter a league invite code to join instantly" required>
+                <button class="btn btn-success" type="submit">
+                    <i class="fas fa-sign-in-alt"></i> Join
+                </button>
+            </div>
+            <small class="text-muted">Ask your friends for their league's invite code to join their competition</small>
+        </form>
+    </div>
+
+    <!-- Public Leagues Section -->
+    <section class="mb-5">
+        <div class="section-header">
+            <h2 class="section-title"><i class="fas fa-globe"></i> Public Leagues</h2>
+            <div class="controls-group">
+                <div class="search-box">
+                    <input type="text" id="league-search" class="form-control" 
+                           placeholder="Search by name or creator...">
+                </div>
+                <select id="league-sort" class="form-select" style="width: auto;">
+                    <option value="recent">Recent</option>
+                    <option value="members">Most Members</option>
+                    <option value="starting_cash">Highest Starting Cash</option>
+                </select>
+            </div>
+        </div>
+
+        <div id="leagues-container" class="leagues-grid">
+            {% set joined_ids = user_leagues | map(attribute='id') | list %}
+            
+            {% if visible_public %}
+                {% for league in visible_public %}
+                <div class="league-card league-public" 
+                     data-name="{{ league.name|lower }}" 
+                     data-desc="{{ league.description|default('')|lower }}" 
+                     data-creator="{{ league.creator_name|lower }}" 
+                     data-members="{{ league.member_count }}" 
+                     data-starting="{{ league.starting_cash }}"
+                     data-league-id="{{ league.id }}">
+                    
+                    <div class="league-header">
+                        <div class="league-title">{{ league.name }}</div>
+                        <div class="league-creator">by <strong>{{ league.creator_name }}</strong></div>
+                    </div>
+
+                    <div class="league-description">
+                        {{ league.description[:130] }}{% if league.description|length > 130 %}...{% endif %}
+                    </div>
+
+                    <div class="league-meta">
+                        <div class="meta-item">
+                            <div class="meta-label"><i class="fas fa-users"></i> Members</div>
+                            <div class="meta-value">{{ league.member_count }}</div>
                         </div>
-                        <div class="card-footer">
-                            <a href="/leagues/{{ league.id }}" class="btn btn-sm btn-outline-primary w-100">
-                                <i class="fas fa-eye"></i> View League
-                            </a>
+                        <div class="meta-item">
+                            <div class="meta-label"><i class="fas fa-dollar-sign"></i> Starting Cash</div>
+                            <div class="meta-value">{{ league.starting_cash | usd }}</div>
                         </div>
+                    </div>
+
+                    <div class="league-badges">
+                        {% if league.is_active %}
+                        <span class="status-badge active"><i class="fas fa-circle"></i> Active</span>
+                        {% else %}
+                        <span class="status-badge ended"><i class="fas fa-check-circle"></i> Ended</span>
+                        {% endif %}
+                    </div>
+
+                    <div class="league-actions">
+                        {% if league.id not in joined_ids %}
+                        <form action="/leagues/join" method="post" class="flex-grow-1">
+                            <input type="hidden" name="league_id" value="{{ league.id }}">
+                            <button type="submit" class="btn btn-outline-primary btn-sm w-100">
+                                <i class="fas fa-sign-in-alt"></i> Join
+                            </button>
+                        </form>
+                        {% else %}
+                        <button class="btn btn-secondary btn-sm w-100" disabled>
+                            <i class="fas fa-check"></i> Joined
+                        </button>
+                        {% endif %}
+                        <button type="button" class="btn btn-outline-secondary btn-sm league-details-btn" 
+                                data-league-id="{{ league.id }}">
+                            <i class="fas fa-info-circle"></i>
+                        </button>
                     </div>
                 </div>
                 {% endfor %}
-            </div>
-        </div>
-    </div>
-    {% endif %}
-
-    <!-- Join League by Code -->
-    <div class="card mb-4">
-        <div class="card-header">
-            <h5 class="mb-0"><i class="fas fa-ticket-alt"></i> Join with Invite Code</h5>
-        </div>
-        <div class="card-body">
-            <form action="/leagues/join" method="post" class="row g-3">
-                <div class="col-md-8">
-                    <input type="text" class="form-control" name="invite_code" placeholder="Enter invite code" required>
+            {% else %}
+            <div class="col-12">
+                <div class="empty-state">
+                    <div class="empty-state-icon"><i class="fas fa-search"></i></div>
+                    <h4>No Leagues Found</h4>
+                    <p>Try adjusting your search or create a new league to invite others to join!</p>
                 </div>
-                <div class="col-md-4">
-                    <button type="submit" class="btn btn-success w-100">
-                        <i class="fas fa-sign-in-alt"></i> Join League
-                    </button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <!-- Public Leagues -->
-    <div class="card">
-        <div class="card-header">
-            <h5 class="mb-0"><i class="fas fa-globe"></i> Public Leagues</h5>
-        </div>
-        <div class="card-body">
-            {% set joined_ids = user_leagues | map(attribute='id') | list %}
-            {% set visible = namespace(count=0) %}
-
-            <div class="table-responsive">
-                <table class="table table-hover" id="public-leagues-table">
-                    <thead>
-                        <tr>
-                            <th>Name</th>
-                            <th>Creator</th>
-                            <th>Members</th>
-                            <th>Starting Cash</th>
-                            <th>Status</th>
-                            <th>Action</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for league in visible_public %}
-                            <tr data-name="{{ league.name|lower }}" data-desc="{{ league.description|default('')|lower }}" data-creator="{{ league.creator_name|lower }}" data-members="{{ league.member_count }}" data-starting="{{ league.starting_cash }}">
-                                <td>
-                                    <strong>{{ league.name }}</strong>
-                                    <br>
-                                    <small class="text-muted">{{ league.description[:80] }}{% if league.description|length > 80 %}...{% endif %}</small>
-                                </td>
-                                <td>{{ league.creator_name }}</td>
-                                <td>{{ league.member_count }}</td>
-                                <td>{{ league.starting_cash | usd }}</td>
-                                <td>
-                                    {% if league.is_active %}
-                                    <span class="badge bg-success">Active</span>
-                                    {% else %}
-                                    <span class="badge bg-secondary">Ended</span>
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    <form action="/leagues/join" method="post" class="d-inline">
-                                        <input type="hidden" name="league_id" value="{{ league.id }}">
-                                        <button type="submit" class="btn btn-sm btn-outline-primary">
-                                            <i class="fas fa-sign-in-alt"></i> Join
-                                        </button>
-                                    </form>
-                                    <button type="button" class="btn btn-sm btn-outline-secondary ms-1 league-details-btn" data-league-id="{{ league.id }}">Details</button>
-                                </td>
-                            </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
             </div>
-
-            {% if visible.count == 0 %}
-            <p class="text-muted text-center mb-0">No public leagues available that you haven't already joined.</p>
             {% endif %}
         </div>
-    </div>
+    </section>
+</div>
 
-<!-- League preview modal -->
+<!-- League Preview Modal -->
 <div class="modal fade" id="leaguePreviewModal" tabindex="-1" aria-labelledby="leaguePreviewLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="leaguePreviewLabel">League Preview</h5>
+            <div class="modal-header border-bottom">
+                <h5 class="modal-title" id="leaguePreviewLabel"><i class="fas fa-info-circle"></i> League Details</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
                 <div id="league-preview-body">
-                    <h4 id="preview-name"></h4>
-                    <p id="preview-desc" class="text-muted"></p>
-                    <div class="mb-3"><strong>Starting Cash:</strong> <span id="preview-starting"></span></div>
-                    <div class="mb-3"><strong>Members:</strong> <span id="preview-members"></span></div>
-                    <div class="mb-3"><strong>Top Players:</strong>
-                        <ul id="preview-top" class="list-unstyled"></ul>
+                    <h4 id="preview-name" style="color: var(--text-primary); margin-bottom: 0.5rem;"></h4>
+                    <div id="preview-creator" style="color: var(--text-secondary); margin-bottom: 1rem; font-size: 0.9rem;"></div>
+                    
+                    <p id="preview-desc" class="text-muted" style="margin-bottom: 1.5rem;"></p>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem; padding-bottom: 1.5rem; border-bottom: 1px solid var(--border-color);">
+                        <div>
+                            <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.25rem;">Starting Cash</div>
+                            <div id="preview-starting" style="font-size: 1.25rem; font-weight: 700; color: var(--text-primary);"></div>
+                        </div>
+                        <div>
+                            <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.25rem;">Members</div>
+                            <div id="preview-members" style="font-size: 1.25rem; font-weight: 700; color: var(--text-primary);"></div>
+                        </div>
                     </div>
-                    <div class="mb-3"><strong>Rules:</strong>
-                        <pre id="preview-rules" class="small bg-light p-2 rounded"></pre>
+
+                    <h6 style="color: var(--text-primary); margin-bottom: 0.75rem;">Top Performers</h6>
+                    <ul id="preview-top" class="list-unstyled mb-3">
+                        <li class="text-muted">Loading...</li>
+                    </ul>
+
+                    <h6 style="color: var(--text-primary); margin-bottom: 0.75rem;">Rules</h6>
+                    <pre id="preview-rules" class="small bg-light p-2 rounded" style="background: var(--card-bg); max-height: 150px; overflow-y: auto;"></pre>
+                    
+                    <div class="text-muted small mt-3">
+                        <i class="fas fa-eye"></i> Views: <span id="preview-views">—</span>
                     </div>
-                    <div class="mb-2 text-muted small">Views: <span id="preview-views">—</span></div>
                 </div>
             </div>
-            <div class="modal-footer">
+            <div class="modal-footer border-top">
                 <form id="join-from-preview" action="/leagues/join" method="post" class="me-auto">
-                        <input type="hidden" name="league_id" id="join-league-id">
-                        <button type="submit" class="btn btn-success">Join League</button>
+                    <input type="hidden" name="league_id" id="join-league-id">
+                    <button type="submit" class="btn btn-success">
+                        <i class="fas fa-sign-in-alt"></i> Join League
+                    </button>
                 </form>
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
             </div>
         </div>
     </div>
 </div>
-</div>
+
 {% endblock %}
 
 {% block scripts %}
 {{ super() }}
 <script>
-// Simple client-side search and sort for public leagues table
-function initLeaguesTable() {
+// Update hero stats
+document.addEventListener('DOMContentLoaded', function() {
+    const myLeaguesSection = document.querySelectorAll('.league-card.my-league').length;
+    const totalPublic = document.querySelectorAll('.league-card.league-public').length;
+    const activeLeagues = document.querySelectorAll('.league-card.my-league:not(.ended)').length;
+    
+    document.getElementById('my-leagues-count').textContent = myLeaguesSection;
+    document.getElementById('total-leagues').textContent = (myLeaguesSection + totalPublic);
+    document.getElementById('active-leagues').textContent = activeLeagues;
+});
+
+// Search and sort functionality
+function initLeaguesFiltering() {
     const search = document.getElementById('league-search');
     const sort = document.getElementById('league-sort');
-    const table = document.getElementById('public-leagues-table');
-    if (!table) return;
-    const tbody = table.querySelector('tbody');
-    const rows = Array.from(tbody.querySelectorAll('tr'));
+    const container = document.getElementById('leagues-container');
+    
+    if (!container) return;
+    
+    const allCards = Array.from(container.querySelectorAll('.league-card.league-public'));
 
     function filterAndSort() {
         const q = (search && search.value || '').toLowerCase().trim();
-        let filtered = rows.filter(r => {
+        let filtered = allCards.filter(card => {
             if (!q) return true;
-            const name = r.dataset.name || '';
-            const desc = r.dataset.desc || '';
-            const creator = r.dataset.creator || '';
+            const name = card.dataset.name || '';
+            const desc = card.dataset.desc || '';
+            const creator = card.dataset.creator || '';
             return name.includes(q) || desc.includes(q) || creator.includes(q);
         });
 
@@ -221,24 +599,43 @@ function initLeaguesTable() {
             filtered.sort((a,b) => Number(b.dataset.starting||0) - Number(a.dataset.starting||0));
         }
 
-        // Rebuild tbody
-        tbody.innerHTML = '';
-        filtered.forEach(r => tbody.appendChild(r));
+        // Reorder in DOM
+        filtered.forEach(card => container.appendChild(card));
+
+        // Show/hide empty state
+        if (filtered.length === 0) {
+            if (!document.getElementById('no-leagues-msg')) {
+                const emptyDiv = document.createElement('div');
+                emptyDiv.id = 'no-leagues-msg';
+                emptyDiv.className = 'col-12 empty-state';
+                emptyDiv.innerHTML = `
+                    <div class="empty-state-icon"><i class="fas fa-search"></i></div>
+                    <h4>No Leagues Found</h4>
+                    <p>Try adjusting your search or create a new league!</p>
+                `;
+                container.appendChild(emptyDiv);
+            }
+        } else {
+            const emptyMsg = document.getElementById('no-leagues-msg');
+            if (emptyMsg) emptyMsg.remove();
+        }
     }
 
-    if (search) search.addEventListener('input', () => filterAndSort());
-    if (sort) sort.addEventListener('change', () => filterAndSort());
+    if (search) search.addEventListener('input', filterAndSort);
+    if (sort) sort.addEventListener('change', filterAndSort);
 }
 
-document.addEventListener('DOMContentLoaded', initLeaguesTable);
-    
-// Modal preview and analytics
-document.addEventListener('click', function(e){
-    if (e.target && e.target.classList.contains('league-details-btn')){
+document.addEventListener('DOMContentLoaded', initLeaguesFiltering);
+
+// League preview modal
+document.addEventListener('click', function(e) {
+    if (e.target && e.target.classList.contains('league-details-btn')) {
         const id = e.target.dataset.leagueId;
         if (!id) return;
+        
         const modalEl = document.getElementById('leaguePreviewModal');
         const previewName = document.getElementById('preview-name');
+        const previewCreator = document.getElementById('preview-creator');
         const previewDesc = document.getElementById('preview-desc');
         const previewStarting = document.getElementById('preview-starting');
         const previewMembers = document.getElementById('preview-members');
@@ -249,38 +646,51 @@ document.addEventListener('click', function(e){
 
         fetch(`/leagues/${id}/preview`).then(r => r.json()).then(data => {
             if (data.error) {
-                alert('Could not load preview');
+                alert('Could not load league details');
                 return;
             }
+            
             previewName.textContent = data.name || 'League';
-            previewDesc.textContent = data.description || '';
+            previewCreator.textContent = `Created by ${data.creator_name || 'Unknown'}`;
+            previewDesc.textContent = data.description || 'No description provided';
             previewStarting.textContent = data.starting_cash ? '$' + Number(data.starting_cash).toFixed(2) : '—';
             previewMembers.textContent = data.member_count || 0;
+            
             previewTop.innerHTML = '';
-            (data.top || []).forEach(t => {
+            if (data.top && data.top.length > 0) {
+                data.top.forEach((t, i) => {
+                    const li = document.createElement('li');
+                    li.style.padding = '0.5rem 0';
+                    li.style.borderBottom = '1px solid var(--border-color)';
+                    li.innerHTML = `<strong>#${i + 1}</strong> ${t.username} — ${t.total_value ? '$' + Number(t.total_value).toFixed(2) : 'N/A'}`;
+                    previewTop.appendChild(li);
+                });
+            } else {
                 const li = document.createElement('li');
-                li.textContent = `${t.username} — ${t.total_value ? '$' + Number(t.total_value).toFixed(2) : 'N/A'}`;
+                li.textContent = 'No top performers yet';
+                li.style.color = 'var(--text-secondary)';
                 previewTop.appendChild(li);
-            });
+            }
+            
             previewRules.textContent = data.rules ? (typeof data.rules === 'string' ? data.rules : JSON.stringify(data.rules, null, 2)) : 'No rules defined';
             joinInput.value = data.id;
 
-            // Track view (fire-and-forget)
+            // Track view
             fetch(`/leagues/${id}/track_view`, {method: 'POST'}).then(r => r.json()).then(j => {
                 if (j && j.views !== undefined) previewViews.textContent = j.views;
             }).catch(()=>{});
 
-            // show modal via Bootstrap
             try {
                 const modal = new bootstrap.Modal(modalEl);
                 modal.show();
             } catch (err) {
-                // fallback: open details page
                 window.location = `/leagues/${id}`;
             }
-        }).catch(()=> window.location = `/leagues/${id}`);
+        }).catch(err => {
+            console.error('Error loading preview:', err);
+            alert('Error loading league details');
+        });
     }
 });
-
 </script>
 {% endblock %}
