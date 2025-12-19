@@ -38,6 +38,9 @@ from league_modes import get_league_mode, get_available_modes, MODE_ABSOLUTE_VAL
 from league_rules import LeagueRuleEngine
 from advanced_league_system import AdvancedLeagueManager, RatingSystem, AchievementEngine, QuestSystem, FairPlayEngine, AnalyticsCalculator
 
+# --- Constants ---
+FLOAT_EPSILON = 0.01  # Used for floating-point comparisons in trading logic
+
 
 # --- Login Required Decorator (move up) ---
 def login_required(f):
@@ -507,24 +510,33 @@ def handle_join_room(data):
         if len(parts) == 2:
             try:
                 league_id = int(parts[1])
-                # Check if user is league member
-                conn = db.get_connection()
-                cursor = conn.cursor()
-                cursor.execute('SELECT 1 FROM league_members WHERE league_id = ? AND user_id = ?', (league_id, user_id))
-                if not cursor.fetchone():
+                # Check if user is league member with error handling
+                try:
+                    conn = db.get_connection()
+                    cursor = conn.cursor()
+                    cursor.execute('SELECT 1 FROM league_members WHERE league_id = ? AND user_id = ?', (league_id, user_id))
+                    if not cursor.fetchone():
+                        conn.close()
+                        emit('chat_notification', {'type': 'error', 'message': 'You are not a member of this league.'}, room=request.sid)
+                        return
                     conn.close()
-                    emit('chat_notification', {'type': 'error', 'message': 'You are not a member of this league.'}, room=request.sid)
+                except Exception as e:
+                    logging.error(f"Error checking league membership for user {user_id} in league {league_id}: {e}")
+                    emit('chat_notification', {'type': 'error', 'message': 'Error accessing league.'}, room=request.sid)
                     return
-                conn.close()
             except ValueError:
                 return
     
     join_room(room)
     chat_users[room].add(username)
     emit('user_presence', list(chat_users[room]), room=room)
-    # Load chat history from DB
-    history = db.get_chat_history(room, limit=100)
-    emit('chat_history', history, room=request.sid)
+    # Load chat history from DB with error handling
+    try:
+        history = db.get_chat_history(room, limit=100)
+        emit('chat_history', history, room=request.sid)
+    except Exception as e:
+        logging.error(f"Error loading chat history for room {room}: {e}")
+        emit('chat_history', [], room=request.sid)
 
 @socketio.on('leave_room')
 def handle_leave_room(data):
@@ -800,36 +812,50 @@ except Exception:
 
 
 def create_portfolio_snapshot(user_id):
-    """Create a snapshot of the user's current portfolio value"""
+    """Create a snapshot of the user's current portfolio value using transaction for consistency"""
     import json
     
-    # Get user's stocks and cash
-    stocks = db.get_user_stocks(user_id)
-    user = db.get_user(user_id)
-    if not user:
-        logging.warning(f"create_portfolio_snapshot: User {user_id} not found")
-        return
-    cash = user["cash"]
-    
-    # Calculate total portfolio value
-    total_value = cash
-    stocks_data = []
-    
-    for stock in stocks:
-        quote = lookup(stock["symbol"])
-        if quote:
-            stock_value = stock["shares"] * quote["price"]
-            total_value += stock_value
-            stocks_data.append({
-                "symbol": stock["symbol"],
-                "shares": stock["shares"],
-                "price": quote["price"],
-                "value": stock_value
-            })
-    
-    # Save snapshot
-    stocks_json = json.dumps(stocks_data)
-    db.create_snapshot(user_id, total_value, cash, stocks_json)
+    try:
+        # Use database transaction to ensure atomicity
+        conn = db.get_connection()
+        cursor = conn.cursor()
+        
+        # Get user's stocks and cash within single transaction for consistency
+        cursor.execute("SELECT id, username, cash FROM users WHERE id = ?", (user_id,))
+        user_row = cursor.fetchone()
+        if not user_row:
+            conn.close()
+            logging.warning(f"create_portfolio_snapshot: User {user_id} not found")
+            return
+        
+        user_dict = dict(user_row)
+        cash = user_dict["cash"]
+        
+        cursor.execute("SELECT symbol, shares FROM user_stocks WHERE user_id = ?", (user_id,))
+        stocks = [dict(row) for row in cursor.fetchall()]
+        conn.close()
+        
+        # Calculate total portfolio value
+        total_value = cash
+        stocks_data = []
+        
+        for stock in stocks:
+            quote = lookup(stock["symbol"])
+            if quote:
+                stock_value = stock["shares"] * quote["price"]
+                total_value += stock_value
+                stocks_data.append({
+                    "symbol": stock["symbol"],
+                    "shares": stock["shares"],
+                    "price": quote["price"],
+                    "value": stock_value
+                })
+        
+        # Save snapshot
+        stocks_json = json.dumps(stocks_data)
+        db.create_snapshot(user_id, total_value, cash, stocks_json)
+    except Exception as e:
+        logging.error(f"Error creating portfolio snapshot for user {user_id}: {e}")
 
 
 def check_achievements(user_id):
@@ -1098,8 +1124,8 @@ def buy():
         cash = get_portfolio_cash(user_id, context)
         user = db.get_user(user_id)
         
-        # Check if user can afford (with small epsilon for floating point comparison)
-        if cash < total_cost - 0.01:
+        # Check if user can afford (with epsilon for floating point comparison)
+        if cash < total_cost - FLOAT_EPSILON:
             return apology(f"can't afford: need {usd(total_cost)}, have {usd(cash)}", 400)
         
         # Get optional strategy and notes
@@ -1393,6 +1419,9 @@ def sell():
         if not symbol:
             return apology("must provide symbol", 400)
         
+        # Get stock holding based on portfolio context
+        if context["type"] == "personal":
+            stock = db.get_user_stock(user_id, symbol)
         else:
             league_id = context["league_id"]
             stock = db.get_league_holding(league_id, user_id, symbol)
@@ -2254,6 +2283,11 @@ def league_trade(league_id):
         
         price = quote["price"]
         trade_value = shares * price
+        
+        # Use comprehensive trade validation
+        is_valid, error = db.validate_league_trade(league_id, user_id, symbol, trade_type.upper(), shares, price)
+        if not is_valid:
+            return apology(error, 400)
         
         # Validate trade using rule engine
         is_valid, error = rule_engine.validate_order(
@@ -4560,28 +4594,36 @@ def _execute_copy_trades(trader_id, symbol, shares, price, trade_type, txn_id):
                     )
             
             elif trade_type == 'sell':
-                # Define missing variables
-                holdings = db.get_league_holdings(league_id, user_id)
-                trade_value = shares * price
-                fee = trade_value * 0.01  # Example fee calculation (1%)
-                portfolio = db.get_league_portfolio(league_id, user_id)
-
-                # Ensure league_id and user_id are defined
-                league_id = copier.get('league_id')
-                user_id = copier.get('user_id')
-
-                # Check if user has enough shares
-                holding = next((h for h in holdings if h['symbol'] == symbol), None)
-                current_shares = holding['shares'] if holding else 0
-                if shares > current_shares:
-                    return apology("not enough shares", 400)
-
-                # Update league portfolio
-                proceeds = trade_value - fee
-                new_cash = portfolio['cash'] + proceeds
-                db.update_league_cash(league_id, user_id, new_cash)
-                db.update_league_holding(league_id, user_id, symbol, -shares, price)
-                db.record_league_transaction(league_id, user_id, symbol, -shares, price, "sell", fee)
+                # Get follower's holding and execute sell
+                follower_holding = db.get_user_stock(follower_id, symbol)
+                follower_shares = follower_holding['shares'] if follower_holding else 0
+                
+                if follower_shares > 0 and copy_shares <= follower_shares:
+                    # Record transaction
+                    copied_txn_id = db.record_transaction(
+                        follower_id, symbol, -copy_shares, price, 'sell',
+                        strategy='copy_trade', notes=f'Copied from {db.get_user(trader_id)["username"]}'
+                    )
+                    
+                    # Calculate proceeds
+                    trade_value = copy_shares * price
+                    proceeds = trade_value  # Simplified - no fees for copy trades
+                    
+                    # Update cash
+                    db.update_cash(follower_id, follower_cash + proceeds)
+                    
+                    # Record copied trade
+                    db.record_copied_trade(follower_id, trader_id, txn_id, copied_txn_id,
+                                          symbol, copy_shares, price, 'sell')
+                    
+                    # Notify follower
+                    db.add_notification(
+                        follower_id,
+                        'copy_trade',
+                        'Copy Trade Executed',
+                        f'Copied trade: Sold {copy_shares} shares of {symbol} for {usd(proceeds)}',
+                        f'/history'
+                    )
                 
                 flash(f"Sold {shares} shares of {symbol} for {usd(proceeds)} (after {usd(fee)} fee)", "success")
         

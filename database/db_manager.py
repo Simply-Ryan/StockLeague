@@ -30,8 +30,8 @@ class DatabaseManager:
         # Ensure moderation table exists
         try:
             self.init_league_moderation_table()
-        except Exception:
-            pass
+        except Exception as e:
+            logging.warning(f"Failed to initialize league moderation table: {e}")
 
     def init_chat_table(self):
         """Initialize chat messages table."""
@@ -325,7 +325,8 @@ class DatabaseManager:
                 leaderboard_type TEXT NOT NULL,
                 period TEXT NOT NULL,
                 data_json TEXT,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(leaderboard_type, period)
             )
         """)
 
@@ -1138,6 +1139,20 @@ class DatabaseManager:
         
         return league_id, invite_code
     
+    def get_league_member_count(self, league_id):
+        """Get the number of members in a league."""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            SELECT COUNT(*) as count FROM league_members WHERE league_id = ?
+        """, (league_id,))
+        
+        result = cursor.fetchone()
+        conn.close()
+        
+        return result['count'] if result else 0
+    
     def join_league(self, league_id, user_id):
         """Join a league."""
         conn = self.get_connection()
@@ -1180,6 +1195,24 @@ class DatabaseManager:
                 (league_id, user_id)
             )
             
+            # Clean up user's portfolio data when they leave
+            cursor.execute(
+                "DELETE FROM league_portfolios WHERE league_id = ? AND user_id = ?",
+                (league_id, user_id)
+            )
+            cursor.execute(
+                "DELETE FROM league_holdings WHERE league_id = ? AND user_id = ?",
+                (league_id, user_id)
+            )
+            cursor.execute(
+                "DELETE FROM league_transactions WHERE league_id = ? AND user_id = ?",
+                (league_id, user_id)
+            )
+            cursor.execute(
+                "DELETE FROM league_member_stats WHERE league_id = ? AND user_id = ?",
+                (league_id, user_id)
+            )
+            
             # If the leaving user is the creator, transfer ownership
             if user_id == creator_id:
                 # Get the second member who joined (oldest join date after creator)
@@ -1212,15 +1245,41 @@ class DatabaseManager:
             
             # Auto-delete league if no members remain
             if remaining_members == 0:
-                # Delete all related data
-                cursor.execute("DELETE FROM league_portfolios WHERE league_id = ?", (league_id,))
-                cursor.execute("DELETE FROM league_holdings WHERE league_id = ?", (league_id,))
+                # Delete all related data in correct order (respecting foreign keys)
+                # Core trading data
                 cursor.execute("DELETE FROM league_transactions WHERE league_id = ?", (league_id,))
-                cursor.execute("DELETE FROM league_activity_feed WHERE league_id = ?", (league_id,))
+                cursor.execute("DELETE FROM league_holdings WHERE league_id = ?", (league_id,))
+                cursor.execute("DELETE FROM league_portfolios WHERE league_id = ?", (league_id,))
+                
+                # Analytics and tracking
+                cursor.execute("DELETE FROM league_portfolio_snapshots WHERE league_id = ?", (league_id,))
                 cursor.execute("DELETE FROM league_member_stats WHERE league_id = ?", (league_id,))
+                cursor.execute("DELETE FROM league_activity_feed WHERE league_id = ?", (league_id,))
+                
+                # Season data
                 cursor.execute("DELETE FROM league_seasons WHERE league_id = ?", (league_id,))
+                
+                # Advanced features (if they exist)
+                try:
+                    cursor.execute("DELETE FROM league_moderation WHERE league_id = ?", (league_id,))
+                except sqlite3.OperationalError:
+                    pass  # Table doesn't exist
+                
+                try:
+                    cursor.execute("DELETE FROM league_achievements WHERE league_id = ?", (league_id,))
+                    cursor.execute("DELETE FROM league_badges WHERE league_id = ?", (league_id,))
+                    cursor.execute("DELETE FROM league_quest_progress WHERE league_id = ?", (league_id,))
+                    cursor.execute("DELETE FROM league_quests WHERE league_id = ?", (league_id,))
+                except sqlite3.OperationalError:
+                    pass  # Tables don't exist
+                
+                # Membership (after everything that references it)
                 cursor.execute("DELETE FROM league_members WHERE league_id = ?", (league_id,))
+                
+                # Finally, delete the league itself
                 cursor.execute("DELETE FROM leagues WHERE id = ?", (league_id,))
+                
+                logging.info(f"League {league_id} auto-deleted due to no remaining members")
             
             conn.commit()
         except Exception as e:
@@ -1713,8 +1772,63 @@ class DatabaseManager:
             price = price_lookup_func(holding['symbol'])
             if price:
                 total += holding['shares'] * price
+            else:
+                # Fallback: use average cost if current price unavailable
+                # This ensures portfolio value isn't artificially deflated
+                total += holding['shares'] * holding['avg_cost']
+                logging.warning(f"Missing price for {holding['symbol']}, using cost basis {holding['avg_cost']}")
         
         return total
+    
+    def validate_league_trade(self, league_id, user_id, symbol, action, shares, price):
+        """Validate that a trade is allowed before executing it.
+        
+        Args:
+            league_id: League ID
+            user_id: User ID
+            symbol: Stock symbol
+            action: 'BUY' or 'SELL'
+            shares: Number of shares
+            price: Price per share
+        
+        Returns:
+            (is_valid, error_message)
+        """
+        # Validate basic inputs
+        if shares <= 0:
+            return False, "Shares must be positive"
+        if price <= 0:
+            return False, "Price must be positive"
+        if action not in ['BUY', 'SELL']:
+            return False, f"Invalid action: {action}"
+        
+        # Get portfolio
+        portfolio = self.get_league_portfolio(league_id, user_id)
+        if not portfolio:
+            return False, "Portfolio not found"
+        
+        # BUY validation
+        if action == 'BUY':
+            cost = shares * price
+            if portfolio['cash'] < cost:
+                return False, f"Insufficient funds. Have ${portfolio['cash']:.2f}, need ${cost:.2f}"
+        
+        # SELL validation
+        elif action == 'SELL':
+            holding = self.get_league_holding(league_id, user_id, symbol)
+            if not holding or holding['shares'] < shares:
+                available = holding['shares'] if holding else 0
+                return False, f"Insufficient shares. Have {available}, trying to sell {shares}"
+        
+        # League state validation
+        league = self.get_league(league_id)
+        if not league:
+            return False, "League not found"
+        if not league.get('is_active'):
+            return False, "League is not active"
+        
+        return True, None
+    
     
     def update_league_scores_v2(self, league_id, price_lookup_func):
         """Update scores and ranks for all members using league portfolios.
@@ -1955,9 +2069,9 @@ class DatabaseManager:
         # Recompute analytics (best-effort)
         try:
             self.update_trader_stats(user_id)
-        except Exception:
+        except Exception as e:
             # Don't raise if analytics recompute fails; portfolio has been reset
-            pass
+            logging.warning(f"Failed to recompute trader stats for user {user_id}: {e}")
     
     # ============ NOTIFICATION METHODS ============
     
