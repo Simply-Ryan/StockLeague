@@ -3,145 +3,205 @@
 {% block title %}{{ quote.symbol }} - Stock Quote{% endblock %}
 
 {% block main %}
-<div class="row justify-content-center">
-    <div class="col-lg-10">
-        <div class="card shadow">
-            <div class="card-body">
-                <!-- Header with company name and symbol -->
-                <div class="text-center mb-4">
-                    <h2 class="mb-2">{{ quote.name }}</h2>
-                    <h3 class="text-primary mb-0">{{ quote.symbol }}</h3>
+<div class="container-fluid">
+    <!-- Top Header with Symbol, Price, and Key Actions -->
+    <div class="row mb-3">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-start mb-3">
+                <div>
+                    <h1 class="mb-0">{{ quote.symbol }}</h1>
+                    <p class="text-muted mb-0">{{ quote.name }}</p>
                 </div>
-
-                <!-- Current Price and Change -->
-                <div class="row mb-4">
-                    <div class="col-md-6 text-center">
-                        <h6 class="text-muted">Current Price</h6>
-                        <div class="display-4 text-success stock-price" data-symbol="{{ quote.symbol }}">
-                            {{ quote.price | usd }}
-                        </div>
-                        <small class="text-muted"><i class="fas fa-circle text-success"></i> Live</small>
+                <div class="text-end">
+                    <div class="display-4 stock-price" data-symbol="{{ quote.symbol }}" style="font-weight: 700; color: {% if quote.change >= 0 %}#198754{% else %}#dc3545{% endif %};">
+                        {{ quote.price | usd }}
                     </div>
-                    <div class="col-md-6 text-center">
-                        <h6 class="text-muted">Change</h6>
-                        <div class="display-6 stock-change {% if quote.change >= 0 %}text-success{% else %}text-danger{% endif %}" data-symbol="{{ quote.symbol }}">
-                            {% if quote.change >= 0 %}+{% endif %}{{ quote.change | usd }}
-                            <small>({% if quote.change_percent >= 0 %}+{% endif %}{{ "%.2f" | format(quote.change_percent) }}%)</small>
-                        </div>
+                    <div class="stock-change h5 mb-0 {% if quote.change >= 0 %}text-success{% else %}text-danger{% endif %}" data-symbol="{{ quote.symbol }}">
+                        {% if quote.change >= 0 %}↑{% else %}↓{% endif %} {{ quote.change | usd }} ({% if quote.change_percent >= 0 %}+{% endif %}{{ "%.2f" | format(quote.change_percent) }}%)
                     </div>
                 </div>
+            </div>
+            <div class="d-flex gap-2 flex-wrap">
+                <a href="/buy?symbol={{ quote.symbol }}" class="btn btn-success btn-sm">
+                    <i class="fas fa-shopping-cart"></i> Buy
+                </a>
+                {% if in_watchlist %}
+                <form action="/watchlist/remove" method="post" class="d-inline">
+                    <input type="hidden" name="symbol" value="{{ quote.symbol }}">
+                    <button type="submit" class="btn btn-warning btn-sm">
+                        <i class="fas fa-star"></i> Watchlist
+                    </button>
+                </form>
+                {% else %}
+                <button type="button" class="btn btn-outline-warning btn-sm" data-bs-toggle="modal" data-bs-target="#addWatchlistModal">
+                    <i class="far fa-star"></i> Add
+                </button>
+                {% endif %}
+                <a href="/quote" class="btn btn-outline-primary btn-sm">
+                    <i class="fas fa-search"></i> Quote
+                </a>
+                <a href="/" class="btn btn-outline-secondary btn-sm">
+                    <i class="fas fa-home"></i> Home
+                </a>
+            </div>
+        </div>
+    </div>
 
-                <!-- Stock Details Grid -->
-                <div class="row mb-4">
-                    <div class="col-md-3 col-6 mb-3">
-                        <div class="card bg-light">
-                            <div class="card-body text-center">
-                                <h6 class="card-subtitle mb-2 text-muted">Open</h6>
-                                <p class="card-text fw-bold">{{ quote.open | usd }}</p>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-md-3 col-6 mb-3">
-                        <div class="card bg-light">
-                            <div class="card-body text-center">
-                                <h6 class="card-subtitle mb-2 text-muted">Previous Close</h6>
-                                <p class="card-text fw-bold">{{ quote.previous_close | usd }}</p>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-md-3 col-6 mb-3">
-                        <div class="card bg-light">
-                            <div class="card-body text-center">
-                                <h6 class="card-subtitle mb-2 text-muted">Day High</h6>
-                                <p class="card-text fw-bold text-success">{{ quote.high | usd }}</p>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-md-3 col-6 mb-3">
-                        <div class="card bg-light">
-                            <div class="card-body text-center">
-                                <h6 class="card-subtitle mb-2 text-muted">Day Low</h6>
-                                <p class="card-text fw-bold text-danger">{{ quote.low | usd }}</p>
-                            </div>
-                        </div>
-                    </div>
+    <!-- Main Content: Chart Left, Metrics Right -->
+    <div class="row g-3 mb-4">
+        <!-- Chart Column (66% width) -->
+        <div class="col-lg-8">
+            <div class="card shadow-sm h-100">
+                <div class="card-header bg-light border-0">
+                    <h6 class="mb-0"><i class="fas fa-chart-line text-primary"></i> Price Chart</h6>
                 </div>
-
-                <!-- TradingView Chart -->
-                <div class="mb-4">
-                    <div class="d-flex justify-content-between align-items-center mb-3">
-                        <h5 class="mb-0"><i class="fas fa-chart-line"></i> Price Chart</h5>
-                        <small class="text-muted">Powered by TradingView</small>
-                    </div>
-                    
+                <div class="card-body p-2">
                     <!-- TradingView Widget Container -->
-                    <div class="tradingview-widget-container" style="height: 610px; border-radius: 8px; overflow: hidden;">
+                    <div class="tradingview-widget-container" style="height: 400px; border-radius: 4px; overflow: hidden;">
                         <div id="tradingview_chart" style="height: 100%; width: 100%;"></div>
                     </div>
                 </div>
+            </div>
+        </div>
 
-                <!-- Buy Stocks Form -->
-                <form action="/buy" method="post" class="mt-4">
-                    <div class="mb-3">
-                        <label for="buy_symbol" class="form-label">Stock Symbol</label>
-                        <input type="text" class="form-control text-uppercase" id="buy_symbol" name="symbol" 
-                               placeholder="e.g., AAPL, MSFT, AMZN" value="{{ quote.symbol }}" required>
-                        <div class="form-text">Enter the ticker symbol of the stock you want to buy</div>
+        <!-- Metrics Column (33% width) -->
+        <div class="col-lg-4">
+            <!-- Price Metrics Card -->
+            <div class="card shadow-sm mb-3">
+                <div class="card-header bg-light border-0">
+                    <h6 class="mb-0"><i class="fas fa-barcode text-primary"></i> Trading Data</h6>
+                </div>
+                <div class="card-body p-3">
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <small class="text-muted d-block">Open</small>
+                            <strong>{{ quote.open | usd }}</strong>
+                        </div>
+                        <div class="col-6">
+                            <small class="text-muted d-block">Previous Close</small>
+                            <strong>{{ quote.previous_close | usd }}</strong>
+                        </div>
                     </div>
-                    <div class="mb-3">
-                        <label for="buy_shares" class="form-label">Number of Shares</label>
-                        <input type="number" class="form-control" id="buy_shares" name="shares" 
-                               min="1" placeholder="Enter number of shares" required>
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <small class="text-muted d-block">Day High</small>
+                            <strong class="text-success">{{ quote.high | usd }}</strong>
+                        </div>
+                        <div class="col-6">
+                            <small class="text-muted d-block">Day Low</small>
+                            <strong class="text-danger">{{ quote.low | usd }}</strong>
+                        </div>
                     </div>
-                    <div class="mb-3">
-                        <label for="buy_strategy" class="form-label">Trading Strategy (Optional)</label>
-                        <select class="form-select" id="buy_strategy" name="strategy">
-                            <option value="">No Strategy</option>
-                            <option value="Day Trading">Day Trading</option>
-                            <option value="Swing Trading">Swing Trading</option>
-                            <option value="Long Term">Long Term Hold</option>
-                            <option value="Value Investing">Value Investing</option>
-                            <option value="Growth">Growth Strategy</option>
-                            <option value="Dividend">Dividend Income</option>
-                        </select>
-                        <div class="form-text">Tag this trade with a strategy to track performance</div>
+                    <hr class="my-2">
+                    <div class="row g-2">
+                        <div class="col-6">
+                            <small class="text-muted d-block">52W High</small>
+                            <strong>{% if quote.fifty_two_week_high %}{{ quote.fifty_two_week_high | usd }}{% else %}N/A{% endif %}</strong>
+                        </div>
+                        <div class="col-6">
+                            <small class="text-muted d-block">52W Low</small>
+                            <strong>{% if quote.fifty_two_week_low %}{{ quote.fifty_two_week_low | usd }}{% else %}N/A{% endif %}</strong>
+                        </div>
                     </div>
-                    <div class="mb-3">
-                        <label for="buy_notes" class="form-label">Notes (Optional)</label>
-                        <textarea class="form-control" id="buy_notes" name="notes" rows="2" 
-                                  placeholder="Why are you buying this stock?"></textarea>
-                    </div>
-                    <button type="submit" class="btn btn-success w-100">
-                        <i class="fas fa-shopping-cart"></i> Buy Stock
-                    </button>
-                </form>
-
-                <!-- Action Buttons -->
-                <hr>
-                <div class="d-grid gap-2 d-md-flex justify-content-md-center">
-                    <a href="/quote" class="btn btn-primary">
-                        <i class="fas fa-search"></i> Get Another Quote
-                    </a>
-                    <a href="/buy?symbol={{ quote.symbol }}" class="btn btn-success">
-                        <i class="fas fa-shopping-cart"></i> Buy {{ quote.symbol }}
-                    </a>
-                    {% if in_watchlist %}
-                    <form action="/watchlist/remove" method="post" class="d-inline">
-                        <input type="hidden" name="symbol" value="{{ quote.symbol }}">
-                        <button type="submit" class="btn btn-outline-warning">
-                            <i class="fas fa-star"></i> Remove from Watchlist
-                        </button>
-                    </form>
-                    {% else %}
-                    <button type="button" class="btn btn-outline-warning" data-bs-toggle="modal" data-bs-target="#addWatchlistModal">
-                        <i class="far fa-star"></i> Add to Watchlist
-                    </button>
-                    {% endif %}
-                    <a href="/" class="btn btn-secondary">
-                        <i class="fas fa-home"></i> Back to Portfolio
-                    </a>
                 </div>
             </div>
+
+            <!-- Volume & Avg Volume -->
+            <div class="card shadow-sm mb-3">
+                <div class="card-header bg-light border-0">
+                    <h6 class="mb-0"><i class="fas fa-wave-square text-primary"></i> Volume</h6>
+                </div>
+                <div class="card-body p-3">
+                    <div class="mb-3">
+                        <small class="text-muted d-block">Current Volume</small>
+                        <strong>{% if quote.volume %}{{ "{:,.0f}".format(quote.volume) }}{% else %}N/A{% endif %}</strong>
+                    </div>
+                    <div>
+                        <small class="text-muted d-block">Avg Volume (3M)</small>
+                        <strong>{% if quote.average_volume %}{{ "{:,.0f}".format(quote.average_volume) }}{% else %}N/A{% endif %}</strong>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Market Cap & P/E -->
+            <div class="card shadow-sm">
+                <div class="card-header bg-light border-0">
+                    <h6 class="mb-0"><i class="fas fa-chart-pie text-primary"></i> Fundamentals</h6>
+                </div>
+                <div class="card-body p-3">
+                    <div class="mb-3">
+                        <small class="text-muted d-block">Market Cap</small>
+                        <strong>{% if quote.market_cap %}{{ quote.market_cap }}{% else %}N/A{% endif %}</strong>
+                    </div>
+                    <div>
+                        <small class="text-muted d-block">P/E Ratio</small>
+                        <strong>{% if quote.pe_ratio %}{{ "%.2f"|format(quote.pe_ratio) }}{% else %}N/A{% endif %}</strong>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Buy Form & Additional Info -->
+    <div class="row g-3">
+        <!-- Buy Form -->
+        <div class="col-lg-8">
+            <div class="card shadow-sm">
+                <div class="card-header bg-light border-0">
+                    <h6 class="mb-0"><i class="fas fa-plus-circle text-success"></i> Quick Buy</h6>
+                </div>
+                <div class="card-body p-3">
+                    <form action="/buy" method="post">
+                        <div class="row g-2 mb-3">
+                            <div class="col-md-6">
+                                <label for="buy_shares" class="form-label">Shares</label>
+                                <input type="number" class="form-control" id="buy_shares" name="shares" min="1" placeholder="Enter quantity" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="buy_strategy" class="form-label">Strategy</label>
+                                <select class="form-select" id="buy_strategy" name="strategy">
+                                    <option value="">None</option>
+                                    <option value="Day Trading">Day Trading</option>
+                                    <option value="Swing Trading">Swing Trading</option>
+                                    <option value="Long Term">Long Term Hold</option>
+                                    <option value="Value Investing">Value Investing</option>
+                                    <option value="Growth">Growth</option>
+                                    <option value="Dividend">Dividend</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="buy_notes" class="form-label">Notes</label>
+                            <textarea class="form-control" id="buy_notes" name="notes" rows="2" placeholder="Why are you buying?"></textarea>
+                        </div>
+                        <input type="hidden" name="symbol" value="{{ quote.symbol }}">
+                        <button type="submit" class="btn btn-success w-100">
+                            <i class="fas fa-shopping-cart"></i> Place Order
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- News/Info Sidebar -->
+        <div class="col-lg-4">
+            {% if news %}
+            <div class="card shadow-sm">
+                <div class="card-header bg-light border-0">
+                    <h6 class="mb-0"><i class="fas fa-newspaper text-primary"></i> Latest News</h6>
+                </div>
+                <div class="card-body p-0" style="max-height: 500px; overflow-y: auto;">
+                    {% for article in news %}
+                    <div class="p-3 border-bottom">
+                        <a href="{{ article.url }}" target="_blank" class="text-decoration-none d-block">
+                            <strong class="d-block text-dark mb-1">{{ article.title }}</strong>
+                            <small class="text-muted d-block">{{ article.source }}</small>
+                        </a>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
         </div>
     </div>
 </div>
@@ -176,7 +236,6 @@
         
         // Update chart theme when theme changes
         window.addEventListener('themeChanged', function(e) {
-            // Reload the widget with new theme
             document.getElementById('tradingview_chart').innerHTML = '';
             new TradingView.widget({
                 "autosize": true,
@@ -203,31 +262,25 @@
 </script>
 
 <script>
-    // Override stock price update for quoted page to handle display-4 formatting
+    // Update stock price with better formatting
     const originalUpdateStockPrice = window.updateStockPrice;
     window.updateStockPrice = function(data) {
         if (data.symbol === '{{ quote.symbol }}') {
-            // Update price with $ sign
             const priceEl = document.querySelector('.stock-price[data-symbol="{{ quote.symbol }}"]');
             if (priceEl) {
                 priceEl.textContent = '$' + data.price.toFixed(2);
-                priceEl.classList.add('price-updated');
-                setTimeout(() => priceEl.classList.remove('price-updated'), 500);
+                priceEl.style.color = data.change >= 0 ? '#198754' : '#dc3545';
             }
             
-            // Update change with proper formatting
             const changeEl = document.querySelector('.stock-change[data-symbol="{{ quote.symbol }}"]');
             if (changeEl) {
-                const changeText = (data.change >= 0 ? '+$' : '-$') + Math.abs(data.change).toFixed(2);
-                const changePercent = (data.change_percent >= 0 ? '+' : '') + data.change_percent.toFixed(2) + '%';
-                changeEl.innerHTML = changeText + ' <small>(' + changePercent + ')</small>';
-                
+                const arrow = data.change >= 0 ? '↑' : '↓';
+                const changeText = arrow + ' ' + Math.abs(data.change).toFixed(2) + ' (' + (data.change_percent >= 0 ? '+' : '') + data.change_percent.toFixed(2) + '%)';
+                changeEl.textContent = changeText;
                 changeEl.classList.remove('text-success', 'text-danger');
                 changeEl.classList.add(data.change >= 0 ? 'text-success' : 'text-danger');
             }
         }
-        
-        // Call original function for other elements
         if (originalUpdateStockPrice) {
             originalUpdateStockPrice(data);
         }

@@ -2129,8 +2129,22 @@ def leave_league(league_id):
     """Leave a league"""
     user_id = session["user_id"]
     
+    # Get league info before leaving (to check if owner)
+    league = db.get_league(league_id)
+    is_owner = league and league.get('creator_id') == user_id
+    
+    # Leave the league
     db.leave_league(league_id, user_id)
-    flash("You have left the league", "info")
+    
+    # Check if league still exists (might be auto-deleted)
+    league_after = db.get_league(league_id)
+    
+    if league_after is None:
+        flash("You have left the league. League was deleted as it has no members.", "info")
+    elif is_owner:
+        flash("You have left the league. Ownership has been transferred to the next member.", "info")
+    else:
+        flash("You have left the league", "info")
     
     return redirect("/leagues")
 

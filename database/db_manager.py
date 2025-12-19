@@ -230,7 +230,7 @@ class DatabaseManager:
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 league_id INTEGER NOT NULL,
                 user_id INTEGER NOT NULL,
-                cash NUMERIC NOT NULL DEFAULT 10000.00,
+                cash NUMERIC NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 locked_at TIMESTAMP,
                 FOREIGN KEY (league_id) REFERENCES leagues(id),
@@ -1156,17 +1156,78 @@ class DatabaseManager:
             conn.close()
     
     def leave_league(self, league_id, user_id):
-        """Leave a league."""
+        """
+        Leave a league.
+        
+        - If user is the owner, transfer ownership to the second member who joined
+        - If no members remain after leaving, auto-delete the league
+        """
         conn = self.get_connection()
         cursor = conn.cursor()
         
-        cursor.execute(
-            "DELETE FROM league_members WHERE league_id = ? AND user_id = ?",
-            (league_id, user_id)
-        )
-        
-        conn.commit()
-        conn.close()
+        try:
+            # Get the league creator
+            cursor.execute("SELECT creator_id FROM leagues WHERE id = ?", (league_id,))
+            league_row = cursor.fetchone()
+            if not league_row:
+                return
+            
+            creator_id = league_row[0]
+            
+            # Remove user from league
+            cursor.execute(
+                "DELETE FROM league_members WHERE league_id = ? AND user_id = ?",
+                (league_id, user_id)
+            )
+            
+            # If the leaving user is the creator, transfer ownership
+            if user_id == creator_id:
+                # Get the second member who joined (oldest join date after creator)
+                cursor.execute("""
+                    SELECT user_id FROM league_members
+                    WHERE league_id = ?
+                    ORDER BY created_at ASC, user_id ASC
+                    LIMIT 1
+                """, (league_id,))
+                
+                new_owner_row = cursor.fetchone()
+                if new_owner_row:
+                    new_owner_id = new_owner_row[0]
+                    # Update creator_id and make them admin
+                    cursor.execute("""
+                        UPDATE leagues SET creator_id = ? WHERE id = ?
+                    """, (new_owner_id, league_id))
+                    cursor.execute("""
+                        UPDATE league_members SET is_admin = 1 
+                        WHERE league_id = ? AND user_id = ?
+                    """, (league_id, new_owner_id))
+            
+            # Check if league has any members remaining
+            cursor.execute(
+                "SELECT COUNT(*) as count FROM league_members WHERE league_id = ?",
+                (league_id,)
+            )
+            count_row = cursor.fetchone()
+            remaining_members = count_row[0] if count_row else 0
+            
+            # Auto-delete league if no members remain
+            if remaining_members == 0:
+                # Delete all related data
+                cursor.execute("DELETE FROM league_portfolios WHERE league_id = ?", (league_id,))
+                cursor.execute("DELETE FROM league_holdings WHERE league_id = ?", (league_id,))
+                cursor.execute("DELETE FROM league_transactions WHERE league_id = ?", (league_id,))
+                cursor.execute("DELETE FROM league_activity_feed WHERE league_id = ?", (league_id,))
+                cursor.execute("DELETE FROM league_member_stats WHERE league_id = ?", (league_id,))
+                cursor.execute("DELETE FROM league_seasons WHERE league_id = ?", (league_id,))
+                cursor.execute("DELETE FROM league_members WHERE league_id = ?", (league_id,))
+                cursor.execute("DELETE FROM leagues WHERE id = ?", (league_id,))
+            
+            conn.commit()
+        except Exception as e:
+            logging.error(f"Error in leave_league: {e}")
+            conn.rollback()
+        finally:
+            conn.close()
     
     def get_user_leagues(self, user_id):
         """Get all leagues a user is a member of."""
