@@ -103,10 +103,36 @@
         background: var(--card-bg);
         border-left: 4px solid var(--primary-color);
         transition: all 0.2s ease;
+        display: grid;
+        grid-template-columns: 1fr 85px;
+        gap: 0.75rem;
+        align-items: start;
     }
 
-    .mover-item:hover {
-        transform: translateX(4px);
+    .mover-item a {
+        text-decoration: none;
+        color: inherit;
+        grid-column: 1;
+        grid-row: 1 / span 2;
+    }
+
+    .mover-chart {
+        width: 85px;
+        height: 30px;
+        grid-column: 2;
+        grid-row: 1;
+    }
+
+    .mover-change {
+        font-weight: 700;
+        font-size: 0.85rem;
+        text-align: center;
+        grid-column: 2;
+        grid-row: 2;
+    }
+
+    .mover-item:hover a {
+        color: var(--primary-color);
     }
 
     .mover-item.gainer {
@@ -183,8 +209,10 @@
     }
 
     .stock-chart {
-        margin: 0.75rem 0;
+        margin: 0.5rem 0;
         flex-grow: 1;
+        height: 40px;
+        min-height: 40px;
     }
 
     .stock-action {
@@ -276,7 +304,7 @@
     <h1><i class="fas fa-compass"></i> Explore Markets</h1>
     <p>Discover stocks, track market trends, and find your next investment opportunity</p>
     
-    <form action="/quote" method="get" class="search-container">
+    <form action="/trade" method="get" class="search-container">
         <div class="input-group input-group-lg">
             <span class="input-group-text" style="background: transparent; border: none;"><i class="fas fa-search"></i></span>
             <input type="text" class="form-control search-input" name="symbol" 
@@ -341,14 +369,16 @@
                     <ul class="mover-list">
                         {% for s in market_movers.gainers %}
                         <li class="mover-item gainer">
-                            <a href="/quote?symbol={{ s.symbol }}" style="text-decoration: none; color: inherit;">
+                            <a href="/trade?symbol={{ s.symbol }}">
                                 <div class="mover-symbol">{{ s.symbol }}</div>
                                 <div class="mover-name">{{ s.name }}</div>
-                                <div class="d-flex justify-content-between mt-2">
-                                    <span class="mover-price">{{ s.price | usd }}</span>
-                                    <span class="text-success font-weight-bold">+{{ '%.2f'|format(s.change_percent) }}%</span>
-                                </div>
+                                <div class="mover-price" style="margin-top: 0.5rem;">{{ s.price | usd }}</div>
                             </a>
+                            <span class="mover-change text-success">+{{ '%.2f'|format(s.change_percent) }}%</span>
+                            <div class="mover-chart">
+                                <div id="spinner_mover_{{ s.symbol }}" class="spinner-border spinner-border-sm text-secondary" role="status" style="width: 0.75rem; height: 0.75rem;"></div>
+                                <canvas id="mover_{{ s.symbol }}" class="sparkline-canvas" width="80" height="30" style="display:none; width:80px !important; height:30px !important;"></canvas>
+                            </div>
                         </li>
                         {% else %}
                         <li class="text-muted text-center py-3">No gainers at this time</li>
@@ -367,7 +397,7 @@
                     <div class="volume-leaders">
                         {% for v in volume_leaders[:6] %}
                         <div class="volume-item">
-                            <a href="/quote?symbol={{ v.symbol }}" class="volume-symbol">
+                            <a href="/trade?symbol={{ v.symbol }}" class="volume-symbol">
                                 {{ v.symbol }}
                             </a>
                             <div class="volume-meta">
@@ -394,14 +424,16 @@
                     <ul class="mover-list">
                         {% for s in market_movers.losers %}
                         <li class="mover-item loser">
-                            <a href="/quote?symbol={{ s.symbol }}" style="text-decoration: none; color: inherit;">
+                            <a href="/trade?symbol={{ s.symbol }}">
                                 <div class="mover-symbol">{{ s.symbol }}</div>
                                 <div class="mover-name">{{ s.name }}</div>
-                                <div class="d-flex justify-content-between mt-2">
-                                    <span class="mover-price">{{ s.price | usd }}</span>
-                                    <span class="text-danger font-weight-bold">{{ '%.2f'|format(s.change_percent) }}%</span>
-                                </div>
+                                <div class="mover-price" style="margin-top: 0.5rem;">{{ s.price | usd }}</div>
                             </a>
+                            <span class="mover-change text-danger">{{ '%.2f'|format(s.change_percent) }}%</span>
+                            <div class="mover-chart">
+                                <div id="spinner_mover_{{ s.symbol }}" class="spinner-border spinner-border-sm text-secondary" role="status" style="width: 0.75rem; height: 0.75rem;"></div>
+                                <canvas id="mover_{{ s.symbol }}" class="sparkline-canvas" width="80" height="30" style="display:none; width:80px !important; height:30px !important;"></canvas>
+                            </div>
                         </li>
                         {% else %}
                         <li class="text-muted text-center py-3">No losers at this time</li>
@@ -433,12 +465,12 @@
                     </div>
                     
                     <div class="stock-chart">
-                        <div id="spinner_stock_{{ stock.symbol }}" class="spinner-border spinner-border-sm text-secondary d-flex justify-content-center" role="status"></div>
-                        <canvas id="stock_{{ stock.symbol }}" class="sparkline-canvas" width="100%" height="50" style="display:none;"></canvas>
+                        <div id="spinner_stock_{{ stock.symbol }}" class="spinner-border spinner-border-sm text-secondary" role="status" style="width: 1rem; height: 1rem;"></div>
+                        <canvas id="stock_{{ stock.symbol }}" class="sparkline-canvas" width="100%" height="40" style="display:none; width:100% !important;"></canvas>
                     </div>
                     
                     <div class="stock-action">
-                        <a href="/quote?symbol={{ stock.symbol }}" class="btn btn-outline-primary btn-sm">
+                        <a href="/trade?symbol={{ stock.symbol }}" class="btn btn-outline-primary btn-sm">
                             <i class="fas fa-chart-line"></i> View
                         </a>
                         <button class="btn btn-outline-secondary btn-sm" onclick="addToWatchlist('{{ stock.symbol }}')">
@@ -466,33 +498,92 @@
 // Load sparklines asynchronously via API to speed up initial page render
 const popularSymbols = {{ popular_symbols | tojson | safe }} || [];
 const indexSymbols = {{ index_symbols | tojson | safe }} || [];
+const gainers = {{ market_movers.gainers|map(attribute='symbol')|list|tojson|safe }} || [];
+const losers = {{ market_movers.losers|map(attribute='symbol')|list|tojson|safe }} || [];
 
-function renderSparkline(canvasId, prices){
+function renderSparkline(canvasId, prices, allCandles){
     const el = document.getElementById(canvasId);
     const spinner = document.getElementById('spinner_' + canvasId);
+    
     if(!el) {
         if(spinner) spinner.style.display = 'none';
         return;
     }
-    try{
-        const data = prices.map(v => Number(v));
-        if(!data || data.length === 0){
+    
+    try {
+        // Use only the most recent candles (intraday/current day data)
+        const recentPrices = (prices || []).slice(-100);
+        const data = recentPrices.map(v => {
+            const num = Number(v);
+            return isNaN(num) ? 0 : num;
+        }).filter(v => v > 0);
+        
+        if(!data || data.length < 2){
+            console.warn('Not enough data for sparkline:', canvasId, data?.length || 0);
             if(spinner) spinner.style.display = 'none';
             return;
         }
-        // ensure canvas has display block and sized box
+        
+        // Hide spinner and show canvas
+        if(spinner) {
+            spinner.style.display = 'none';
+            spinner.style.visibility = 'hidden';
+        }
         el.style.display = 'block';
-        el.style.width = el.getAttribute('width') + 'px';
-        el.style.height = el.getAttribute('height') + 'px';
-        if(spinner) spinner.style.display = 'none';
+        el.style.visibility = 'visible';
+        
+        // Calculate daily change from all available candles
+        // Use opening price of first candle and closing price of last candle
+        let dailyChangePercent = 0;
+        if(allCandles && allCandles.length > 0) {
+            // If we have candle data with open/close, calculate from that
+            const firstCandle = allCandles[0];
+            const lastCandle = allCandles[allCandles.length - 1];
+            if(firstCandle.open && lastCandle.close) {
+                dailyChangePercent = ((lastCandle.close - firstCandle.open) / firstCandle.open) * 100;
+            }
+        }
+        
+        // Determine color based on daily change
+        const lineColor = dailyChangePercent >= 0 ? '#198754' : '#dc3545';
+        
+        // Create chart
         new Chart(el.getContext('2d'), {
             type: 'line',
-            data: { labels: data.map((_,i)=>i), datasets:[{data: data, borderColor: data[0] <= data[data.length-1] ? '#198754' : '#dc3545', backgroundColor: 'rgba(0,0,0,0)', pointRadius:0, borderWidth:2}]},
-            options: { responsive:true, maintainAspectRatio:false, elements:{line:{tension:0.3}}, scales:{x:{display:false}, y:{display:false}}, plugins:{legend:{display:false}, tooltip:{enabled:false}} }
+            data: {
+                labels: data.map((_, i) => i),
+                datasets: [{
+                    data: data,
+                    borderColor: lineColor,
+                    backgroundColor: 'rgba(0,0,0,0)',
+                    pointRadius: 0,
+                    borderWidth: 2,
+                    fill: false,
+                    tension: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                elements: {
+                    line: { tension: 0 }
+                },
+                scales: {
+                    x: { display: false },
+                    y: { display: false }
+                },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: { enabled: false }
+                }
+            }
         });
-    }catch(e){
-        if(spinner) spinner.style.display = 'none';
-        console.warn('renderSparkline error', e);
+    } catch(e) {
+        if(spinner) {
+            spinner.style.display = 'none';
+            spinner.style.visibility = 'hidden';
+        }
+        console.warn('renderSparkline error for ' + canvasId + ':', e.message);
     }
 }
 
@@ -502,19 +593,27 @@ function fetchAndRender(symbol, prefix, retries = 0){
     const urlSym = encodeURIComponent(symbol);
     const spinner = document.getElementById('spinner_' + prefix + symbol);
     
-    fetch(`/api/chart/${urlSym}?days=30`, {
+    // Set a timeout for the fetch request
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
+    
+    fetch(`/api/chart/${urlSym}?days=1&timeframe=5`, {
         method: 'GET',
-        timeout: 5000
+        signal: controller.signal
     })
     .then(r => {
+        clearTimeout(timeoutId);
         if(!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json();
     })
     .then(j=>{
         const canvasId = `${prefix}${symbol}`;
-        renderSparkline(canvasId, j.prices || []);
+        // Extract closing prices from candles and pass full candles array
+        const prices = (j.candles || []).map(c => c.close || c.price || 0);
+        renderSparkline(canvasId, prices, j.candles);
     })
     .catch(e=>{
+        clearTimeout(timeoutId);
         if(spinner) spinner.style.display = 'none';
         console.warn(`fetch spark error for ${symbol}:`, e.message);
         // Retry logic for failed requests
@@ -559,6 +658,8 @@ function addToWatchlist(symbol) {
 // Kick off fetches
 popularSymbols.forEach(sym => fetchAndRender(sym, 'stock_'));
 indexSymbols.forEach(sym => fetchAndRender(sym, 'index_'));
+gainers.forEach(sym => fetchAndRender(sym, 'mover_'));
+losers.forEach(sym => fetchAndRender(sym, 'mover_'));
 </script>
 
 {% endblock %}

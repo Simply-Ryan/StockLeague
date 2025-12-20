@@ -17,6 +17,7 @@ import uuid
 import random
 import sqlite3
 import threading
+import re
 from apscheduler.schedulers.background import BackgroundScheduler
 from datetime import datetime, timedelta
 from collections import defaultdict
@@ -37,9 +38,11 @@ from database.league_schema_upgrade import upgrade_leagues_table, create_league_
 from league_modes import get_league_mode, get_available_modes, MODE_ABSOLUTE_VALUE
 from league_rules import LeagueRuleEngine
 from advanced_league_system import AdvancedLeagueManager, RatingSystem, AchievementEngine, QuestSystem, FairPlayEngine, AnalyticsCalculator
+from utils import rate_limit, sanitize_xss, validate_symbol, validate_email, validate_username, sanitize_input
 
 # --- Constants ---
 FLOAT_EPSILON = 0.01  # Used for floating-point comparisons in trading logic
+
 
 
 # --- Login Required Decorator (move up) ---
@@ -195,6 +198,17 @@ def push_recent_quote(symbol, limit=10):
 
 # Load environment variables
 load_dotenv()
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('logs/app.log'),
+        logging.StreamHandler()
+    ]
+)
+app_logger = logging.getLogger(__name__)
 
 # Configure application
 app = Flask(__name__)
@@ -1057,6 +1071,7 @@ def dashboard():
                          grand_total=grand_total,
                          total_value=total_value,
                          total_gain_loss=total_gain_loss,
+                         total_return=total_return,
                          total_percent_change=total_percent_change,
                          portfolio_history=portfolio_history,
                          portfolio_dates=portfolio_dates,
@@ -1074,152 +1089,198 @@ def index():
 
 @app.route("/buy", methods=["GET", "POST"])
 @login_required
+@rate_limit(max_requests=20, time_window=60, endpoint_key="buy")
 def buy():
     """Buy shares of stock"""
     user_id = session["user_id"]
     context = get_active_portfolio_context()
     
     if request.method == "POST":
-        # Validate portfolio context
-        valid, error_msg = validate_portfolio_context(user_id, context)
-        if not valid:
-            return apology(error_msg, 403)
-        
-        symbol = request.form.get("symbol")
-        shares = request.form.get("shares")
-        
-        # Validate input
-        if not symbol:
-            return apology("must provide symbol", 400)
-        
-        symbol = symbol.upper().strip()
-        
-        if not shares:
-            return apology("must provide number of shares", 400)
-        
         try:
-            shares = int(shares)
-            if shares <= 0:
-                return apology("must provide positive number of shares", 400)
-        except ValueError:
-            return apology("shares must be a valid number", 400)
-        
-        # Look up stock quote
-        quote = lookup(symbol)
-        if not quote:
-            # Try searching for similar company names/symbols via Yahoo search
-            from helpers import search_tickers
-            suggestions = search_tickers(symbol)
-            if suggestions:
-                # Render the quote form again with suggestions for the user to pick
-                return render_template("quote.html", suggestions=suggestions, previous_query=symbol, recent_quotes=session.get('recent_quotes', []))
+            # Validate portfolio context
+            valid, error_msg = validate_portfolio_context(user_id, context)
+            if not valid:
+                app_logger.warning(f"Invalid portfolio context for user {user_id}: {error_msg}")
+                return apology(error_msg, 403)
+            
+            symbol = request.form.get("symbol")
+            shares_str = request.form.get("shares")
+            
+            # Validate input
+            if not symbol:
+                return apology("must provide symbol", 400)
+            
+            symbol = symbol.upper().strip()
+            
+            if not shares_str:
+                return apology("must provide number of shares", 400)
+            
+            # Convert and validate shares
+            try:
+                shares = int(shares_str)
+                if shares <= 0:
+                    return apology("must provide positive number of shares", 400)
+            except ValueError:
+                app_logger.debug(f"Invalid shares input from user {user_id}: {shares_str}")
+                return apology("shares must be a valid whole number", 400)
+            
+            # Look up stock quote
+            quote = lookup(symbol)
+            if not quote:
+                # Try searching for similar company names/symbols via Yahoo search
+                from helpers import search_tickers
+                suggestions = search_tickers(symbol)
+                if suggestions:
+                    # Render the quote form again with suggestions for the user to pick
+                    return render_template("quote.html", suggestions=suggestions, previous_query=symbol, recent_quotes=session.get('recent_quotes', []))
+                else:
+                    app_logger.debug(f"Invalid symbol: {symbol}")
+                    return apology("invalid symbol", 400)
+            
+            # Calculate total cost
+            price = quote["price"]
+            total_cost = price * shares
+            
+            # Get user's cash from active portfolio
+            cash = get_portfolio_cash(user_id, context)
+            user = db.get_user(user_id)
+            
+            if not user:
+                app_logger.error(f"User {user_id} not found in database")
+                return apology("user not found", 500)
+            
+            # Check if user can afford (with epsilon for floating point comparison)
+            if cash < total_cost - FLOAT_EPSILON:
+                app_logger.debug(f"User {user_id} insufficient funds: need {total_cost}, have {cash}")
+                return apology(f"can't afford: need {usd(total_cost)}, have {usd(cash)}", 400)
+            
+            # Get optional strategy and notes
+            strategy = request.form.get("strategy") or None
+            notes = request.form.get("notes") or None
+            
+            # Handle transaction based on portfolio context
+            try:
+                if context["type"] == "personal":
+                    # Personal portfolio - use personal tables
+                    txn_id = db.record_transaction(user_id, symbol, shares, price, "buy", strategy, notes)
+                    db.update_cash(user_id, cash - total_cost)
+                    # Execute copy trades for any followers
+                    _execute_copy_trades(user_id, symbol, shares, price, 'buy', txn_id)
+                    app_logger.info(f"BUY | User: {user_id} | Symbol: {symbol} | Shares: {shares} | Price: {price} | Total: {total_cost}")
+                else:
+                    # League portfolio - use league tables
+                    league_id = context["league_id"]
+                    txn_id = db.record_league_transaction(league_id, user_id, symbol, shares, price, "buy")
+                    db.update_league_cash(league_id, user_id, cash - total_cost)
+                    db.update_league_holding(league_id, user_id, symbol, shares, price)
+                    app_logger.info(f"BUY (LEAGUE) | League: {league_id} | User: {user_id} | Symbol: {symbol} | Shares: {shares}")
+            except Exception as e:
+                app_logger.error(f"Database error during buy transaction for user {user_id}: {e}", exc_info=True)
+                return apology(f"database error: {str(e)[:50]}", 500)
+            
+            # Send trade alert to chat (for both contexts)
+            try:
+                send_trade_alert_to_chat(user_id, symbol, shares, price, 'bought')
+            except Exception as e:
+                app_logger.warning(f"Could not send trade alert for user {user_id}: {e}")
+                # Don't fail the trade if chat alert fails
+            
+            # Create portfolio snapshot (personal only for now)
+            if context["type"] == "personal":
+                try:
+                    create_portfolio_snapshot(user_id)
+                except Exception as e:
+                    app_logger.warning(f"Could not create portfolio snapshot for user {user_id}: {e}")
+            
+            # Emit real-time portfolio update based on context
+            try:
+                if context["type"] == "personal":
+                    user_updated = db.get_user(user_id)
+                    stocks_updated = db.get_user_stocks(user_id)
+                    portfolio_value = user_updated["cash"]
+                    for stock in stocks_updated:
+                        q = lookup(stock["symbol"])
+                        if q:
+                            portfolio_value += stock["shares"] * q["price"]
+                    
+                    socketio.emit('portfolio_update', {
+                        'cash': user_updated["cash"],
+                        'total_value': portfolio_value,
+                        'stocks': [{'symbol': s["symbol"], 'shares': s["shares"]} for s in stocks_updated]
+                    }, room=f'user_{user_id}')
+                else:
+                    # League portfolio update
+                    league_id = context["league_id"]
+                    league_portfolio = db.get_league_portfolio(league_id, user_id)
+                    league_holdings = db.get_league_holdings(league_id, user_id)
+                    portfolio_value = league_portfolio["cash"] if league_portfolio else 0
+                    for holding in league_holdings:
+                        q = lookup(holding["symbol"])
+                        if q:
+                            portfolio_value += holding["shares"] * q["price"]
+                    
+                    socketio.emit('portfolio_update', {
+                        'cash': league_portfolio["cash"] if league_portfolio else 0,
+                        'total_value': portfolio_value,
+                        'stocks': [{'symbol': h["symbol"], 'shares': h["shares"]} for h in league_holdings]
+                    }, room=f'user_{user_id}')
+            except Exception as e:
+                app_logger.warning(f"Could not emit portfolio update for user {user_id}: {e}")
+            
+            # Emit order execution notification
+            try:
+                socketio.emit('order_executed', {
+                    'type': 'buy',
+                    'symbol': symbol,
+                    'shares': shares,
+                    'price': price,
+                    'total': total_cost,
+                    'timestamp': datetime.now().isoformat()
+                }, room=f'user_{user_id}')
+            except Exception as e:
+                app_logger.warning(f"Could not emit order execution notification for user {user_id}: {e}")
+            
+            # Check for achievements (personal only)
+            if context["type"] == "personal":
+                try:
+                    achievements = check_achievements(user_id)
+                except Exception as e:
+                    app_logger.warning(f"Could not check achievements for user {user_id}: {e}")
+                    achievements = []
             else:
-                return apology("invalid symbol", 400)
-        
-        # Calculate total cost
-        price = quote["price"]
-        total_cost = price * shares
-        
-        # Get user's cash from active portfolio
-        cash = get_portfolio_cash(user_id, context)
-        user = db.get_user(user_id)
-        
-        # Check if user can afford (with epsilon for floating point comparison)
-        if cash < total_cost - FLOAT_EPSILON:
-            return apology(f"can't afford: need {usd(total_cost)}, have {usd(cash)}", 400)
-        
-        # Get optional strategy and notes
-        strategy = request.form.get("strategy") or None
-        notes = request.form.get("notes") or None
-        
-        # Handle transaction based on portfolio context
-        if context["type"] == "personal":
-            # Personal portfolio - use personal tables
-            txn_id = db.record_transaction(user_id, symbol, shares, price, "buy", strategy, notes)
-            db.update_cash(user_id, cash - total_cost)
-            # Execute copy trades for any followers
-            _execute_copy_trades(user_id, symbol, shares, price, 'buy', txn_id)
-        else:
-            # League portfolio - use league tables
-            league_id = context["league_id"]
-            txn_id = db.record_league_transaction(league_id, user_id, symbol, shares, price, "buy")
-            db.update_league_cash(league_id, user_id, cash - total_cost)
-            db.update_league_holding(league_id, user_id, symbol, shares, price)
-        
-        # Send trade alert to chat (for both contexts)
-        send_trade_alert_to_chat(user_id, symbol, shares, price, 'bought')
-        
-        # Create portfolio snapshot (personal only for now)
-        if context["type"] == "personal":
-            create_portfolio_snapshot(user_id)
-        
-        # Emit real-time portfolio update based on context
-        if context["type"] == "personal":
-            user_updated = db.get_user(user_id)
-            stocks_updated = db.get_user_stocks(user_id)
-            portfolio_value = user_updated["cash"]
-            for stock in stocks_updated:
-                q = lookup(stock["symbol"])
-                if q:
-                    portfolio_value += stock["shares"] * q["price"]
+                achievements = []
             
-            socketio.emit('portfolio_update', {
-                'cash': user_updated["cash"],
-                'total_value': portfolio_value,
-                'stocks': [{'symbol': s["symbol"], 'shares': s["shares"]} for s in stocks_updated]
-            }, room=f'user_{user_id}')
-        else:
-            # League portfolio update
-            league_id = context["league_id"]
-            league_portfolio = db.get_league_portfolio(league_id, user_id)
-            league_holdings = db.get_league_holdings(league_id, user_id)
-            portfolio_value = league_portfolio["cash"] if league_portfolio else 0
-            for holding in league_holdings:
-                q = lookup(holding["symbol"])
-                if q:
-                    portfolio_value += holding["shares"] * q["price"]
+            # Update challenge progress and stats (personal only)
+            if context["type"] == "personal":
+                try:
+                    _update_user_challenge_progress(user_id)
+                    db.update_trader_stats(user_id)
+                except Exception as e:
+                    app_logger.warning(f"Could not update user stats for user {user_id}: {e}")
             
-            socketio.emit('portfolio_update', {
-                'cash': league_portfolio["cash"] if league_portfolio else 0,
-                'total_value': portfolio_value,
-                'stocks': [{'symbol': h["symbol"], 'shares': h["shares"]} for h in league_holdings]
-            }, room=f'user_{user_id}')
+            # Flash success message
+            context_str = f" in {context['league_name']}" if context["type"] == "league" else ""
+            flash(f"Bought {shares} shares of {symbol} for {usd(total_cost)}{context_str}!")
+            if achievements:
+                for achievement in achievements:
+                    flash(f"🏆 Achievement Unlocked: {achievement}!", "success")
+            
+            return redirect("/")
         
-        # Emit order execution notification
-        socketio.emit('order_executed', {
-            'type': 'buy',
-            'symbol': symbol,
-            'shares': shares,
-            'price': price,
-            'total': total_cost,
-            'timestamp': datetime.now().isoformat()
-        }, room=f'user_{user_id}')
-        
-        # Check for achievements (personal only)
-        if context["type"] == "personal":
-            achievements = check_achievements(user_id)
-        else:
-            achievements = []
-        
-        # Update challenge progress and stats (personal only)
-        if context["type"] == "personal":
-            _update_user_challenge_progress(user_id)
-            db.update_trader_stats(user_id)
-        
-        # Flash success message
-        context_str = f" in {context['league_name']}" if context["type"] == "league" else ""
-        flash(f"Bought {shares} shares of {symbol} for {usd(total_cost)}{context_str}!")
-        if achievements:
-            for achievement in achievements:
-                flash(f"🏆 Achievement Unlocked: {achievement}!", "success")
-        
-        return redirect("/")
+        except Exception as e:
+            app_logger.error(f"Unexpected error in buy route for user {user_id}: {e}", exc_info=True)
+            return apology(f"unexpected error: {str(e)[:50]}", 500)
     
     else:
-        # Pre-fill symbol if provided in query string
-        symbol = request.args.get("symbol", "").upper()
-        stocks = get_portfolio_stocks(user_id, context)
-        return render_template("buy.html", symbol=symbol, active_context=context, stocks=stocks)
+        # GET request - show buy form
+        try:
+            stocks = get_portfolio_stocks(user_id, context)
+            # Pre-fill symbol if provided in query string
+            symbol = request.args.get("symbol", "").upper()
+            return render_template("buy.html", symbol=symbol, active_context=context, stocks=stocks)
+        except Exception as e:
+            app_logger.error(f"Error rendering buy form for user {user_id}: {e}", exc_info=True)
+            return apology("could not load buy form", 500)
 
 
 @app.route("/history")
@@ -1311,222 +1372,423 @@ def debug_portfolio():
 # application modular. See `blueprints/auth_bp.py` for the logic.
 
 
-@app.route("/quote", methods=["GET", "POST"])
+@app.route("/trade", methods=["GET", "POST"])
 @login_required
-def quote():
-    """Get stock quote"""
+@rate_limit(max_requests=30, time_window=60, endpoint_key="trade")
+def trade():
+    """Get stock quote and trade stocks"""
+    user_id = session["user_id"]
+    
     if request.method == "POST":
-        symbol = request.form.get("symbol")
-        
-        if not symbol:
-            return apology("must provide symbol", 400)
-        
-        quote = lookup(symbol.upper())
-        
-        if not quote:
-            # Try searching for similar company names/symbols via Yahoo search
-            from helpers import search_tickers
-            suggestions = search_tickers(symbol)
-            if suggestions:
-                # Render the quote form again with suggestions for the user to pick
-                return render_template("quote.html", suggestions=suggestions, previous_query=symbol)
-            else:
-                return apology("invalid symbol", 400)
-        
-        # Get chart data for the last 30 days
-        chart_data = get_chart_data(symbol.upper(), days=30)
-        
-        # Check if in watchlist
-        user_id = session["user_id"]
-        in_watchlist = db.is_in_watchlist(user_id, symbol.upper())
-        
-        # Get stock news
-        news = get_stock_news(symbol.upper(), limit=5)
-        
-        # Check for triggered alerts
-        triggered = db.check_alerts(user_id, symbol.upper(), quote['price'])
-        if triggered:
-            for alert in triggered:
-                flash(f"🔔 Alert triggered: {symbol.upper()} {'reached above' if alert['alert_type'] == 'above' else 'fell below'} {usd(alert['target_price'])}!", "info")
-        
-        # Record recent quote in session (most-recent first)
         try:
-            push_recent_quote(symbol.upper())
-        except Exception:
-            pass
-
-        return render_template("quoted.html", quote=quote, chart_data=chart_data, in_watchlist=in_watchlist, news=news, recent_quotes=session.get('recent_quotes', []))
+            symbol = request.form.get("symbol")
+            
+            if not symbol:
+                return apology("must provide symbol", 400)
+            
+            symbol = symbol.upper().strip()
+            
+            # Look up quote with error handling
+            try:
+                quote = lookup(symbol)
+            except Exception as e:
+                app_logger.error(f"Error looking up symbol {symbol}: {e}", exc_info=True)
+                return apology("error looking up symbol, please try again", 500)
+            
+            if not quote:
+                # Try searching for similar company names/symbols
+                try:
+                    from helpers import search_tickers
+                    suggestions = search_tickers(symbol)
+                    if suggestions:
+                        return render_template("quote.html", suggestions=suggestions, previous_query=symbol)
+                except Exception as e:
+                    app_logger.warning(f"Error searching tickers for {symbol}: {e}")
+                
+                return apology("invalid symbol", 400)
+            
+            # Get chart data with error handling
+            try:
+                chart_data = get_chart_data(symbol, days=30)
+            except Exception as e:
+                app_logger.warning(f"Error getting chart data for {symbol}: {e}")
+                chart_data = None
+            
+            # Check if in watchlist with error handling
+            try:
+                in_watchlist = db.is_in_watchlist(user_id, symbol)
+            except Exception as e:
+                app_logger.warning(f"Error checking watchlist for user {user_id}: {e}")
+                in_watchlist = False
+            
+            # Get stock news with error handling
+            try:
+                news = get_stock_news(symbol, limit=5)
+            except Exception as e:
+                app_logger.warning(f"Error getting news for {symbol}: {e}")
+                news = []
+            
+            # Check for triggered alerts with error handling
+            try:
+                triggered = db.check_alerts(user_id, symbol, quote['price'])
+                if triggered:
+                    for alert in triggered:
+                        try:
+                            flash(f"🔔 Alert triggered: {symbol} {'reached above' if alert['alert_type'] == 'above' else 'fell below'} {usd(alert['target_price'])}!", "info")
+                        except Exception as e:
+                            app_logger.warning(f"Error flashing alert: {e}")
+            except Exception as e:
+                app_logger.warning(f"Error checking alerts for user {user_id}, symbol {symbol}: {e}")
+            
+            # Record recent quote with error handling
+            try:
+                push_recent_quote(symbol)
+            except Exception as e:
+                app_logger.warning(f"Error pushing recent quote for {symbol}: {e}")
+            
+            # Get user's cash balance and portfolio context
+            try:
+                user = db.get_user(user_id)
+                user_cash = user['cash'] if user else 0
+            except Exception as e:
+                app_logger.error(f"Error getting user {user_id}: {e}", exc_info=True)
+                return apology("could not fetch user data", 500)
+            
+            # Get portfolio context and holdings
+            try:
+                context = get_active_portfolio_context()
+                all_stocks = db.get_user_stocks(user_id)
+                user_shares = 0
+                for stock in all_stocks:
+                    if stock['symbol'] == symbol:
+                        user_shares = stock['shares']
+                        break
+            except Exception as e:
+                app_logger.error(f"Error getting portfolio context for user {user_id}: {e}", exc_info=True)
+                context = {"type": "personal"}
+                all_stocks = []
+                user_shares = 0
+            
+            try:
+                return render_template("trade.html", quote=quote, chart_data=chart_data or {}, in_watchlist=in_watchlist, 
+                                     news=news, recent_quotes=session.get('recent_quotes', []), user_cash=user_cash, 
+                                     user_shares=user_shares, active_context=context, all_stocks=all_stocks)
+            except Exception as e:
+                app_logger.error(f"Error rendering trade template: {e}", exc_info=True)
+                return apology("could not load trade page", 500)
+        
+        except Exception as e:
+            app_logger.error(f"Unexpected error in trade route (POST) for user {user_id}: {e}", exc_info=True)
+            return apology("unexpected error", 500)
     
     else:
-        # Support GET with query param: /quote?symbol=MSFT
-        symbol = request.args.get('symbol')
-        if symbol:
-            quote = lookup(symbol.upper())
-            if not quote:
-                from helpers import search_tickers
-                suggestions = search_tickers(symbol)
-                if suggestions:
-                    return render_template("quote.html", suggestions=suggestions, previous_query=symbol, recent_quotes=session.get('recent_quotes', []))
-                else:
+        # GET request - support query param: /trade?symbol=MSFT
+        try:
+            symbol = request.args.get('symbol')
+            
+            if symbol:
+                symbol = symbol.upper().strip()
+                
+                # Look up quote
+                try:
+                    quote = lookup(symbol)
+                except Exception as e:
+                    app_logger.error(f"Error looking up symbol {symbol}: {e}", exc_info=True)
+                    return apology("error looking up symbol, please try again", 500)
+                
+                if not quote:
+                    # Try searching for similar company names/symbols
+                    try:
+                        from helpers import search_tickers
+                        suggestions = search_tickers(symbol)
+                        if suggestions:
+                            return render_template("quote.html", suggestions=suggestions, previous_query=symbol, 
+                                                 recent_quotes=session.get('recent_quotes', []))
+                    except Exception as e:
+                        app_logger.warning(f"Error searching tickers for {symbol}: {e}")
+                    
                     return apology("invalid symbol", 400)
 
-            # Get chart data for the last 30 days
-            chart_data = get_chart_data(symbol.upper(), days=30)
+                # Get chart data
+                try:
+                    chart_data = get_chart_data(symbol, days=30)
+                except Exception as e:
+                    app_logger.warning(f"Error getting chart data for {symbol}: {e}")
+                    chart_data = None
 
-            # Check if in watchlist
-            user_id = session["user_id"]
-            in_watchlist = db.is_in_watchlist(user_id, symbol.upper())
+                # Check if in watchlist
+                try:
+                    in_watchlist = db.is_in_watchlist(user_id, symbol)
+                except Exception as e:
+                    app_logger.warning(f"Error checking watchlist for user {user_id}: {e}")
+                    in_watchlist = False
 
-            # Get stock news
-            news = get_stock_news(symbol.upper(), limit=5)
+                # Get stock news
+                try:
+                    news = get_stock_news(symbol, limit=5)
+                except Exception as e:
+                    app_logger.warning(f"Error getting news for {symbol}: {e}")
+                    news = []
 
-            # Check for triggered alerts
-            triggered = db.check_alerts(user_id, symbol.upper(), quote['price'])
-            if triggered:
-                for alert in triggered:
-                    flash(f"🔔 Alert triggered: {symbol.upper()} {'reached above' if alert['alert_type'] == 'above' else 'fell below'} {usd(alert['target_price'])}!", "info")
+                # Check for triggered alerts
+                try:
+                    triggered = db.check_alerts(user_id, symbol, quote['price'])
+                    if triggered:
+                        for alert in triggered:
+                            try:
+                                flash(f"🔔 Alert triggered: {symbol} {'reached above' if alert['alert_type'] == 'above' else 'fell below'} {usd(alert['target_price'])}!", "info")
+                            except Exception as e:
+                                app_logger.warning(f"Error flashing alert: {e}")
+                except Exception as e:
+                    app_logger.warning(f"Error checking alerts for user {user_id}, symbol {symbol}: {e}")
 
-            try:
-                push_recent_quote(symbol.upper())
-            except Exception:
-                pass
+                # Record recent quote
+                try:
+                    push_recent_quote(symbol)
+                except Exception as e:
+                    app_logger.warning(f"Error pushing recent quote for {symbol}: {e}")
 
-            return render_template("quoted.html", quote=quote, chart_data=chart_data, in_watchlist=in_watchlist, news=news, recent_quotes=session.get('recent_quotes', []))
+                # Get user's cash balance and portfolio context
+                try:
+                    user = db.get_user(user_id)
+                    user_cash = user['cash'] if user else 0
+                except Exception as e:
+                    app_logger.error(f"Error getting user {user_id}: {e}", exc_info=True)
+                    return apology("could not fetch user data", 500)
+                
+                # Get portfolio context and holdings
+                try:
+                    context = get_active_portfolio_context()
+                    all_stocks = db.get_user_stocks(user_id)
+                    user_shares = 0
+                    for stock in all_stocks:
+                        if stock['symbol'] == symbol:
+                            user_shares = stock['shares']
+                            break
+                except Exception as e:
+                    app_logger.error(f"Error getting portfolio context for user {user_id}: {e}", exc_info=True)
+                    context = {"type": "personal"}
+                    all_stocks = []
+                    user_shares = 0
 
-        return render_template("quote.html", recent_quotes=session.get('recent_quotes', []))
+                try:
+                    return render_template("trade.html", quote=quote, chart_data=chart_data or {}, in_watchlist=in_watchlist, 
+                                         news=news, recent_quotes=session.get('recent_quotes', []), user_cash=user_cash, 
+                                         user_shares=user_shares, active_context=context, all_stocks=all_stocks)
+                except Exception as e:
+                    app_logger.error(f"Error rendering trade template: {e}", exc_info=True)
+                    return apology("could not load trade page", 500)
+
+            # No symbol provided - show empty quote form
+            return render_template("quote.html", recent_quotes=session.get('recent_quotes', []))
+        
+        except Exception as e:
+            app_logger.error(f"Unexpected error in trade route (GET) for user {user_id}: {e}", exc_info=True)
+            return apology("unexpected error", 500)
 
 
 # Registration route moved to `blueprints/auth_bp.py`.
 
+# Keep /quote as backward compatibility redirect
+@app.route("/quote", methods=["GET", "POST"])
+@login_required
+def quote_redirect():
+    """Backward compatibility redirect to /trade"""
+    if request.method == "POST":
+        symbol = request.form.get("symbol")
+        if symbol:
+            return redirect(f"/trade?symbol={symbol}")
+        return redirect("/trade")
+    symbol = request.args.get("symbol")
+    if symbol:
+        return redirect(f"/trade?symbol={symbol}")
+    return redirect("/trade")
+
 
 @app.route("/sell", methods=["GET", "POST"])
 @login_required
+@rate_limit(max_requests=20, time_window=60, endpoint_key="sell")
 def sell():
     """Sell shares of stock"""
     user_id = session["user_id"]
     context = get_active_portfolio_context()
     
     if request.method == "POST":
-        # Validate portfolio context
-        valid, error_msg = validate_portfolio_context(user_id, context)
-        if not valid:
-            return apology(error_msg, 403)
-        
-        symbol = request.form.get("symbol")
-        shares = request.form.get("shares")
-        
-        # Validate input
-        if not symbol:
-            return apology("must provide symbol", 400)
-        
-        # Get stock holding based on portfolio context
-        if context["type"] == "personal":
-            stock = db.get_user_stock(user_id, symbol)
-        else:
-            league_id = context["league_id"]
-            stock = db.get_league_holding(league_id, user_id, symbol)
-        
-        if not stock or stock["shares"] < shares:
-            return apology("not enough shares", 400)
-        
-        # Look up current price
-        quote = lookup(symbol)
-        if not quote:
-            return apology("invalid symbol", 400)
-        
-        price = quote["price"]
-        total_value = price * shares
-        
-        # Get optional strategy and notes
-        strategy = request.form.get("strategy") or None
-        notes = request.form.get("notes") or None
-        
-        # Handle transaction based on portfolio context
-        if context["type"] == "personal":
-            # Personal portfolio
-            txn_id = db.record_transaction(user_id, symbol, -shares, price, "sell", strategy, notes)
-            user = db.get_user(user_id)
-            db.update_cash(user_id, user["cash"] + total_value)
-            # Execute copy trades for any followers
-            _execute_copy_trades(user_id, symbol, shares, price, 'sell', txn_id)
-        else:
-            # League portfolio
-            league_id = context["league_id"]
-            txn_id = db.record_league_transaction(league_id, user_id, symbol, shares, price, "sell")
-            cash = get_portfolio_cash(user_id, context)
-            db.update_league_cash(league_id, user_id, cash + total_value)
-            db.update_league_holding(league_id, user_id, symbol, -shares, price)
-        
-        # Send trade alert to chat
-        send_trade_alert_to_chat(user_id, symbol, shares, price, 'sold')
-        
-        # Create portfolio snapshot (personal only for now)
-        if context["type"] == "personal":
-            create_portfolio_snapshot(user_id)
-        
-        # Emit real-time portfolio update based on context
-        if context["type"] == "personal":
-            user_updated = db.get_user(user_id)
-            stocks_updated = db.get_user_stocks(user_id)
-            portfolio_value = user_updated["cash"]
-            for stock in stocks_updated:
-                q = lookup(stock["symbol"])
-                if q:
-                    portfolio_value += stock["shares"] * q["price"]
+        try:
+            # Validate portfolio context
+            valid, error_msg = validate_portfolio_context(user_id, context)
+            if not valid:
+                app_logger.warning(f"Invalid portfolio context for user {user_id}: {error_msg}")
+                return apology(error_msg, 403)
             
-            socketio.emit('portfolio_update', {
-                'cash': user_updated["cash"],
-                'total_value': portfolio_value,
-                'stocks': [{'symbol': s["symbol"], 'shares': s["shares"]} for s in stocks_updated]
-            }, room=f'user_{user_id}')
-        else:
-            # League portfolio update
-            league_id = context["league_id"]
-            league_portfolio = db.get_league_portfolio(league_id, user_id)
-            league_holdings = db.get_league_holdings(league_id, user_id)
-            portfolio_value = league_portfolio["cash"] if league_portfolio else 0
-            for holding in league_holdings:
-                q = lookup(holding["symbol"])
-                if q:
-                    portfolio_value += holding["shares"] * q["price"]
+            symbol = request.form.get("symbol")
+            shares_str = request.form.get("shares")
             
-            socketio.emit('portfolio_update', {
-                'cash': league_portfolio["cash"] if league_portfolio else 0,
-                'total_value': portfolio_value,
-                'stocks': [{'symbol': h["symbol"], 'shares': h["shares"]} for h in league_holdings]
-            }, room=f'user_{user_id}')
+            # Validate input
+            if not symbol:
+                return apology("must provide symbol", 400)
+            
+            symbol = symbol.upper().strip()
+            
+            if not shares_str:
+                return apology("must provide number of shares", 400)
+            
+            # Convert and validate shares
+            try:
+                shares = int(shares_str)
+                if shares <= 0:
+                    return apology("must provide positive number of shares", 400)
+            except ValueError:
+                app_logger.debug(f"Invalid shares input from user {user_id}: {shares_str}")
+                return apology("shares must be a valid whole number", 400)
+            
+            # Get stock holding based on portfolio context
+            try:
+                if context["type"] == "personal":
+                    stock = db.get_user_stock(user_id, symbol)
+                else:
+                    league_id = context["league_id"]
+                    stock = db.get_league_holding(league_id, user_id, symbol)
+            except Exception as e:
+                app_logger.error(f"Error fetching stock holding for user {user_id}, symbol {symbol}: {e}", exc_info=True)
+                return apology("could not fetch holding information", 500)
+            
+            if not stock or int(stock["shares"]) < shares:
+                app_logger.debug(f"User {user_id} insufficient shares of {symbol}: want {shares}, have {stock['shares'] if stock else 0}")
+                return apology("not enough shares", 400)
+            
+            # Look up current price
+            quote = lookup(symbol)
+            if not quote:
+                app_logger.debug(f"Invalid symbol for sell: {symbol}")
+                return apology("invalid symbol", 400)
+            
+            price = quote["price"]
+            total_value = price * shares
+            
+            # Get optional strategy and notes
+            strategy = request.form.get("strategy") or None
+            notes = request.form.get("notes") or None
+            
+            # Handle transaction based on portfolio context
+            try:
+                if context["type"] == "personal":
+                    # Personal portfolio
+                    txn_id = db.record_transaction(user_id, symbol, -shares, price, "sell", strategy, notes)
+                    user = db.get_user(user_id)
+                    if not user:
+                        app_logger.error(f"User {user_id} not found in database")
+                        return apology("user not found", 500)
+                    db.update_cash(user_id, user["cash"] + total_value)
+                    # Execute copy trades for any followers
+                    _execute_copy_trades(user_id, symbol, shares, price, 'sell', txn_id)
+                    app_logger.info(f"SELL | User: {user_id} | Symbol: {symbol} | Shares: {shares} | Price: {price} | Total: {total_value}")
+                else:
+                    # League portfolio
+                    league_id = context["league_id"]
+                    txn_id = db.record_league_transaction(league_id, user_id, symbol, shares, price, "sell")
+                    cash = get_portfolio_cash(user_id, context)
+                    db.update_league_cash(league_id, user_id, cash + total_value)
+                    db.update_league_holding(league_id, user_id, symbol, -shares, price)
+                    app_logger.info(f"SELL (LEAGUE) | League: {league_id} | User: {user_id} | Symbol: {symbol} | Shares: {shares}")
+            except Exception as e:
+                app_logger.error(f"Database error during sell transaction for user {user_id}: {e}", exc_info=True)
+                return apology(f"database error: {str(e)[:50]}", 500)
+            
+            # Send trade alert to chat (non-critical)
+            try:
+                send_trade_alert_to_chat(user_id, symbol, shares, price, 'sold')
+            except Exception as e:
+                app_logger.warning(f"Could not send trade alert for user {user_id}: {e}")
+            
+            # Create portfolio snapshot (personal only, non-critical)
+            if context["type"] == "personal":
+                try:
+                    create_portfolio_snapshot(user_id)
+                except Exception as e:
+                    app_logger.warning(f"Could not create portfolio snapshot for user {user_id}: {e}")
+            
+            # Emit real-time portfolio update (non-critical)
+            try:
+                if context["type"] == "personal":
+                    user_updated = db.get_user(user_id)
+                    stocks_updated = db.get_user_stocks(user_id)
+                    portfolio_value = user_updated["cash"]
+                    for stock in stocks_updated:
+                        q = lookup(stock["symbol"])
+                        if q:
+                            portfolio_value += stock["shares"] * q["price"]
+                    
+                    socketio.emit('portfolio_update', {
+                        'cash': user_updated["cash"],
+                        'total_value': portfolio_value,
+                        'stocks': [{'symbol': s["symbol"], 'shares': s["shares"]} for s in stocks_updated]
+                    }, room=f'user_{user_id}')
+                else:
+                    # League portfolio update
+                    league_id = context["league_id"]
+                    league_portfolio = db.get_league_portfolio(league_id, user_id)
+                    league_holdings = db.get_league_holdings(league_id, user_id)
+                    portfolio_value = league_portfolio["cash"] if league_portfolio else 0
+                    for holding in league_holdings:
+                        q = lookup(holding["symbol"])
+                        if q:
+                            portfolio_value += holding["shares"] * q["price"]
+                    
+                    socketio.emit('portfolio_update', {
+                        'cash': league_portfolio["cash"] if league_portfolio else 0,
+                        'total_value': portfolio_value,
+                        'stocks': [{'symbol': h["symbol"], 'shares': h["shares"]} for h in league_holdings]
+                    }, room=f'user_{user_id}')
+            except Exception as e:
+                app_logger.warning(f"Could not emit portfolio update for user {user_id}: {e}")
+            
+            # Emit order execution notification (non-critical)
+            try:
+                socketio.emit('order_executed', {
+                    'type': 'sell',
+                    'symbol': symbol,
+                    'shares': shares,
+                    'price': price,
+                    'total': total_value,
+                    'timestamp': datetime.now().isoformat()
+                }, room=f'user_{user_id}')
+            except Exception as e:
+                app_logger.warning(f"Could not emit order execution notification for user {user_id}: {e}")
+            
+            # Check for achievements and update stats (personal only, non-critical)
+            if context["type"] == "personal":
+                try:
+                    achievements = check_achievements(user_id)
+                    _update_user_challenge_progress(user_id)
+                    db.update_trader_stats(user_id)
+                except Exception as e:
+                    app_logger.warning(f"Could not update achievements/stats for user {user_id}: {e}")
+                    achievements = []
+            else:
+                achievements = []
+            
+            # Flash success message
+            context_str = f" in {context['league_name']}" if context["type"] == "league" else ""
+            flash(f"Sold {shares} shares of {symbol} for {usd(total_value)}{context_str}!")
+            if achievements:
+                for achievement in achievements:
+                    flash(f"🏆 Achievement Unlocked: {achievement}!", "success")
+            
+            return redirect("/")
         
-        # Emit order execution notification
-        socketio.emit('order_executed', {
-            'type': 'sell',
-            'symbol': symbol,
-            'shares': shares,
-            'price': price,
-            'total': total_value,
-            'timestamp': datetime.now().isoformat()
-        }, room=f'user_{user_id}')
-        
-        # Check for achievements and update stats (personal only)
-        if context["type"] == "personal":
-            achievements = check_achievements(user_id)
-            _update_user_challenge_progress(user_id)
-            db.update_trader_stats(user_id)
-        else:
-            achievements = []
-        
-        # Flash success message
-        context_str = f" in {context['league_name']}" if context["type"] == "league" else ""
-        flash(f"Sold {shares} shares of {symbol} for {usd(total_value)}{context_str}!")
-        if achievements:
-            for achievement in achievements:
-                flash(f"🏆 Achievement Unlocked: {achievement}!", "success")
-        
-        return redirect("/")
+        except Exception as e:
+            app_logger.error(f"Unexpected error in sell route for user {user_id}: {e}", exc_info=True)
+            return apology(f"unexpected error: {str(e)[:50]}", 500)
     
     else:
-        # Get user's stocks for dropdown from active portfolio
-        stocks = get_portfolio_stocks(user_id, context)
-        return render_template("sell.html", stocks=stocks, active_context=context)
+        # GET request - show sell form
+        try:
+            stocks = get_portfolio_stocks(user_id, context)
+            return render_template("sell.html", stocks=stocks, active_context=context)
+        except Exception as e:
+            app_logger.error(f"Error rendering sell form for user {user_id}: {e}", exc_info=True)
+            return apology("could not load sell form", 500)
 
 
 @app.route("/edit_portfolio", methods=["GET", "POST"])
@@ -2008,8 +2270,11 @@ def league_detail(league_id):
     if league['is_active']:
         db.update_league_scores(league_id)
     
-    # Get leaderboard
-    leaderboard = db.get_league_leaderboard(league_id)
+    # Get leaderboard with portfolio values
+    leaderboard = db.get_league_leaderboard_with_values(
+        league_id,
+        lambda symbol: lookup(symbol).get('price') if lookup(symbol) else None
+    )
     
     return render_template("league_detail.html",
                          league=league,
@@ -2276,6 +2541,12 @@ def league_trade(league_id):
         
         shares = int(shares_str)
         
+        # Check rate limiting (max 100 trades per hour per league)
+        allowed, trades_remaining, reset_seconds = db.check_trade_rate_limit(league_id, user_id, max_trades_per_hour=100)
+        if not allowed:
+            minutes_remaining = (reset_seconds + 59) // 60  # Round up to nearest minute
+            return apology(f"Trade rate limit exceeded. Please wait {minutes_remaining} minutes.", 429)
+        
         # Get current price
         quote = lookup(symbol)
         if not quote:
@@ -2308,20 +2579,19 @@ def league_trade(league_id):
         # Calculate fee
         fee = rule_engine.calculate_fee(trade_value)
         
+        # Execute trade atomically to prevent concurrent trade race conditions
+        success, error_msg, txn_id = db.execute_league_trade_atomic(
+            league_id, user_id, symbol, trade_type.upper(), shares, price, fee
+        )
+        
+        if not success:
+            return apology(error_msg or "Trade failed", 400)
+        
+        # Log activity to league activity feed after successful atomic trade
+        user = db.get_user(user_id)
+        username = user.get('username') if user else 'Unknown'
+        
         if trade_type == "buy":
-            total_cost = trade_value + fee
-            if total_cost > portfolio['cash']:
-                return apology("insufficient funds", 400)
-            
-            # Update league portfolio
-            new_cash = portfolio['cash'] - total_cost
-            db.update_league_cash(league_id, user_id, new_cash)
-            db.update_league_holding(league_id, user_id, symbol, shares, price)
-            db.record_league_transaction(league_id, user_id, symbol, shares, price, "buy", fee)
-            
-            # Log activity to league activity feed
-            user = db.get_user(user_id)
-            username = user.get('username') if user else 'Unknown'
             activity_id = db.add_league_activity(
                 league_id=league_id,
                 activity_type='trade',
@@ -2331,7 +2601,6 @@ def league_trade(league_id):
                 metadata={'symbol': symbol, 'shares': shares, 'price': price, 'type': 'buy', 'total': trade_value}
             )
             
-            # Emit real-time activity update
             emit_league_activity(league_id, {
                 'id': activity_id,
                 'username': username,
@@ -2346,23 +2615,7 @@ def league_trade(league_id):
             flash(f"Bought {shares} shares of {symbol} for {usd(trade_value)} (fee: {usd(fee)})", "success")
             
         elif trade_type == "sell":
-            # Check if user has enough shares
-            holdings = db.get_league_holdings(league_id, user_id)
-            holding = next((h for h in holdings if h['symbol'] == symbol), None)
-            current_shares = holding['shares'] if holding else 0
-            if shares > current_shares:
-                return apology("not enough shares", 400)
-            
-            # Update league portfolio
             proceeds = trade_value - fee
-            new_cash = portfolio['cash'] + proceeds
-            db.update_league_cash(league_id, user_id, new_cash)
-            db.update_league_holding(league_id, user_id, symbol, -shares, price)
-            db.record_league_transaction(league_id, user_id, symbol, -shares, price, "sell", fee)
-            
-            # Log activity to league activity feed
-            user = db.get_user(user_id)
-            username = user.get('username') if user else 'Unknown'
             activity_id = db.add_league_activity(
                 league_id=league_id,
                 activity_type='trade',
@@ -2372,7 +2625,6 @@ def league_trade(league_id):
                 metadata={'symbol': symbol, 'shares': shares, 'price': price, 'type': 'sell', 'total': proceeds}
             )
             
-            # Emit real-time activity update
             emit_league_activity(league_id, {
                 'id': activity_id,
                 'username': username,
@@ -2478,8 +2730,20 @@ def league_dashboard(league_id):
     # Get leaderboard with enriched data
     leaderboard = db.get_league_leaderboard(league_id)
     
-    # Enrich leaderboard with additional data
+    # Enrich leaderboard with additional data and calculate league statistics
     starting_cash = league.get('starting_cash', 10000.0)
+    total_portfolio_value = 0
+    total_returns = 0
+    total_transactions = 0
+    highest_gain_member = None
+    highest_gain_value = float('-inf')
+    highest_loss_member = None
+    highest_loss_value = float('inf')
+    best_performer = None
+    best_return_pct = float('-inf')
+    most_active_member = None
+    most_active_count = 0
+    
     for entry in leaderboard:
         portfolio = db.get_league_portfolio(league_id, entry['id'])
         if portfolio:
@@ -2493,9 +2757,60 @@ def league_dashboard(league_id):
                     total_value += h['shares'] * quote['price']
             entry['total_value'] = total_value
             entry['return_pct'] = ((total_value - starting_cash) / starting_cash * 100) if starting_cash > 0 else 0
+            
+            # Update league statistics
+            total_portfolio_value += total_value
+            total_returns += (total_value - starting_cash)
+            
+            # Track highest gain/loss
+            gain_loss = total_value - starting_cash
+            if gain_loss > highest_gain_value:
+                highest_gain_value = gain_loss
+                highest_gain_member = entry['username']
+            if gain_loss < highest_loss_value:
+                highest_loss_value = gain_loss
+                highest_loss_member = entry['username']
+            
+            # Track best performer
+            if entry['return_pct'] > best_return_pct:
+                best_return_pct = entry['return_pct']
+                best_performer = entry['username']
+            
+            # Count transactions per member
+            member_transactions = db.get_league_transactions(league_id, user_id=entry['id'])
+            transaction_count = len(member_transactions) if member_transactions else 0
+            entry['transaction_count'] = transaction_count
+            total_transactions += transaction_count
+            
+            if transaction_count > most_active_count:
+                most_active_count = transaction_count
+                most_active_member = entry['username']
         else:
             entry['total_value'] = starting_cash
             entry['return_pct'] = 0
+            entry['transaction_count'] = 0
+    
+    # Calculate average portfolio value
+    num_members = len(leaderboard) if leaderboard else 1
+    average_portfolio_value = total_portfolio_value / num_members if num_members > 0 else 0
+    
+    # Build league statistics dict
+    league_stats = {
+        'total_portfolio_value': total_portfolio_value,
+        'average_portfolio_value': average_portfolio_value,
+        'total_returns': total_returns,
+        'average_return': total_returns / num_members if num_members > 0 else 0,
+        'total_transactions': total_transactions,
+        'num_members': num_members,
+        'highest_gain_member': highest_gain_member,
+        'highest_gain_value': highest_gain_value if highest_gain_value != float('-inf') else 0,
+        'highest_loss_member': highest_loss_member,
+        'highest_loss_value': highest_loss_value if highest_loss_value != float('inf') else 0,
+        'best_performer': best_performer,
+        'best_return_pct': best_return_pct if best_return_pct != float('-inf') else 0,
+        'most_active_member': most_active_member,
+        'most_active_count': most_active_count
+    }
     
     # Get recent transactions
     recent_transactions = db.get_league_transactions(league_id, limit=20)
@@ -2519,6 +2834,7 @@ def league_dashboard(league_id):
     return render_template("league_dashboard.html",
                          league=league,
                          leaderboard=leaderboard,
+                         league_stats=league_stats,
                          recent_transactions=recent_transactions,
                          user_portfolio=user_portfolio,
                          user_holdings=user_holdings,
@@ -2823,15 +3139,19 @@ def api_league_details(league_id):
 @login_required
 def api_league_leaderboard(league_id):
     """API endpoint for real-time leaderboard"""
-    leaderboard = db.get_league_leaderboard(league_id)
+    leaderboard = db.get_league_leaderboard_with_values(
+        league_id,
+        lambda symbol: lookup(symbol).get('price') if lookup(symbol) else None
+    )
     
     return jsonify({
         "leaderboard": [
             {
-                "rank": entry.get("rank"),
+                "rank": entry.get("current_rank"),
                 "username": entry.get("username"),
                 "score": entry.get("score"),
-                "portfolio_value": entry.get("portfolio_value")
+                "portfolio_value": entry.get("total_value"),
+                "return_pct": entry.get("return_pct")
             }
             for entry in leaderboard
         ]
@@ -3015,7 +3335,12 @@ def challenge_detail(challenge_id):
     
     # Calculate time remaining
     from datetime import datetime
-    end_time = datetime.strptime(challenge['end_time'], '%Y-%m-%d %H:%M:%S')
+    # Handle both formats: with and without fractional seconds
+    end_time_str = challenge['end_time']
+    if '.' in end_time_str:
+        # Remove fractional seconds if present
+        end_time_str = end_time_str.split('.')[0]
+    end_time = datetime.strptime(end_time_str, '%Y-%m-%d %H:%M:%S')
     now = datetime.now()
     time_remaining = end_time - now
     days_remaining = max(0, time_remaining.days)
@@ -3214,13 +3539,30 @@ def settings():
 def update_profile():
     """Update user profile"""
     user_id = session["user_id"]
-    email = request.form.get("email")
-    bio = request.form.get("bio")
+    email = request.form.get("email", "").strip()
+    bio = request.form.get("bio", "").strip()
     is_public = 1 if request.form.get("is_public") else 0
     theme = request.form.get("theme") or "dark"
+    
+    # Validation
+    if email and not re.match(r'^[^\s@]+@[^\s@]+\.[^\s@]+$', email):
+        flash("Invalid email address", "danger")
+        return redirect("/settings")
+    
+    if bio and len(bio) > 200:
+        flash("Bio must be 200 characters or less", "danger")
+        return redirect("/settings")
+    
     # Update profile
-    db.update_user_profile(user_id, email=email, bio=bio, is_public=is_public, theme=theme)
-    flash("Profile updated successfully!")
+    db.update_user_profile(
+        user_id, 
+        email=email if email else None, 
+        bio=bio, 
+        is_public=is_public, 
+        theme=theme
+    )
+    
+    flash("Profile updated successfully!", "success")
     return redirect("/settings")
 
 
@@ -3229,13 +3571,17 @@ def update_profile():
 def change_password():
     """Change user password"""
     user_id = session["user_id"]
-    current_password = request.form.get("current_password")
-    new_password = request.form.get("new_password")
-    confirm_password = request.form.get("confirm_password")
+    current_password = request.form.get("current_password", "")
+    new_password = request.form.get("new_password", "")
+    confirm_password = request.form.get("confirm_password", "")
     
     # Validate input
-    if not current_password or not new_password or not confirm_password:
-        return apology("must provide all fields", 400)
+    if not current_password:
+        return apology("must provide current password", 400)
+    if not new_password:
+        return apology("must provide new password", 400)
+    if not confirm_password:
+        return apology("must confirm new password", 400)
     
     if new_password != confirm_password:
         return apology("new passwords don't match", 400)
@@ -3243,12 +3589,15 @@ def change_password():
     if len(new_password) < 6:
         return apology("password must be at least 6 characters", 400)
     
+    if current_password == new_password:
+        return apology("new password must be different from current password", 400)
+    
     # Verify current password
     user = db.get_user(user_id)
-    if not check_password_hash(user["hash"], current_password):
+    if not user or not check_password_hash(user["hash"], current_password):
         return apology("current password is incorrect", 403)
     
-    # Update password
+    # Update password with proper hashing
     new_hash = generate_password_hash(new_password)
     conn = db.get_connection()
     cursor = conn.cursor()
@@ -3256,7 +3605,7 @@ def change_password():
     conn.commit()
     conn.close()
     
-    flash("Password changed successfully!")
+    flash("Password changed successfully!", "success")
     return redirect("/settings")
 
 
@@ -3276,6 +3625,64 @@ def reset_portfolio():
     
     flash("Portfolio reset successfully! You now have $10,000 to trade.")
     return redirect("/")
+
+
+@app.route("/settings/delete-account", methods=["POST"])
+@login_required
+def delete_account():
+    """Delete user account and all associated data"""
+    user_id = session["user_id"]
+    
+    try:
+        conn = db.get_connection()
+        cursor = conn.cursor()
+        
+        # Delete user data in order (respect foreign key constraints)
+        # 1. Delete from chat-related tables
+        cursor.execute("DELETE FROM chat_messages WHERE room LIKE ?", (f"%user_{user_id}%",))
+        
+        # 2. Delete from transactions and portfolio
+        cursor.execute("DELETE FROM transactions WHERE user_id = ?", (user_id,))
+        cursor.execute("DELETE FROM user_stocks WHERE user_id = ?", (user_id,))
+        cursor.execute("DELETE FROM portfolio_snapshots WHERE user_id = ?", (user_id,))
+        
+        # 3. Delete from league-related tables
+        cursor.execute("DELETE FROM league_portfolio WHERE user_id = ?", (user_id,))
+        cursor.execute("DELETE FROM league_holdings WHERE user_id = ?", (user_id,))
+        cursor.execute("DELETE FROM league_transactions WHERE user_id = ?", (user_id,))
+        cursor.execute("DELETE FROM league_members WHERE user_id = ?", (user_id,))
+        cursor.execute("DELETE FROM league_member_stats WHERE user_id = ?", (user_id,))
+        
+        # 4. Delete from challenge-related tables
+        cursor.execute("DELETE FROM challenge_participants WHERE user_id = ?", (user_id,))
+        
+        # 5. Delete from social/friend tables
+        cursor.execute("DELETE FROM friends WHERE user_id = ? OR friend_id = ?", (user_id, user_id))
+        
+        # 6. Delete from achievement tables
+        cursor.execute("DELETE FROM user_achievements WHERE user_id = ?", (user_id,))
+        cursor.execute("DELETE FROM user_badges WHERE user_id = ?", (user_id,))
+        
+        # 7. Delete from notifications and watchlist
+        cursor.execute("DELETE FROM watchlist WHERE user_id = ?", (user_id,))
+        cursor.execute("DELETE FROM notifications WHERE user_id = ?", (user_id,))
+        
+        # 8. Delete the user account itself
+        cursor.execute("DELETE FROM users WHERE id = ?", (user_id,))
+        
+        conn.commit()
+        conn.close()
+        
+        # Clear session
+        session.clear()
+        
+        flash("Your account has been permanently deleted. We're sorry to see you go!", "warning")
+        return redirect("/")
+    
+    except Exception as e:
+        logging.error(f"Error deleting account for user {user_id}: {e}")
+        flash("Error deleting account. Please try again later.", "danger")
+        return redirect("/settings")
 
 
 # Route to reset cash and analytics
@@ -3746,16 +4153,20 @@ def api_portfolio_value():
 @login_required
 def save_theme():
     """Save user theme preference"""
-    user_id = session["user_id"]
-    theme = request.json.get("theme", "dark")
-    
-    conn = db.get_connection()
-    cursor = conn.cursor()
-    cursor.execute("UPDATE users SET theme = ? WHERE id = ?", (theme, user_id))
-    conn.commit()
-    conn.close()
-    
-    return {"success": True}
+    try:
+        user_id = session["user_id"]
+        theme = request.json.get("theme", "dark")
+        
+        conn = db.get_connection()
+        cursor = conn.cursor()
+        cursor.execute("UPDATE users SET theme = ? WHERE id = ?", (theme, user_id))
+        conn.commit()
+        conn.close()
+        
+        return {"success": True}
+    except Exception as e:
+        logging.error(f"Error saving theme: {e}")
+        return {"success": False, "error": str(e)}, 500
 
 
 @app.route("/api/chart/<symbol>")
@@ -3825,6 +4236,77 @@ def add_to_watchlist():
 
     flash(f"{symbol} has been added to your watchlist.", "success")
     return redirect("/quote")
+
+
+@app.route("/api/watchlist/add", methods=["POST"])
+def api_add_to_watchlist():
+    """API endpoint to add stock to watchlist (JSON)"""
+    # Check if user is logged in
+    if "user_id" not in session:
+        return jsonify({"success": False, "message": "Must be logged in to add to watchlist"}), 401
+    
+    user_id = session["user_id"]
+    data = request.get_json()
+    symbol = (data.get("symbol") or "").upper()
+    shares = data.get("shares", 1)
+    
+    if not symbol:
+        return jsonify({"success": False, "message": "Stock symbol is required"}), 400
+    
+    # Verify symbol is valid
+    quote = lookup(symbol)
+    if not quote:
+        return jsonify({"success": False, "message": f"Invalid symbol: {symbol}"}), 400
+    
+    try:
+        db_local = DatabaseManager()
+        conn = db_local.get_connection()
+        cursor = conn.cursor()
+        # Add to watchlist
+        cursor.execute(
+            "INSERT INTO watchlist (user_id, symbol, shares) VALUES (?, ?, ?) ON CONFLICT(user_id, symbol) DO UPDATE SET shares = excluded.shares",
+            (user_id, symbol, shares)
+        )
+        conn.commit()
+        conn.close()
+        
+        return jsonify({
+            "success": True,
+            "message": f"{symbol} added to watchlist",
+            "symbol": symbol,
+            "name": quote.get("name", symbol)
+        }), 200
+    except Exception as e:
+        return jsonify({"success": False, "message": f"Error adding to watchlist: {str(e)}"}), 500
+
+
+@app.route("/api/search")
+def api_search():
+    """API endpoint for stock search suggestions"""
+    query = request.args.get('q', '').strip().upper()
+    limit = request.args.get('limit', 15, type=int)
+    
+    if not query or len(query) < 1:
+        return jsonify({"results": []}), 200
+    
+    try:
+        # Use the search_tickers function from helpers
+        from helpers import search_tickers
+        suggestions = search_tickers(query, limit=limit)
+        
+        # Format results
+        results = [
+            {
+                "symbol": s.get("symbol", ""),
+                "name": s.get("name", "")
+            }
+            for s in suggestions
+        ]
+        
+        return jsonify({"results": results}), 200
+    except Exception as e:
+        print(f"Search error: {str(e)}")
+        return jsonify({"results": []}), 200
 
 
 @app.route("/watchlist/remove", methods=["POST"])
@@ -4548,9 +5030,16 @@ def _execute_copy_trades(trader_id, symbol, shares, price, trade_type, txn_id):
                (trade_type == 'sell' and not copier['copy_sells']):
                 continue
             
-            # Get follower's cash
-            follower = db.get_user(follower_id)
-            follower_cash = follower['cash']
+            # Get follower's user data
+            try:
+                follower = db.get_user(follower_id)
+                if not follower:
+                    logging.warning(f"Follower {follower_id} not found during copy trade execution")
+                    continue
+                follower_cash = follower['cash']
+            except Exception as e:
+                logging.error(f"Error fetching follower {follower_id} data: {e}")
+                continue
             
             # Calculate proportional shares based on allocation percentage
             allocation_pct = copier['allocation_percentage'] / 100
@@ -4624,8 +5113,6 @@ def _execute_copy_trades(trader_id, symbol, shares, price, trade_type, txn_id):
                         f'Copied trade: Sold {copy_shares} shares of {symbol} for {usd(proceeds)}',
                         f'/history'
                     )
-                
-                flash(f"Sold {shares} shares of {symbol} for {usd(proceeds)} (after {usd(fee)} fee)", "success")
         
         except Exception as e:
             logging.error(f"Error executing copy trade for follower {copier['follower_id']}: {e}")
@@ -4839,17 +5326,29 @@ expiration_thread.start()
 @login_required
 def update_privacy_settings():
     user_id = session.get("user_id")
-    profile_visibility = request.form.get("profile_visibility")
-    email_visibility = request.form.get("email_visibility")
-
+    
+    # Get form values
+    profile_visibility = request.form.get("profile_visibility", "public")
+    email_visibility = "private" if request.form.get("email_visibility") else "public"
+    notifications_enabled = request.form.get("notifications_enabled") is not None
+    display_portfolio_publicly = request.form.get("display_portfolio_publicly") is not None
+    
+    # Build privacy settings dict
+    privacy_settings = {
+        "profile_visibility": profile_visibility,
+        "email_visibility": email_visibility,
+        "notifications_enabled": notifications_enabled,
+        "display_portfolio_publicly": display_portfolio_publicly
+    }
+    
     # Update privacy settings in the database
-    db = DatabaseManager()
-    db.update_user_privacy(user_id, {
-        "profile_visibility": "private" if profile_visibility else "public",
-        "email_visibility": "private" if email_visibility else "public"
-    })
-
-    flash("Privacy settings updated successfully!", "success")
+    success = db.update_user_privacy(user_id, privacy_settings)
+    
+    if success:
+        flash("Privacy settings updated successfully!", "success")
+    else:
+        flash("Error updating privacy settings. Please try again.", "danger")
+    
     return redirect("/settings")
 
 

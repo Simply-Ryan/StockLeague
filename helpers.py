@@ -311,7 +311,7 @@ def get_stock_news(symbol, limit=5):
         return []
 
 
-def search_tickers(query, limit=8):
+def search_tickers(query, limit=15):
     """Search Yahoo Finance for symbols/company names similar to query.
 
     Uses Yahoo's public search endpoint to return a small list of matching
@@ -323,7 +323,7 @@ def search_tickers(query, limit=8):
             'q': query,
             'lang': 'en-US',
             'region': 'US',
-            'quotesCount': limit,
+            'quotesCount': max(limit, 20),  # Request more from API for better results
             'newsCount': 0
         }
         resp = requests.get(url, params=params, timeout=5)

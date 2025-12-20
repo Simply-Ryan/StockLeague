@@ -1,331 +1,359 @@
 {% extends "layout.html" %}
 
-{% block title %}Portfolio - StockLeague{% endblock %}
+{% block title %}Home - StockLeague{% endblock %}
 
 {% block main %}
-<div class="portfolio-container">
-    <h1 class="mb-4">
-        <i class="fas fa-briefcase"></i> Your Portfolio
-    </h1>
+<style>
+    .homepage-hero {
+        background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+        color: white;
+        padding: 4rem 2rem;
+        border-radius: 0.75rem;
+        margin-bottom: 3rem;
+        text-align: center;
+    }
 
-    <!-- Portfolio Context Banner -->
-    {% if active_context and active_context.type == 'league' %}
-    <div class="alert alert-warning d-flex align-items-center mb-3" role="alert" style="color: #856404; background-color: #fff3cd; border-color: #ffeeba;">
-        <i class="fas fa-trophy fa-2x me-3" style="color: #856404;"></i>
-        <div>
-            <strong style="color: #856404;"><i class="fas fa-shield-alt"></i> League Portfolio: {{ active_context.league_name }}</strong>
-            <small class="d-block" style="color: #856404;">This portfolio is separate from your personal account. Trades here only affect your league ranking.</small>
+    .homepage-hero h1 {
+        font-size: 2.5rem;
+        font-weight: 700;
+        margin-bottom: 1rem;
+    }
+
+    .homepage-hero p {
+        font-size: 1.1rem;
+        opacity: 0.95;
+        margin-bottom: 2rem;
+    }
+
+    .hero-cta {
+        display: flex;
+        gap: 1rem;
+        justify-content: center;
+        flex-wrap: wrap;
+    }
+
+    .hero-cta .btn {
+        padding: 0.75rem 2rem;
+        font-weight: 600;
+    }
+
+    .feature-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 2rem;
+        margin-bottom: 3rem;
+    }
+
+    .feature-card {
+        background: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 0.75rem;
+        padding: 2rem;
+        text-align: center;
+        transition: all 0.3s ease;
+    }
+
+    .feature-card:hover {
+        border-color: var(--primary-color);
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+        transform: translateY(-4px);
+    }
+
+    .feature-icon {
+        font-size: 2.5rem;
+        color: var(--primary-color);
+        margin-bottom: 1rem;
+    }
+
+    .feature-card h3 {
+        font-size: 1.25rem;
+        font-weight: 700;
+        margin-bottom: 0.5rem;
+        color: var(--text-primary);
+    }
+
+    .feature-card p {
+        color: var(--text-secondary);
+        margin-bottom: 0;
+        font-size: 0.95rem;
+    }
+
+    .market-section {
+        margin-bottom: 3rem;
+    }
+
+    .section-title {
+        font-size: 1.75rem;
+        font-weight: 700;
+        margin-bottom: 1.5rem;
+        color: var(--text-primary);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .section-title i {
+        color: var(--primary-color);
+    }
+
+    .market-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        gap: 1rem;
+        margin-bottom: 2rem;
+    }
+
+    .market-card {
+        background: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 0.5rem;
+        padding: 1.5rem;
+        text-align: center;
+    }
+
+    .market-card h6 {
+        font-weight: 700;
+        color: var(--text-primary);
+        margin-bottom: 0.5rem;
+    }
+
+    .market-price {
+        font-size: 1.35rem;
+        font-weight: 700;
+        color: var(--text-primary);
+        margin-bottom: 0.25rem;
+    }
+
+    .market-change {
+        font-size: 0.9rem;
+        font-weight: 600;
+    }
+
+    .market-change.positive {
+        color: var(--success-color);
+    }
+
+    .market-change.negative {
+        color: var(--danger-color);
+    }
+
+    .stats-row {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1.5rem;
+        margin-bottom: 3rem;
+    }
+
+    .stat-box {
+        background: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 0.5rem;
+        padding: 1.5rem;
+        text-align: center;
+    }
+
+    .stat-number {
+        font-size: 2rem;
+        font-weight: 700;
+        color: var(--primary-color);
+    }
+
+    .stat-label {
+        font-size: 0.9rem;
+        color: var(--text-secondary);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .cta-section {
+        background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+        color: white;
+        padding: 3rem 2rem;
+        border-radius: 0.75rem;
+        text-align: center;
+        margin-bottom: 2rem;
+    }
+
+    .cta-section h2 {
+        font-size: 1.75rem;
+        margin-bottom: 1rem;
+    }
+
+    .cta-section p {
+        font-size: 1.05rem;
+        margin-bottom: 1.5rem;
+    }
+
+    @media (max-width: 768px) {
+        .homepage-hero h1 {
+            font-size: 1.75rem;
+        }
+
+        .feature-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .hero-cta {
+            flex-direction: column;
+        }
+
+        .hero-cta .btn {
+            width: 100%;
+        }
+    }
+</style>
+
+<div class="container-lg">
+    <!-- Hero Section -->
+    <div class="homepage-hero">
+        <h1><i class="fas fa-rocket"></i> Welcome to StockLeague</h1>
+        <p>Your ultimate platform for paper trading, competing with friends, and mastering the stock market</p>
+        <div class="hero-cta">
+            {% if session.get('user_id') %}
+            <a href="/dashboard" class="btn btn-light btn-lg">
+                <i class="fas fa-chart-pie me-2"></i>Go to Dashboard
+            </a>
+            <a href="/trade" class="btn btn-outline-light btn-lg">
+                <i class="fas fa-arrow-up me-2"></i>Start Trading
+            </a>
+            {% else %}
+            <a href="/login" class="btn btn-light btn-lg">
+                <i class="fas fa-sign-in-alt me-2"></i>Login
+            </a>
+            <a href="/signup" class="btn btn-outline-light btn-lg">
+                <i class="fas fa-user-plus me-2"></i>Sign Up
+            </a>
+            {% endif %}
         </div>
     </div>
-    {% else %}
-    <div class="alert alert-primary d-flex align-items-center mb-3" role="alert" style="color: #004085; background-color: #cce5ff; border-color: #b8daff;">
-        <i class="fas fa-user fa-2x me-3" style="color: #004085;"></i>
-        <div>
-            <strong style="color: #004085;"><i class="fas fa-wallet"></i> Personal Portfolio</strong>
-            <small class="d-block" style="color: #004085;">This is your main trading account, separate from any league competitions.</small>
-        </div>
-    </div>
-    {% endif %}
 
-    <!-- Live Update Indicator -->
-    <div class="alert alert-info d-flex align-items-center mb-3" role="alert">
-        <div class="live-indicator me-3">LIVE</div>
-        <div>
-            <strong>Real-time updates enabled</strong>
-            <small class="d-block">Your portfolio values and prices update automatically</small>
-        </div>
-    </div>
-
-    <!-- Portfolio Performance Chart -->
-    {% if portfolio_history and portfolio_history|length > 1 %}
-    <div class="card mb-4">
-        <div class="card-header d-flex justify-content-between align-items-center">
-            <h5 class="mb-0"><i class="fas fa-chart-area"></i> Portfolio Performance (30 Days)</h5>
-            <span class="live-indicator">LIVE</span>
-        </div>
-        <div class="card-body">
-            <canvas id="portfolioChart" style="max-height: 300px;"></canvas>
-        </div>
-    </div>
-    {% endif %}
-
-    <!-- Performance Summary Cards -->
-    <div class="row mb-4">
-        <div class="col-md-3 mb-3">
-            <div class="card text-center h-100">
-                <div class="card-body">
-                    <h6 class="card-subtitle mb-2 text-muted">Total Value</h6>
-                    <h3 class="card-title text-primary" id="portfolio-value">{{ grand_total | usd }}</h3>
-                    <small class="text-muted"><i class="fas fa-sync-alt fa-spin"></i> Live</small>
-                </div>
+    <!-- Key Features -->
+    <div class="market-section">
+        <h2 class="section-title"><i class="fas fa-star"></i> Why StockLeague?</h2>
+        <div class="feature-grid">
+            <div class="feature-card">
+                <div class="feature-icon"><i class="fas fa-chart-line"></i></div>
+                <h3>Paper Trading</h3>
+                <p>Practice investing with virtual money. No real money risk, real market experience.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon"><i class="fas fa-trophy"></i></div>
+                <h3>Compete & Win</h3>
+                <p>Join leagues with friends or other traders. Earn badges, climb leaderboards, and prove your skills.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon"><i class="fas fa-chart-area"></i></div>
+                <h3>Advanced Analytics</h3>
+                <p>Track your performance with detailed charts, statistics, and portfolio insights.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon"><i class="fas fa-users"></i></div>
+                <h3>Community</h3>
+                <p>Chat with friends, share strategies, and learn from other experienced traders.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon"><i class="fas fa-bolt"></i></div>
+                <h3>Real-Time Data</h3>
+                <p>Live stock prices and market data updated in real-time for accurate trading.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon"><i class="fas fa-medal"></i></div>
+                <h3>Achievements</h3>
+                <p>Unlock achievements and badges as you grow your trading skills and portfolio.</p>
             </div>
         </div>
-        <div class="col-md-3 mb-3">
-            <div class="card text-center h-100">
-                <div class="card-body">
-                    <h6 class="card-subtitle mb-2 text-muted">Stock Value</h6>
-                    <h3 class="card-title">{{ total_value | usd }}</h3>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3 mb-3">
-            <div class="card text-center h-100 {% if total_gain_loss >= 0 %}border-success{% else %}border-danger{% endif %}">
-                <div class="card-body">
-                    <h6 class="card-subtitle mb-2 text-muted">Today's Gain/Loss</h6>
-                    <h3 class="card-title {% if total_gain_loss >= 0 %}text-success{% else %}text-danger{% endif %}">
-                        {{ total_gain_loss | usd }}
-                    </h3>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3 mb-3">
-            <div class="card text-center h-100 {% if total_return >= 0 %}border-success{% else %}border-danger{% endif %}">
-                <div class="card-body">
-                    <h6 class="card-subtitle mb-2 text-muted">Total Return</h6>
-                    <h3 class="card-title {% if total_return >= 0 %}text-success{% else %}text-danger{% endif %}">
-                        {{ total_return | usd }}
-                        <small class="d-block">({{ "%.2f" | format(total_return_percent) }}%)</small>
-                    </h3>
-                </div>
-            </div>
-        </div>
     </div>
-
-    {% if stocks %}
-    <div class="table-responsive">
-        <table class="table table-striped table-hover">
-            <thead class="table-dark">
-                <tr>
-                    <th>Symbol</th>
-                    <th>Shares</th>
-                    <th>Avg Cost</th>
-                    <th>Current Price</th>
-                    <th>Today's Change</th>
-                    <th>Total Value</th>
-                    <th>Gain/Loss</th>
-                    <th>Return %</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for stock in stocks %}
-                <tr>
-                    <td>
-                        <strong><a href="/quote?symbol={{ stock.symbol }}" class="text-decoration-none">{{ stock.symbol }}</a></strong>
-                    </td>
-                    <td class="shares-count" data-shares="{{ stock.shares }}">{{ stock.shares }}</td>
-                    <td>{{ stock.avg_cost | usd }}</td>
-                    <td>
-                        <span class="stock-price" data-symbol="{{ stock.symbol }}">{{ stock.price | usd }}</span>
-                        <i class="fas fa-circle text-success ms-1" style="font-size: 0.5rem;" title="Live price"></i>
-                    </td>
-                    <td class="stock-change {% if stock.change_percent >= 0 %}text-success{% else %}text-danger{% endif %}" data-symbol="{{ stock.symbol }}">
-                        {% if stock.change_percent >= 0 %}+{% endif %}{{ "%.2f" | format(stock.change_percent) }}%
-                    </td>
-                    <td class="stock-value" data-symbol="{{ stock.symbol }}"><strong>{{ stock.total | usd }}</strong></td>
-                    <td class="{% if stock.gain_loss >= 0 %}text-success{% else %}text-danger{% endif %}">
-                        {% if stock.gain_loss >= 0 %}+{% endif %}{{ stock.gain_loss | usd }}
-                    </td>
-                    <td class="{% if stock.gain_loss_percent >= 0 %}text-success{% else %}text-danger{% endif %}">
-                        {% if stock.gain_loss_percent >= 0 %}+{% endif %}{{ "%.2f" | format(stock.gain_loss_percent) }}%
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-            <tfoot class="table-light">
-                <tr>
-                    <td colspan="5"><strong>Cash Balance</strong></td>
-                    <td colspan="3"><strong id="cash-balance">{{ cash | usd }}</strong></td>
-                </tr>
-                <tr class="table-success">
-                    <td colspan="5"><strong>GRAND TOTAL</strong></td>
-                    <td colspan="3"><strong id="grand-total">{{ grand_total | usd }}</strong></td>
-                </tr>
-            </tfoot>
-        </table>
-    </div>
-    {% else %}
-    <div class="alert alert-info">
-        <i class="fas fa-info-circle"></i> 
-        You don't have any stocks yet. <a href="/buy" class="alert-link">Buy some stocks</a> to get started!
-    </div>
-    {% endif %}
-
-    <!-- Watchlist Preview -->
-    {% if watchlist_count > 0 %}
-    <div class="mt-4">
-        <div class="card">
-            <div class="card-body">
-                <h5 class="card-title">
-                    <i class="fas fa-star"></i> Your Watchlist
-                </h5>
-                <p class="card-text">You're tracking {{ watchlist_count }} stock{{ 's' if watchlist_count != 1 else '' }}.</p>
-                <a href="/watchlist" class="btn btn-primary">
-                    <i class="fas fa-eye"></i> View Watchlist
-                </a>
-            </div>
-        </div>
-    </div>
-    {% endif %}
 
     <!-- Market Overview -->
     {% if popular_stocks %}
-    <div class="mt-4">
-        <h4 class="mb-3"><i class="fas fa-chart-line"></i> Market Overview</h4>
-        <div class="row">
-            {% for stock in popular_stocks %}
-            <div class="col-lg-3 col-md-4 col-sm-6 mb-3">
-                <div class="card h-100">
-                    <div class="card-body">
-                        <h6 class="card-title">
-                            <a href="/quote?symbol={{ stock.symbol }}" class="text-decoration-none">
-                                <strong>{{ stock.symbol }}</strong>
-                            </a>
-                        </h6>
-                        <p class="card-text mb-1">
-                            <strong>{{ stock.price | usd }}</strong>
-                        </p>
-                        <p class="card-text mb-0 {% if stock.change_percent >= 0 %}text-success{% else %}text-danger{% endif %}">
-                            <small>
-                                {% if stock.change_percent >= 0 %}▲{% else %}▼{% endif %}
-                                {% if stock.change_percent >= 0 %}+{% endif %}{{ "%.2f" | format(stock.change_percent) }}%
-                            </small>
-                        </p>
-                    </div>
+    <div class="market-section">
+        <h2 class="section-title"><i class="fas fa-globe"></i> Market Overview</h2>
+        <div class="market-grid">
+            {% for stock in popular_stocks[:8] %}
+            <a href="/trade?symbol={{ stock.symbol }}" class="market-card text-decoration-none" style="cursor: pointer;">
+                <h6><i class="fas fa-circle" style="font-size: 0.4rem; margin-right: 0.5rem;"></i>{{ stock.symbol }}</h6>
+                <div class="market-price">{{ stock.price | usd }}</div>
+                <div class="market-change {% if stock.change_percent >= 0 %}positive{% else %}negative{% endif %}">
+                    {% if stock.change_percent >= 0 %}<i class="fas fa-arrow-up me-1"></i>{% else %}<i class="fas fa-arrow-down me-1"></i>{% endif %}
+                    {% if stock.change_percent >= 0 %}+{% endif %}{{ "%.2f" | format(stock.change_percent) }}%
                 </div>
-            </div>
-            {% endfor %}
-        </div>
-    </div>
-    {% endif %}
-
-    <!-- Volume Leaders (homepage) -->
-    {% if homepage_volume_leaders %}
-    <div class="mt-4">
-        <h4 class="mb-3"><i class="fas fa-stream"></i> Volume Leaders</h4>
-        <div class="list-group">
-            {% for v in homepage_volume_leaders %}
-            <a href="/quote?symbol={{ v.symbol }}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
-                <div><strong>{{ v.symbol }}</strong> <small class="text-muted d-block">{{ v.name }}</small></div>
-                <div class="text-end small text-muted">{{ v.volume or 'N/A' }}</div>
             </a>
             {% endfor %}
         </div>
     </div>
     {% endif %}
 
-    <!-- Quick Actions -->
-    <div class="row mt-4">
-        <div class="col-md-4 mb-3">
-            <div class="card text-center">
-                <div class="card-body">
-                    <i class="fas fa-search fa-3x mb-3 text-primary"></i>
-                    <h5 class="card-title">Get Quote</h5>
-                    <p class="card-text">Look up stock prices</p>
-                    <a href="/quote" class="btn btn-primary">Quote</a>
-                </div>
+    <!-- Stats Section -->
+    {% if session.get('user_id') %}
+    <div class="market-section">
+        <h2 class="section-title"><i class="fas fa-briefcase"></i> Your Portfolio Overview</h2>
+        <div class="stats-row">
+            <div class="stat-box">
+                <div class="stat-number">{{ grand_total | usd }}</div>
+                <div class="stat-label">Portfolio Value</div>
             </div>
-        </div>
-        <div class="col-md-4 mb-3">
-            <div class="card text-center">
-                <div class="card-body">
-                    <i class="fas fa-plus-circle fa-3x mb-3 text-success"></i>
-                    <h5 class="card-title">Buy Stocks</h5>
-                    <p class="card-text">Purchase shares</p>
-                    <a href="/buy" class="btn btn-success">Buy</a>
-                </div>
+            <div class="stat-box">
+                <div class="stat-number">{{ stocks|length }}</div>
+                <div class="stat-label">Active Holdings</div>
             </div>
-        </div>
-        <div class="col-md-4 mb-3">
-            <div class="card text-center">
-                <div class="card-body">
-                    <i class="fas fa-minus-circle fa-3x mb-3 text-danger"></i>
-                    <h5 class="card-title">Sell Stocks</h5>
-                    <p class="card-text">Sell your shares</p>
-                    <a href="/sell" class="btn btn-danger">Sell</a>
-                </div>
+            <div class="stat-box">
+                <div class="stat-number {% if total_return >= 0 %}text-success{% else %}text-danger{% endif %}" style="{% if total_return >= 0 %}color: var(--success-color);{% else %}color: var(--danger-color);{% endif %}">{{ total_return | usd }}</div>
+                <div class="stat-label">Total Return</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-number">{{ cash | usd }}</div>
+                <div class="stat-label">Cash Available</div>
             </div>
         </div>
     </div>
+    {% endif %}
+
+    <!-- Quick Actions CTA -->
+    {% if not session.get('user_id') %}
+    <div class="cta-section">
+        <h2>Ready to Start Trading?</h2>
+        <p>Join thousands of traders competing in leagues and building their skills with virtual money.</p>
+        <a href="/signup" class="btn btn-light btn-lg">
+            <i class="fas fa-user-plus me-2"></i>Create Free Account
+        </a>
+    </div>
+    {% else %}
+    <div class="market-section">
+        <h2 class="section-title"><i class="fas fa-lightning-bolt"></i> Quick Actions</h2>
+        <div class="feature-grid">
+            <a href="/trade" class="feature-card text-decoration-none" style="color: inherit;">
+                <div class="feature-icon"><i class="fas fa-search"></i></div>
+                <h3>Explore & Trade</h3>
+                <p>Browse stocks and execute buy/sell orders</p>
+            </a>
+            <a href="/watchlist" class="feature-card text-decoration-none" style="color: inherit;">
+                <div class="feature-icon"><i class="fas fa-star"></i></div>
+                <h3>Watchlist</h3>
+                <p>Track your favorite stocks</p>
+            </a>
+            <a href="/leagues" class="feature-card text-decoration-none" style="color: inherit;">
+                <div class="feature-icon"><i class="fas fa-trophy"></i></div>
+                <h3>Leagues</h3>
+                <p>Join or create competitions</p>
+            </a>
+            <a href="/analytics" class="feature-card text-decoration-none" style="color: inherit;">
+                <div class="feature-icon"><i class="fas fa-chart-area"></i></div>
+                <h3>Analytics</h3>
+                <p>View detailed portfolio analysis</p>
+            </a>
+            <a href="/leaderboard" class="feature-card text-decoration-none" style="color: inherit;">
+                <div class="feature-icon"><i class="fas fa-ranking-star"></i></div>
+                <h3>Leaderboard</h3>
+                <p>See how you rank globally</p>
+            </a>
+            <a href="/friends" class="feature-card text-decoration-none" style="color: inherit;">
+                <div class="feature-icon"><i class="fas fa-users"></i></div>
+                <h3>Friends</h3>
+                <p>Connect with other traders</p>
+            </a>
+        </div>
+    </div>
+    {% endif %}
 </div>
 
-{% if portfolio_history and portfolio_history|length > 1 %}
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script>
-    // Portfolio Performance Chart
-    const portfolioData = {{ portfolio_history | tojson }};
-    
-    const dates = portfolioData.map(item => {
-        const date = new Date(item.timestamp);
-        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    });
-    
-    const values = portfolioData.map(item => item.total_value);
-    
-    const ctx = document.getElementById('portfolioChart').getContext('2d');
-    new Chart(ctx, {
-        type: 'line',
-        data: {
-            labels: dates,
-            datasets: [{
-                label: 'Portfolio Value',
-                data: values,
-                borderColor: 'rgb(13, 110, 253)',
-                backgroundColor: 'rgba(13, 110, 253, 0.1)',
-                borderWidth: 2,
-                fill: true,
-                tension: 0.4,
-                pointRadius: 3,
-                pointHoverRadius: 5
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: true,
-            plugins: {
-                legend: {
-                    display: false
-                },
-                tooltip: {
-                    mode: 'index',
-                    intersect: false,
-                    callbacks: {
-                        label: function(context) {
-                            return 'Value: $' + context.parsed.y.toFixed(2);
-                        }
-                    }
-                }
-            },
-            scales: {
-                x: {
-                    display: true,
-                    title: {
-                        display: true,
-                        text: 'Date'
-                    },
-                    ticks: {
-                        maxTicksLimit: 10
-                    }
-                },
-                y: {
-                    display: true,
-                    title: {
-                        display: true,
-                        text: 'Portfolio Value (USD)'
-                    },
-                    ticks: {
-                        callback: function(value) {
-                            return '$' + value.toFixed(0);
-                        }
-                    }
-                }
-            },
-            interaction: {
-                mode: 'nearest',
-                axis: 'x',
-                intersect: false
-            }
-        }
-    });
-</script>
-{% endif %}
 {% endblock %}

@@ -32,22 +32,30 @@
       class="navbar navbar-expand-lg sticky-top shadow-sm navbar-theme" 
       id="mainNavbar"
     >
-      <div class="container-fluid px-3">
-        <a class="navbar-brand fw-bold text-white" href="/home" style="color: #ffffff !important;">
-          <i class="fas fa-chart-line text-primary"></i> StockLeague
+      <div class="container-fluid px-2 px-sm-3">
+        <!-- Brand -->
+        <a class="navbar-brand fw-bold" href="/home" style="color: var(--text-primary);">
+          <i class="fas fa-chart-line text-primary"></i> <span class="d-none d-sm-inline">StockLeague</span>
         </a>
+        
+        <!-- Mobile Toggle -->
         <button
           class="navbar-toggler"
           type="button"
           data-bs-toggle="collapse"
           data-bs-target="#navbarNav"
+          aria-controls="navbarNav"
+          aria-expanded="false"
+          aria-label="Toggle navigation"
         >
           <span class="navbar-toggler-icon"></span>
         </button>
+        
         <div class="collapse navbar-collapse" id="navbarNav">
           {% if session["user_id"] %}
+          <!-- Primary Navigation (Left Side) -->
           <ul class="navbar-nav me-auto">
-            <!-- Dashboard -->
+            <!-- Dashboard Link -->
             <li class="nav-item">
               <a class="nav-link" href="/dashboard">
                 <i class="fas fa-chart-pie"></i>
@@ -55,7 +63,7 @@
               </a>
             </li>
 
-            <!-- Trading Dropdown -->
+            <!-- Trading Menu -->
             <li class="nav-item dropdown">
               <a
                 class="nav-link dropdown-toggle"
@@ -68,34 +76,31 @@
                 <i class="fas fa-exchange-alt"></i> Trade
               </a>
               <ul class="dropdown-menu" aria-labelledby="tradingDropdown">
+                <li><h6 class="dropdown-header">Tools</h6></li>
                 <li>
                   <a class="dropdown-item" href="/explore">
                     <i class="fas fa-compass text-info"></i> Explore Stocks
                   </a>
                 </li>
                 <li>
-                  <a class="dropdown-item" href="/quote">
-                    <i class="fas fa-search text-primary"></i> Get Quote
+                  <a class="dropdown-item" href="/trade">
+                    <i class="fas fa-search text-primary"></i> Quote Lookup
                   </a>
                 </li>
                 <li><hr class="dropdown-divider" /></li>
+                <li><h6 class="dropdown-header">Execute</h6></li>
                 <li>
-                  <a class="dropdown-item" href="/buy">
-                    <i class="fas fa-arrow-up text-success"></i> Buy Stocks
-                  </a>
-                </li>
-                <li>
-                  <a class="dropdown-item" href="/sell">
-                    <i class="fas fa-arrow-down text-danger"></i> Sell Stocks
+                  <a class="dropdown-item" href="/trade">
+                    <i class="fas fa-arrow-right text-success"></i> Buy / Sell
                   </a>
                 </li>
                 <li>
                   <a class="dropdown-item" href="/options">
                     <i class="fas fa-sliders-h text-warning"></i> Options
-                    Trading
                   </a>
                 </li>
                 <li><hr class="dropdown-divider" /></li>
+                <li><h6 class="dropdown-header">Manage</h6></li>
                 <li>
                   <a class="dropdown-item" href="/watchlist">
                     <i class="fas fa-star text-warning"></i> Watchlist
@@ -103,32 +108,33 @@
                 </li>
                 <li>
                   <a class="dropdown-item" href="/alerts">
-                    <i class="fas fa-bell text-info"></i> Price Alerts
+                    <i class="fas fa-bell text-info"></i> Alerts
                   </a>
                 </li>
               </ul>
             </li>
 
-            <!-- Analytics -->
+            <!-- Analytics Link -->
             <li class="nav-item">
               <a class="nav-link" href="/analytics">
                 <i class="fas fa-chart-bar"></i> Analytics
               </a>
             </li>
 
-            <!-- Social Dropdown -->
+            <!-- Community Menu -->
             <li class="nav-item dropdown">
               <a
                 class="nav-link dropdown-toggle"
                 href="#"
-                id="socialDropdown"
+                id="communityDropdown"
                 role="button"
                 data-bs-toggle="dropdown"
                 aria-expanded="false"
               >
-                <i class="fas fa-users"></i> Social
+                <i class="fas fa-users"></i> Community
               </a>
-              <ul class="dropdown-menu" aria-labelledby="socialDropdown">
+              <ul class="dropdown-menu" aria-labelledby="communityDropdown">
+                <li><h6 class="dropdown-header">Competition</h6></li>
                 <li>
                   <a class="dropdown-item" href="/leagues">
                     <i class="fas fa-trophy text-warning"></i> Leagues
@@ -145,6 +151,7 @@
                   </a>
                 </li>
                 <li><hr class="dropdown-divider" /></li>
+                <li><h6 class="dropdown-header">Connect</h6></li>
                 <li>
                   <a class="dropdown-item" href="/friends">
                     <i class="fas fa-user-friends text-primary"></i> Friends
@@ -157,28 +164,29 @@
                 </li>
                 <li>
                   <a class="dropdown-item" href="/feed">
-                    <i class="fas fa-stream text-info"></i> Activity Feed
+                    <i class="fas fa-stream text-info"></i> Feed
                   </a>
                 </li>
               </ul>
             </li>
 
-            <!-- News -->
-            <li class="nav-item">
+            <!-- News Link -->
+            <li class="nav-item d-none d-lg-block">
               <a class="nav-link" href="/news">
                 <i class="fas fa-newspaper"></i> News
               </a>
             </li>
           </ul>
 
-          <ul class="navbar-nav ms-auto align-items-center">
+          <!-- Secondary Navigation (Right Side) -->
+          <ul class="navbar-nav ms-auto align-items-center gap-2">
+            
             <!-- Portfolio Context Switcher -->
-            <li class="nav-item dropdown me-2">
-              <a
-                class="nav-link dropdown-toggle portfolio-switcher"
-                href="#"
+            <li class="nav-item dropdown">
+              <button
+                class="nav-link dropdown-toggle portfolio-switcher border-0 bg-transparent"
                 id="portfolioSwitcher"
-                role="button"
+                type="button"
                 data-bs-toggle="dropdown"
                 aria-expanded="false"
                 title="Active Portfolio"
@@ -192,7 +200,7 @@
                   <span class="d-none d-md-inline clickable-subject" data-href="/profile/{{ session.username }}">Personal</span>
                   <span class="badge bg-primary ms-1">Personal</span>
                 {% endif %}
-              </a>
+              </button>
               <ul class="dropdown-menu dropdown-menu-end shadow" aria-labelledby="portfolioSwitcher" style="min-width: 250px;">
                 <li><h6 class="dropdown-header"><i class="fas fa-exchange-alt"></i> Switch Portfolio</h6></li>
                 <li><hr class="dropdown-divider" /></li>
@@ -245,11 +253,11 @@
               </ul>
             </li>
             
-            <!-- Quick Action: Set Cash (Personal Portfolio Only) -->
+            <!-- Quick Action: Edit Portfolio -->
             {% if active_context.type == 'personal' %}
             <li class="nav-item d-none d-lg-block">
-              <a class="btn btn-sm btn-success me-2" href="/edit_portfolio" title="Edit personal portfolio cash (demo/testing only)">
-                <i class="fas fa-wallet"></i> Edit Portfolio
+              <a class="btn btn-sm btn-success" href="/edit_portfolio" title="Edit portfolio (demo only)">
+                <i class="fas fa-wallet"></i> Portfolio
               </a>
             </li>
             {% endif %}
@@ -263,6 +271,7 @@
                 role="button"
                 data-bs-toggle="dropdown"
                 aria-expanded="false"
+                title="Notifications"
               >
                 <i class="fas fa-bell"></i>
                 <span
@@ -278,7 +287,7 @@
                 style="width: 350px; max-height: 400px; overflow-y: auto"
                 id="notifications-dropdown"
               >
-                <li><h6 class="dropdown-header">Notifications</h6></li>
+                <li><h6 class="dropdown-header"><i class="fas fa-bell"></i> Notifications</h6></li>
                 <li><hr class="dropdown-divider" /></li>
                 <li id="notifications-list">
                   <div class="text-center text-muted py-3">
@@ -297,111 +306,110 @@
               </ul>
             </li>
 
-            <!-- Theme Selector -->
+            <!-- Theme Selector (REDESIGNED) -->
             <li class="nav-item dropdown">
-              <a
-                class="nav-link"
-                href="#"
+              <button
+                class="nav-link dropdown-toggle border-0 bg-transparent"
                 id="themeDropdown"
-                role="button"
+                type="button"
                 data-bs-toggle="dropdown"
                 aria-expanded="false"
-                title="Theme"
+                title="Switch Theme"
               >
                 <i class="fas fa-palette" id="theme-icon"></i>
-              </a>
-              <ul
-                class="dropdown-menu dropdown-menu-end"
-                aria-labelledby="themeDropdown"
-              >
-                <li><h6 class="dropdown-header">Theme</h6></li>
-                <li><hr class="dropdown-divider" /></li>
-                <li>
-                  <a
-                    class="dropdown-item theme-option d-flex align-items-center"
-                    href="#"
-                    data-theme="dark"
-                  >
-                    <i class="fas fa-moon text-primary me-2"></i> <span class="theme-label">Dark</span>
-                    <i
-                      class="fas fa-check text-success ms-auto"
-                      id="check-dark"
-                      style="display: none"
-                    ></i>
-                  </a>
-                </li>
-                <li>
-                  <a
-                    class="dropdown-item theme-option d-flex align-items-center"
-                    href="#"
-                    data-theme="light"
-                  >
-                    <i class="fas fa-sun text-warning me-2"></i> <span class="theme-label">Light</span>
-                    <i
-                      class="fas fa-check text-success ms-auto"
-                      id="check-light"
-                      style="display: none"
-                    ></i>
-                  </a>
-                </li>
-                <li>
-                  <a
-                    class="dropdown-item theme-option d-flex align-items-center"
-                    href="#"
-                    data-theme="auto"
-                  >
-                    <i class="fas fa-adjust text-info me-2"></i> <span class="theme-label">Auto</span>
-                    <i
-                      class="fas fa-check text-success ms-auto"
-                      id="check-auto"
-                      style="display: none"
-                    ></i>
-                  </a>
-                </li>
-                <li><hr class="dropdown-divider" /></li>
-                <li>
-                  <a
-                    class="dropdown-item theme-option d-flex align-items-center"
-                    href="#"
-                    data-theme="ocean"
-                  >
-                    <i class="fas fa-water text-info me-2"></i> <span class="theme-label">Ocean</span>
-                    <i
-                      class="fas fa-check text-success ms-auto"
-                      id="check-ocean"
-                      style="display: none"
-                    ></i>
-                  </a>
-                </li>
-                <li>
-                  <a
-                    class="dropdown-item theme-option d-flex align-items-center"
-                    href="#"
-                    data-theme="forest"
-                  >
-                    <i class="fas fa-tree text-success me-2"></i> <span class="theme-label">Forest</span>
-                    <i
-                      class="fas fa-check text-success ms-auto"
-                      id="check-forest"
-                      style="display: none"
-                    ></i>
-                  </a>
-                </li>
-                <li>
-                  <a
-                    class="dropdown-item theme-option d-flex align-items-center"
-                    href="#"
-                    data-theme="sunset"
-                  >
-                    <i class="fas fa-sun text-danger me-2"></i> <span class="theme-label">Sunset</span>
-                    <i
-                      class="fas fa-check text-success ms-auto"
-                      id="check-sunset"
-                      style="display: none"
-                    ></i>
-                  </a>
-                </li>
-              </ul>
+              </button>
+              <div class="dropdown-menu dropdown-menu-end theme-selector-menu shadow-lg" aria-labelledby="themeDropdown" style="min-width: 280px; padding: 0.75rem;">
+                <h6 class="dropdown-header px-2 py-2 fw-bold">
+                  <i class="fas fa-palette me-2"></i>Appearance
+                </h6>
+                <hr class="dropdown-divider my-2" />
+                
+                <!-- System Themes (Main) -->
+                <div class="px-2 mb-3">
+                  <label class="small text-muted d-block mb-2">Theme Mode</label>
+                  <div class="d-grid gap-2">
+                    <!-- Dark Theme -->
+                    <a
+                      href="#"
+                      class="theme-option btn btn-sm btn-outline-secondary d-flex align-items-center justify-content-between py-2"
+                      data-theme="dark"
+                    >
+                      <span>
+                        <i class="fas fa-moon me-2"></i> Dark
+                      </span>
+                      <i class="fas fa-check text-success" id="check-dark" style="display: none; margin-left: 0.5rem;"></i>
+                    </a>
+                    
+                    <!-- Light Theme -->
+                    <a
+                      href="#"
+                      class="theme-option btn btn-sm btn-outline-secondary d-flex align-items-center justify-content-between py-2"
+                      data-theme="light"
+                    >
+                      <span>
+                        <i class="fas fa-sun me-2"></i> Light
+                      </span>
+                      <i class="fas fa-check text-success" id="check-light" style="display: none; margin-left: 0.5rem;"></i>
+                    </a>
+                    
+                    <!-- Auto Theme -->
+                    <a
+                      href="#"
+                      class="theme-option btn btn-sm btn-outline-secondary d-flex align-items-center justify-content-between py-2"
+                      data-theme="auto"
+                    >
+                      <span>
+                        <i class="fas fa-adjust me-2"></i> Auto
+                      </span>
+                      <i class="fas fa-check text-success" id="check-auto" style="display: none; margin-left: 0.5rem;"></i>
+                    </a>
+                  </div>
+                </div>
+                
+                <hr class="dropdown-divider my-2" />
+                
+                <!-- Color Themes -->
+                <div class="px-2">
+                  <label class="small text-muted d-block mb-2">Color Theme</label>
+                  <div class="d-grid gap-2">
+                    <!-- Ocean -->
+                    <a
+                      href="#"
+                      class="theme-option btn btn-sm btn-outline-info d-flex align-items-center justify-content-between py-2"
+                      data-theme="ocean"
+                    >
+                      <span>
+                        <i class="fas fa-water me-2"></i> Ocean
+                      </span>
+                      <i class="fas fa-check text-success" id="check-ocean" style="display: none; margin-left: 0.5rem;"></i>
+                    </a>
+                    
+                    <!-- Forest -->
+                    <a
+                      href="#"
+                      class="theme-option btn btn-sm btn-outline-success d-flex align-items-center justify-content-between py-2"
+                      data-theme="forest"
+                    >
+                      <span>
+                        <i class="fas fa-tree me-2"></i> Forest
+                      </span>
+                      <i class="fas fa-check text-success" id="check-forest" style="display: none; margin-left: 0.5rem;"></i>
+                    </a>
+                    
+                    <!-- Sunset -->
+                    <a
+                      href="#"
+                      class="theme-option btn btn-sm btn-outline-warning d-flex align-items-center justify-content-between py-2"
+                      data-theme="sunset"
+                    >
+                      <span>
+                        <i class="fas fa-sun me-2"></i> Sunset
+                      </span>
+                      <i class="fas fa-check text-success" id="check-sunset" style="display: none; margin-left: 0.5rem;"></i>
+                    </a>
+                  </div>
+                </div>
+              </div>
             </li>
 
             <!-- Account Menu -->
@@ -413,17 +421,17 @@
                 role="button"
                 data-bs-toggle="dropdown"
                 aria-expanded="false"
+                title="Account"
               >
                 <i class="fas fa-user-circle fa-lg"></i>
               </a>
               <ul
-                class="dropdown-menu dropdown-menu-end"
+                class="dropdown-menu dropdown-menu-end shadow"
                 aria-labelledby="accountDropdown"
               >
                 <li>
                   <h6 class="dropdown-header">
-                    <i class="fas fa-user"></i> {{ session.get('username',
-                    'User') }}
+                    <i class="fas fa-user"></i> {{ session.get('username', 'User') }}
                   </h6>
                 </li>
                 <li><hr class="dropdown-divider" /></li>
@@ -462,22 +470,21 @@
           {% else %}
           <ul class="navbar-nav me-auto">
             <li class="nav-item">
-              <a class="nav-link text-white" href="/about" style="color: #ffffff !important;">
+              <a class="nav-link guest-nav-link" href="/about">
                 <i class="fas fa-info-circle"></i> About
               </a>
             </li>
           </ul>
-          <ul class="navbar-nav ms-auto">
+          <ul class="navbar-nav ms-auto align-items-center">
             <li class="nav-item dropdown me-2">
               <a
-                class="nav-link text-white"
+                class="nav-link guest-nav-link"
                 href="#"
                 id="guestThemeDropdown"
                 role="button"
                 data-bs-toggle="dropdown"
                 aria-expanded="false"
                 title="Theme"
-                style="color: #ffffff !important;"
               >
                 <i class="fas fa-palette" id="guest-theme-icon"></i>
               </a>
@@ -486,23 +493,23 @@
                 <li><hr class="dropdown-divider" /></li>
                 <li>
                   <a class="dropdown-item guest-theme-option d-flex align-items-center" href="#" data-theme="light">
-                    <i class="fas fa-sun text-warning me-2"></i> Light
+                    <i class="fas fa-sun me-2"></i> <span class="theme-label">Light</span>
                   </a>
                 </li>
                 <li>
                   <a class="dropdown-item guest-theme-option d-flex align-items-center" href="#" data-theme="dark">
-                    <i class="fas fa-moon text-primary me-2"></i> Dark
+                    <i class="fas fa-moon me-2"></i> <span class="theme-label">Dark</span>
                   </a>
                 </li>
               </ul>
             </li>
             <li class="nav-item">
-              <a class="btn btn-light btn-sm me-2" href="/register" style="color: #1a1a1a;">
+              <a class="btn btn-sm btn-outline-secondary me-2 guest-register-btn" href="/register">
                 <i class="fas fa-user-plus"></i> Register
               </a>
             </li>
             <li class="nav-item">
-              <a class="btn btn-primary btn-sm" href="/login">
+              <a class="btn btn-sm btn-primary guest-login-btn" href="/login">
                 <i class="fas fa-sign-in-alt"></i> Login
               </a>
             </li>
@@ -536,37 +543,40 @@
     <main class="container mt-4">{% block main %}{% endblock %}</main>
 
     <!-- Footer -->
-    <footer class="footer mt-4 py-2 bg-dark text-white">
+    <footer class="footer mt-4 py-2 py-md-3 bg-dark text-white">
       <div class="container">
-        <div class="row align-items-center">
-          <div class="col-md-4 text-center text-md-start mb-2 mb-md-0">
-            <small class="text-muted">
+        <div class="row align-items-center g-2">
+          <div class="col-12 col-md-4 text-center text-md-start">
+            <small class="text-muted d-block">
               <i class="fas fa-chart-line"></i> StockLeague &copy; 2025
             </small>
           </div>
-          <div class="col-md-4 text-center mb-2 mb-md-0">
-            <small>
+          <div class="col-12 col-md-4 text-center">
+            <small class="d-flex flex-column flex-md-row gap-2 justify-content-md-center">
               {% if session["user_id"] %}
               <a
                 href="/leaderboard"
-                class="text-muted text-decoration-none me-2"
-                ><i class="fas fa-trophy"></i> Leaderboard</a
+                class="text-muted text-decoration-none"
+                ><i class="fas fa-trophy"></i> <span class="d-inline d-md-inline">Leaderboard</span></a
               >
-              <a href="/chat" class="text-muted text-decoration-none me-2"
-                ><i class="fas fa-comments"></i> Chat</a
+              <span class="d-none d-md-inline text-muted">•</span>
+              <a href="/chat" class="text-muted text-decoration-none"
+                ><i class="fas fa-comments"></i> <span class="d-inline d-md-inline">Chat</span></a
               >
+              <span class="d-none d-md-inline text-muted">•</span>
               <a href="/analytics" class="text-muted text-decoration-none"
-                ><i class="fas fa-chart-bar"></i> Analytics</a
+                ><i class="fas fa-chart-bar"></i> <span class="d-inline d-md-inline">Analytics</span></a
               >
               {% else %}
-              <a href="/register" class="text-muted text-decoration-none me-2"
+              <a href="/register" class="text-muted text-decoration-none"
                 >Register</a
               >
+              <span class="d-inline text-muted">•</span>
               <a href="/login" class="text-muted text-decoration-none">Login</a>
               {% endif %}
             </small>
           </div>
-          <div class="col-md-4 text-center text-md-end">
+          <div class="col-12 col-md-4 text-center text-md-end">
             <small class="text-muted">
               <i class="fas fa-database"></i> Data by
               <a

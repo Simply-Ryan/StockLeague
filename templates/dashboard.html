@@ -146,6 +146,83 @@
         }
     }
 
+    /* Mobile optimizations */
+    @media (max-width: 480px) {
+        .dashboard-title {
+            font-size: 1.5rem;
+            gap: 0.5rem;
+        }
+
+        .dashboard-header {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 0.75rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .dashboard-actions {
+            width: 100%;
+            gap: 0.5rem;
+        }
+
+        .dashboard-actions .btn {
+            flex: 1;
+            min-width: 0;
+            padding: 0.5rem 0.75rem;
+            font-size: 0.85rem;
+        }
+
+        .dashboard-grid {
+            grid-template-columns: 1fr;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .stat-card {
+            padding: 1rem;
+        }
+
+        .stat-value {
+            font-size: 1.35rem;
+        }
+
+        .stat-label {
+            font-size: 0.75rem;
+        }
+
+        .context-alert {
+            flex-direction: column;
+            padding: 1rem;
+            gap: 0.75rem;
+        }
+
+        .context-alert i {
+            font-size: 1.25rem;
+        }
+
+        .context-alert-content h5 {
+            font-size: 0.95rem;
+        }
+
+        .context-alert-content p {
+            font-size: 0.85rem;
+        }
+    }
+
+    @media (max-width: 768px) {
+        .dashboard-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .dashboard-title {
+            font-size: 1.75rem;
+        }
+
+        .context-alert {
+            padding: 1.25rem;
+        }
+    }
+
     .section-header {
         display: flex;
         justify-content: space-between;
@@ -269,10 +346,10 @@
     <!-- Dashboard Header -->
     <div class="dashboard-header">
         <h1 class="dashboard-title">
-            <i class="fas fa-chart-pie"></i> Trading Dashboard
+            <i class="fas fa-chart-pie"></i> Portfolio Dashboard
         </h1>
         <div class="dashboard-actions">
-            <a href="/buy" class="btn btn-success">
+            <a href="/trade" class="btn btn-success">
                 <i class="fas fa-arrow-up"></i> Buy Stocks
             </a>
             <a href="/explore" class="btn btn-primary">
@@ -322,7 +399,7 @@
         </div>
 
         <div class="stat-card">
-            <div class="stat-label">Stocks Holdings</div>
+            <div class="stat-label">Stock Holdings</div>
             <div class="stat-value">{{ total_value | usd }}</div>
             <div class="stat-change">{{ stocks|length }} position(s)</div>
         </div>
@@ -337,27 +414,45 @@
                 {{ '%.2f'|format(total_percent_change) }}%
             </div>
         </div>
+
+        <div class="stat-card">
+            <div class="stat-label">Total Return</div>
+            <div class="stat-value {% if total_return >= 0 %}text-success{% else %}text-danger{% endif %}">
+                {{ total_return | usd }}
+            </div>
+            <div class="stat-change {% if total_return >= 0 %}positive{% else %}negative{% endif %}">
+                {{ '%.2f'|format(total_percent_change) }}%
+            </div>
+        </div>
+
+        <div class="stat-card">
+            <div class="stat-label">Return Rate</div>
+            <div class="stat-value {% if total_return >= 0 %}text-success{% else %}text-danger{% endif %}">
+                {{ '%.1f'|format((total_return / (grand_total - total_return) * 100) if (grand_total - total_return) > 0 else 0) }}%
+            </div>
+            <div class="stat-change">Performance ratio</div>
+        </div>
     </div>
 
     <!-- Quick Actions -->
     <div>
         <h3 class="section-title mb-3"><i class="fas fa-lightning-bolt"></i> Quick Actions</h3>
         <div class="quick-actions">
-            <a href="/buy" class="action-btn">
-                <i class="fas fa-arrow-up"></i>
-                <span>Buy Stocks</span>
-            </a>
-            <a href="/sell" class="action-btn">
-                <i class="fas fa-arrow-down"></i>
-                <span>Sell Stocks</span>
+            <a href="/trade" class="action-btn">
+                <i class="fas fa-search"></i>
+                <span>Explore & Trade</span>
             </a>
             <a href="/watchlist" class="action-btn">
                 <i class="fas fa-star"></i>
                 <span>Watchlist</span>
             </a>
+            <a href="/analytics" class="action-btn">
+                <i class="fas fa-chart-bar"></i>
+                <span>Analytics</span>
+            </a>
             <a href="/leagues" class="action-btn">
                 <i class="fas fa-trophy"></i>
-                <span>My Leagues</span>
+                <span>Leagues</span>
             </a>
         </div>
     </div>
@@ -398,7 +493,7 @@
                     <tbody>
                         {% for stock in stocks %}
                         <tr>
-                            <td><strong><a href="/quote?symbol={{ stock.symbol }}">{{ stock.symbol }}</a></strong></td>
+                            <td><strong><a href="/trade?symbol={{ stock.symbol }}">{{ stock.symbol }}</a></strong></td>
                             <td>{{ stock.shares }}</td>
                             <td>{{ stock.price | usd }}</td>
                             <td>{{ stock.avg_cost | usd }}</td>

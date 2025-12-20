@@ -59,7 +59,7 @@
                 <tr>
                     <td>{{ transaction.timestamp }}</td>
                     <td>
-                        <a href="/quote?symbol={{ transaction.symbol }}" class="text-decoration-none">
+                        <a href="/trade?symbol={{ transaction.symbol }}" class="text-decoration-none">
                             <strong>{{ transaction.symbol }}</strong>
                         </a>
                     </td>
@@ -109,7 +109,7 @@
     {% else %}
     <div class="alert alert-info">
         <i class="fas fa-info-circle"></i> 
-        No transactions yet. <a href="/buy" class="alert-link">Start trading</a> to see your history here!
+        No transactions yet. <a href="/trade" class="alert-link">Start trading</a> to see your history here!
     </div>
     {% endif %}
 </div>

@@ -25,6 +25,8 @@ class DatabaseManager:
         if db_dir and not os.path.exists(db_dir):
             os.makedirs(db_dir, exist_ok=True)
         self.init_db()
+        self.migrate_add_theme_column()  # Add theme column if missing
+        self.migrate_add_privacy_columns()  # Add privacy columns if missing
         self.init_chat_table()
         self.init_activity_reactions_table()
         # Ensure moderation table exists
@@ -176,6 +178,7 @@ class DatabaseManager:
                 bio TEXT,
                 avatar_url TEXT,
                 is_public INTEGER DEFAULT 1,
+                theme TEXT DEFAULT 'dark',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 last_active TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
@@ -390,6 +393,23 @@ class DatabaseManager:
             )
         """)
 
+        # Challenge participants table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS challenge_participants (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                challenge_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                score NUMERIC DEFAULT 0,
+                rank INTEGER,
+                completed INTEGER DEFAULT 0,
+                joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                completed_at TIMESTAMP,
+                FOREIGN KEY (challenge_id) REFERENCES challenges(id),
+                FOREIGN KEY (user_id) REFERENCES users(id),
+                UNIQUE(challenge_id, user_id)
+            )
+        """)
+
         # Watchlist table
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS watchlist (
@@ -556,10 +576,83 @@ class DatabaseManager:
                 FOREIGN KEY (user_id) REFERENCES users(id)
             )
         """)
+        
+        # Trade rate limiting table - tracks trades per user per league
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS trade_rate_limits (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                league_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                trade_count INTEGER DEFAULT 0,
+                window_start TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                last_trade TIMESTAMP,
+                FOREIGN KEY (league_id) REFERENCES leagues(id),
+                FOREIGN KEY (user_id) REFERENCES users(id),
+                UNIQUE(league_id, user_id)
+            )
+        """)
+        
+        # Create index for faster lookups
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_trade_rate_limits 
+            ON trade_rate_limits(league_id, user_id)
+        """)
 
         conn.commit()
         conn.close()
 
+    def migrate_add_theme_column(self):
+        """Add theme column to users table if it doesn't exist."""
+        try:
+            conn = self.get_connection()
+            cursor = conn.cursor()
+            
+            # Check if the theme column already exists
+            cursor.execute("PRAGMA table_info(users)")
+            columns = {row[1] for row in cursor.fetchall()}
+            
+            if 'theme' not in columns:
+                logging.info("Adding theme column to users table...")
+                cursor.execute("ALTER TABLE users ADD COLUMN theme TEXT DEFAULT 'dark'")
+                conn.commit()
+                logging.info("Theme column added successfully!")
+            
+            conn.close()
+        except Exception as e:
+            logging.warning(f"Migration failed or column already exists: {e}")
+
+    def migrate_add_privacy_columns(self):
+        """Add privacy columns to users table if they don't exist."""
+        try:
+            conn = self.get_connection()
+            cursor = conn.cursor()
+            
+            # Check if the columns already exist
+            cursor.execute("PRAGMA table_info(users)")
+            columns = {row[1] for row in cursor.fetchall()}
+            
+            # Add email_visibility if missing
+            if 'email_visibility' not in columns:
+                logging.info("Adding email_visibility column to users table...")
+                cursor.execute("ALTER TABLE users ADD COLUMN email_visibility TEXT DEFAULT 'public'")
+                logging.info("email_visibility column added successfully!")
+            
+            # Add notifications_enabled if missing
+            if 'notifications_enabled' not in columns:
+                logging.info("Adding notifications_enabled column to users table...")
+                cursor.execute("ALTER TABLE users ADD COLUMN notifications_enabled INTEGER DEFAULT 1")
+                logging.info("notifications_enabled column added successfully!")
+            
+            # Add display_portfolio_publicly if missing
+            if 'display_portfolio_publicly' not in columns:
+                logging.info("Adding display_portfolio_publicly column to users table...")
+                cursor.execute("ALTER TABLE users ADD COLUMN display_portfolio_publicly INTEGER DEFAULT 0")
+                logging.info("display_portfolio_publicly column added successfully!")
+            
+            conn.commit()
+            conn.close()
+        except Exception as e:
+            logging.warning(f"Privacy columns migration failed or columns already exist: {e}")
 
     def get_user_badges(self, user_id):
         """Get all badges for a user."""
@@ -1154,18 +1247,53 @@ class DatabaseManager:
         return result['count'] if result else 0
     
     def join_league(self, league_id, user_id):
-        """Join a league."""
+        """Join a league with max members limit validation."""
         conn = self.get_connection()
         cursor = conn.cursor()
         
         try:
+            # Check league exists
+            cursor.execute("SELECT id FROM leagues WHERE id = ?", (league_id,))
+            league_row = cursor.fetchone()
+            if not league_row:
+                logging.warning(f"League {league_id} not found when attempting join")
+                return False
+            
+            # Try to get max_members if column exists (for newer schema)
+            try:
+                cursor.execute("""
+                    SELECT max_members FROM leagues WHERE id = ?
+                """, (league_id,))
+                max_members_row = cursor.fetchone()
+                max_members = max_members_row[0] if max_members_row else None
+                
+                # Check current member count if max_members is set
+                if max_members is not None:
+                    cursor.execute("""
+                        SELECT COUNT(*) FROM league_members WHERE league_id = ?
+                    """, (league_id,))
+                    
+                    current_count = cursor.fetchone()[0]
+                    if current_count >= max_members:
+                        logging.warning(f"League {league_id} is at max capacity ({max_members}), cannot add more members")
+                        return False
+            except sqlite3.OperationalError:
+                # max_members column doesn't exist in schema, skip check
+                pass
+            
+            # Insert new member
             cursor.execute("""
                 INSERT INTO league_members (league_id, user_id)
                 VALUES (?, ?)
             """, (league_id, user_id))
             conn.commit()
+            logging.info(f"User {user_id} successfully joined league {league_id}")
             return True
-        except sqlite3.IntegrityError:
+        except sqlite3.IntegrityError as e:
+            logging.warning(f"Integrity error when joining league: {e}")
+            return False
+        except sqlite3.Error as e:
+            logging.error(f"Database error when joining league: {e}")
             return False
         finally:
             conn.close()
@@ -1208,18 +1336,25 @@ class DatabaseManager:
                 "DELETE FROM league_transactions WHERE league_id = ? AND user_id = ?",
                 (league_id, user_id)
             )
-            cursor.execute(
-                "DELETE FROM league_member_stats WHERE league_id = ? AND user_id = ?",
-                (league_id, user_id)
-            )
+            
+            # Try to delete from league_member_stats if table exists
+            try:
+                cursor.execute(
+                    "DELETE FROM league_member_stats WHERE league_id = ? AND user_id = ?",
+                    (league_id, user_id)
+                )
+            except sqlite3.OperationalError:
+                # Table doesn't exist, skip
+                pass
             
             # If the leaving user is the creator, transfer ownership
             if user_id == creator_id:
-                # Get the second member who joined (oldest join date after creator)
+                # Get the first member who joined (earliest join date)
+                # This should be the oldest non-owner member
                 cursor.execute("""
                     SELECT user_id FROM league_members
                     WHERE league_id = ?
-                    ORDER BY created_at ASC, user_id ASC
+                    ORDER BY joined_at ASC, user_id ASC
                     LIMIT 1
                 """, (league_id,))
                 
@@ -1252,12 +1387,26 @@ class DatabaseManager:
                 cursor.execute("DELETE FROM league_portfolios WHERE league_id = ?", (league_id,))
                 
                 # Analytics and tracking
-                cursor.execute("DELETE FROM league_portfolio_snapshots WHERE league_id = ?", (league_id,))
-                cursor.execute("DELETE FROM league_member_stats WHERE league_id = ?", (league_id,))
-                cursor.execute("DELETE FROM league_activity_feed WHERE league_id = ?", (league_id,))
+                try:
+                    cursor.execute("DELETE FROM league_portfolio_snapshots WHERE league_id = ?", (league_id,))
+                except sqlite3.OperationalError:
+                    pass  # Table doesn't exist
+                
+                try:
+                    cursor.execute("DELETE FROM league_member_stats WHERE league_id = ?", (league_id,))
+                except sqlite3.OperationalError:
+                    pass  # Table doesn't exist
+                
+                try:
+                    cursor.execute("DELETE FROM league_activity_feed WHERE league_id = ?", (league_id,))
+                except sqlite3.OperationalError:
+                    pass  # Table doesn't exist
                 
                 # Season data
-                cursor.execute("DELETE FROM league_seasons WHERE league_id = ?", (league_id,))
+                try:
+                    cursor.execute("DELETE FROM league_seasons WHERE league_id = ?", (league_id,))
+                except sqlite3.OperationalError:
+                    pass  # Table doesn't exist
                 
                 # Advanced features (if they exist)
                 try:
@@ -1317,24 +1466,56 @@ class DatabaseManager:
         
         return dict(league) if league else None
     
-    def get_league_by_invite_code(self, invite_code):
-        """Get league by invite code."""
+    def get_league_by_invite_code(self, invite_code, check_expiration=True):
+        """Get league by invite code with optional expiration validation.
+        
+        Args:
+            invite_code: The invite code to look up
+            check_expiration: If True, validates that code hasn't expired (30 days old)
+        
+        Returns:
+            League dict or None if not found or expired
+        """
         conn = self.get_connection()
         cursor = conn.cursor()
         
-        cursor.execute("SELECT * FROM leagues WHERE invite_code = ?", (invite_code,))
-        league = cursor.fetchone()
-        conn.close()
-        
-        return dict(league) if league else None
+        try:
+            cursor.execute("""
+                SELECT * FROM leagues WHERE invite_code = ?
+            """, (invite_code,))
+            league = cursor.fetchone()
+            
+            if not league:
+                return None
+            
+            league_dict = dict(league)
+            
+            # Check if code has expired (if validation enabled)
+            if check_expiration and league_dict.get('created_at'):
+                from datetime import datetime, timedelta
+                try:
+                    created = datetime.fromisoformat(league_dict['created_at'])
+                    if datetime.now() - created > timedelta(days=30):
+                        logging.warning(f"Invite code {invite_code} has expired (created {league_dict['created_at']})")
+                        return None
+                except (ValueError, TypeError):
+                    # If date parsing fails, allow the code
+                    pass
+            
+            return league_dict
+        except sqlite3.Error as e:
+            logging.error(f"Error getting league by invite code: {e}")
+            return None
+        finally:
+            conn.close()
     
     def get_league_leaderboard(self, league_id):
-        """Get leaderboard for a league."""
+        """Get leaderboard for a league with basic info."""
         conn = self.get_connection()
         cursor = conn.cursor()
         
         cursor.execute("""
-            SELECT u.id, u.username, u.avatar_url, lm.score, lm.current_rank
+            SELECT u.id, u.username, u.avatar_url, lm.score, lm.current_rank, lm.user_id
             FROM league_members lm
             JOIN users u ON lm.user_id = u.id
             WHERE lm.league_id = ?
@@ -1345,6 +1526,41 @@ class DatabaseManager:
         conn.close()
         
         return [dict(row) for row in leaderboard]
+    
+    def get_league_leaderboard_with_values(self, league_id, price_lookup_func):
+        """Get leaderboard for a league with calculated portfolio values.
+        
+        Args:
+            league_id: League ID
+            price_lookup_func: Function to look up current stock price
+        
+        Returns:
+            List of leaderboard entries with total_value and return_pct
+        """
+        leaderboard = self.get_league_leaderboard(league_id)
+        league = self.get_league(league_id)
+        starting_cash = league.get('starting_cash', 10000.0) if league else 10000.0
+        
+        # Calculate actual portfolio values for each member
+        result = []
+        for entry in leaderboard:
+            user_id = entry['user_id']
+            
+            # Get portfolio value using price lookup
+            portfolio_value = self.calculate_league_portfolio_value(
+                league_id, user_id, price_lookup_func
+            )
+            
+            # Calculate return percentage
+            return_pct = ((portfolio_value - starting_cash) / starting_cash * 100) if starting_cash > 0 else 0
+            
+            entry['total_value'] = portfolio_value
+            entry['return_pct'] = return_pct
+            entry['starting_cash'] = starting_cash
+            
+            result.append(entry)
+        
+        return result
     
     def update_league_scores(self, league_id):
         """Update scores and ranks for all members in a league."""
@@ -1499,14 +1715,20 @@ class DatabaseManager:
         conn = self.get_connection()
         cursor = conn.cursor()
         
-        cursor.execute("""
-            UPDATE league_portfolios
-            SET cash = ?
-            WHERE league_id = ? AND user_id = ?
-        """, (new_cash, league_id, user_id))
-        
-        conn.commit()
-        conn.close()
+        try:
+            cursor.execute("""
+                UPDATE league_portfolios
+                SET cash = ?
+                WHERE league_id = ? AND user_id = ?
+            """, (new_cash, league_id, user_id))
+            
+            conn.commit()
+        except sqlite3.Error as e:
+            logging.error(f"Error updating league cash for league {league_id}, user {user_id}: {e}")
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
     
     def get_league_holdings(self, league_id, user_id):
         """Get all stock holdings for a user within a league."""
@@ -1602,16 +1824,21 @@ class DatabaseManager:
         conn = self.get_connection()
         cursor = conn.cursor()
         
-        cursor.execute("""
-            INSERT INTO league_transactions (league_id, user_id, symbol, shares, price, type, fee)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        """, (league_id, user_id, symbol, shares, price, txn_type, fee))
-        
-        txn_id = cursor.lastrowid
-        conn.commit()
-        conn.close()
-        
-        return txn_id
+        try:
+            cursor.execute("""
+                INSERT INTO league_transactions (league_id, user_id, symbol, shares, price, type, fee)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (league_id, user_id, symbol, shares, price, txn_type, fee))
+            
+            txn_id = cursor.lastrowid
+            conn.commit()
+            return txn_id
+        except sqlite3.Error as e:
+            logging.error(f"Error recording league transaction for {symbol} in league {league_id}: {e}")
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
     
     def get_league_transactions(self, league_id, user_id=None, limit=100):
         """Get transactions for a league, optionally filtered by user."""
@@ -1660,6 +1887,99 @@ class DatabaseManager:
             conn.commit()
         except sqlite3.IntegrityError:
             pass  # Snapshot already exists for today
+        finally:
+            conn.close()
+    
+    def create_league_portfolio_snapshot_atomic(self, league_id, user_id, price_lookup_func):
+        """Create an atomic snapshot of a user's league portfolio using transaction.
+        
+        This ensures consistent portfolio state by reading all portfolio data
+        in a single transaction, preventing race conditions.
+        
+        Args:
+            league_id: League ID
+            user_id: User ID
+            price_lookup_func: Function to look up current price
+        
+        Returns:
+            True if snapshot created, False otherwise
+        """
+        from datetime import date
+        import json
+        
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        try:
+            # Begin transaction to ensure consistent read
+            cursor.execute("BEGIN")
+            
+            # Get portfolio and holdings in single atomic read
+            cursor.execute("""
+                SELECT cash FROM league_portfolios
+                WHERE league_id = ? AND user_id = ?
+            """, (league_id, user_id))
+            
+            portfolio_row = cursor.fetchone()
+            if not portfolio_row:
+                conn.rollback()
+                return False
+            
+            cash = portfolio_row[0]
+            
+            # Get all holdings
+            cursor.execute("""
+                SELECT symbol, shares, avg_cost FROM league_holdings
+                WHERE league_id = ? AND user_id = ?
+            """, (league_id, user_id))
+            
+            holdings = cursor.fetchall()
+            
+            # Calculate total value using current prices (now reading is locked)
+            total_value = cash
+            holdings_data = []
+            
+            for holding in holdings:
+                symbol = holding['symbol']
+                shares = holding['shares']
+                price = price_lookup_func(symbol)
+                
+                if price:
+                    holding_value = shares * price
+                    total_value += holding_value
+                else:
+                    # Use cost basis as fallback
+                    holding_value = shares * holding['avg_cost']
+                    total_value += holding_value
+                
+                holdings_data.append({
+                    'symbol': symbol,
+                    'shares': shares,
+                    'price': price or holding['avg_cost'],
+                    'value': holding_value
+                })
+            
+            # Commit the read transaction
+            conn.commit()
+            
+            # Now create the snapshot
+            today = date.today().isoformat()
+            holdings_json = json.dumps(holdings_data)
+            
+            cursor.execute("""
+                INSERT OR REPLACE INTO league_portfolio_snapshots 
+                (league_id, user_id, total_value, cash, holdings_json, snapshot_date)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (league_id, user_id, total_value, cash, holdings_json, today))
+            
+            conn.commit()
+            logging.info(f"Created atomic snapshot for user {user_id} in league {league_id}, value: ${total_value:.2f}")
+            return True
+            
+        except sqlite3.Error as e:
+            logging.error(f"Error creating atomic portfolio snapshot: {e}")
+            conn.rollback()
+            return False
         finally:
             conn.close()
     
@@ -1829,55 +2149,192 @@ class DatabaseManager:
         
         return True, None
     
-    
-    def update_league_scores_v2(self, league_id, price_lookup_func):
-        """Update scores and ranks for all members using league portfolios.
+    def execute_league_trade_atomic(self, league_id, user_id, symbol, action, shares, price, fee=0):
+        """Execute a league trade with proper transaction isolation to prevent concurrent trade bugs.
         
-        This version uses league-isolated portfolios instead of global portfolios.
+        This uses database-level locking to ensure atomic execution and prevent race conditions
+        where concurrent trades could overdraw a portfolio.
+        
+        Args:
+            league_id: League ID
+            user_id: User ID
+            symbol: Stock symbol
+            action: 'BUY' or 'SELL'
+            shares: Number of shares
+            price: Price per share
+            fee: Transaction fee
+        
+        Returns:
+            (success, error_message, txn_id)
         """
         conn = self.get_connection()
         cursor = conn.cursor()
         
-        # Get league to check mode
-        league = self.get_league(league_id)
-        mode = league.get('mode', 'absolute_value') if league else 'absolute_value'
-        starting_cash = league.get('starting_cash', 10000.0) if league else 10000.0
-        
-        # Get all members
-        cursor.execute("""
-            SELECT user_id FROM league_members WHERE league_id = ?
-        """, (league_id,))
-        
-        members = cursor.fetchall()
-        scores = []
-        
-        for member in members:
-            user_id = member['user_id']
-            total_value = self.calculate_league_portfolio_value(league_id, user_id, price_lookup_func)
+        try:
+            # Begin transaction with exclusive lock to prevent concurrent modifications
+            cursor.execute("BEGIN EXCLUSIVE")
             
-            # Calculate score based on mode
-            if mode == 'percentage_return':
-                # Percentage return from starting cash
-                score = ((total_value - starting_cash) / starting_cash) * 100 if starting_cash > 0 else 0
-            else:
-                # absolute_value (default) - just use total value
-                score = total_value
-            
-            scores.append((score, total_value, user_id))
-        
-        # Sort by score descending, then by total_value as tiebreaker
-        scores.sort(key=lambda x: (x[0], x[1]), reverse=True)
-        
-        # Update ranks
-        for rank, (score, total_value, user_id) in enumerate(scores, 1):
+            # Lock the portfolio row to prevent concurrent modifications
             cursor.execute("""
-                UPDATE league_members
-                SET score = ?, current_rank = ?
+                SELECT cash FROM league_portfolios 
                 WHERE league_id = ? AND user_id = ?
-            """, (score, rank, league_id, user_id))
+            """, (league_id, user_id))
+            
+            portfolio_row = cursor.fetchone()
+            if not portfolio_row:
+                conn.rollback()
+                return False, "Portfolio not found", None
+            
+            current_cash = portfolio_row[0]
+            
+            if action == 'BUY':
+                trade_cost = shares * price + fee
+                if current_cash < trade_cost:
+                    conn.rollback()
+                    return False, f"Insufficient funds. Have ${current_cash:.2f}, need ${trade_cost:.2f}", None
+                
+                # Update cash
+                cursor.execute("""
+                    UPDATE league_portfolios 
+                    SET cash = cash - ?
+                    WHERE league_id = ? AND user_id = ?
+                """, (trade_cost, league_id, user_id))
+                
+                # Update holding
+                cursor.execute("""
+                    SELECT shares, avg_cost FROM league_holdings
+                    WHERE league_id = ? AND user_id = ? AND symbol = ?
+                """, (league_id, user_id, symbol))
+                
+                holding = cursor.fetchone()
+                if holding:
+                    old_shares, old_avg_cost = holding
+                    new_shares = old_shares + shares
+                    new_avg_cost = ((old_shares * old_avg_cost) + (shares * price)) / new_shares
+                    cursor.execute("""
+                        UPDATE league_holdings
+                        SET shares = ?, avg_cost = ?
+                        WHERE league_id = ? AND user_id = ? AND symbol = ?
+                    """, (new_shares, new_avg_cost, league_id, user_id, symbol))
+                else:
+                    cursor.execute("""
+                        INSERT INTO league_holdings (league_id, user_id, symbol, shares, avg_cost)
+                        VALUES (?, ?, ?, ?, ?)
+                    """, (league_id, user_id, symbol, shares, price))
+            
+            elif action == 'SELL':
+                cursor.execute("""
+                    SELECT shares FROM league_holdings
+                    WHERE league_id = ? AND user_id = ? AND symbol = ?
+                """, (league_id, user_id, symbol))
+                
+                holding = cursor.fetchone()
+                if not holding or holding[0] < shares:
+                    conn.rollback()
+                    available = holding[0] if holding else 0
+                    return False, f"Insufficient shares. Have {available}, trying to sell {shares}", None
+                
+                # Update cash
+                trade_proceeds = shares * price - fee
+                cursor.execute("""
+                    UPDATE league_portfolios 
+                    SET cash = cash + ?
+                    WHERE league_id = ? AND user_id = ?
+                """, (trade_proceeds, league_id, user_id))
+                
+                # Update holding
+                new_shares = holding[0] - shares
+                if new_shares <= 0:
+                    cursor.execute("""
+                        DELETE FROM league_holdings
+                        WHERE league_id = ? AND user_id = ? AND symbol = ?
+                    """, (league_id, user_id, symbol))
+                else:
+                    cursor.execute("""
+                        UPDATE league_holdings
+                        SET shares = ?
+                        WHERE league_id = ? AND user_id = ? AND symbol = ?
+                    """, (new_shares, league_id, user_id, symbol))
+            
+            # Record transaction
+            cursor.execute("""
+                INSERT INTO league_transactions (league_id, user_id, symbol, shares, price, type, fee)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (league_id, user_id, symbol, shares, price, action, fee))
+            
+            txn_id = cursor.lastrowid
+            conn.commit()
+            
+            logging.info(f"Executed atomic trade: {action} {shares} {symbol} in league {league_id} for user {user_id}")
+            return True, None, txn_id
+            
+        except sqlite3.Error as e:
+            logging.error(f"Error executing atomic league trade: {e}")
+            conn.rollback()
+            return False, f"Database error: {str(e)}", None
+        finally:
+            conn.close()
+    
+    def update_league_scores_v2(self, league_id, price_lookup_func):
+        """Update scores and ranks for all members using league portfolios.
         
-        conn.commit()
-        conn.close()
+        This version uses league-isolated portfolios and executes atomically
+        to prevent race conditions in score calculations.
+        """
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        try:
+            # Begin exclusive transaction to prevent concurrent modifications
+            cursor.execute("BEGIN EXCLUSIVE")
+            
+            # Get league to check mode
+            league = self.get_league(league_id)
+            mode = league.get('mode', 'absolute_value') if league else 'absolute_value'
+            starting_cash = league.get('starting_cash', 10000.0) if league else 10000.0
+            
+            # Get all members in single query
+            cursor.execute("""
+                SELECT user_id FROM league_members WHERE league_id = ?
+            """, (league_id,))
+            
+            members = cursor.fetchall()
+            scores = []
+            
+            for member in members:
+                user_id = member['user_id']
+                total_value = self.calculate_league_portfolio_value(league_id, user_id, price_lookup_func)
+                
+                # Calculate score based on mode
+                if mode == 'percentage_return':
+                    # Percentage return from starting cash
+                    score = ((total_value - starting_cash) / starting_cash) * 100 if starting_cash > 0 else 0
+                else:
+                    # absolute_value (default) - just use total value
+                    score = total_value
+                
+                scores.append((score, total_value, user_id))
+            
+            # Sort by score descending, then by total_value as tiebreaker
+            scores.sort(key=lambda x: (x[0], x[1]), reverse=True)
+            
+            # Update ranks atomically (all within same transaction)
+            for rank, (score, total_value, user_id) in enumerate(scores, 1):
+                cursor.execute("""
+                    UPDATE league_members
+                    SET score = ?, current_rank = ?
+                    WHERE league_id = ? AND user_id = ?
+                """, (score, rank, league_id, user_id))
+            
+            conn.commit()
+            logging.info(f"Successfully updated scores for league {league_id} with {len(scores)} members")
+            
+        except sqlite3.Error as e:
+            logging.error(f"Error updating league scores atomically: {e}")
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
     
     def get_active_leagues(self, limit=20):
         """Get all active public leagues."""
@@ -1919,6 +2376,102 @@ class DatabaseManager:
         conn.close()
         
         return [dict(row) for row in members]
+    
+    # ============ TRADE RATE LIMITING ============
+    
+    def check_trade_rate_limit(self, league_id, user_id, max_trades_per_hour=100):
+        """Check if user has exceeded trade rate limit for the league.
+        
+        Args:
+            league_id: League ID
+            user_id: User ID
+            max_trades_per_hour: Maximum trades allowed per hour (default: 100)
+        
+        Returns:
+            (allowed, trades_remaining, reset_time_seconds)
+        """
+        from datetime import datetime, timedelta
+        
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        try:
+            # Get or create rate limit record
+            cursor.execute("""
+                SELECT trade_count, window_start FROM trade_rate_limits
+                WHERE league_id = ? AND user_id = ?
+            """, (league_id, user_id))
+            
+            record = cursor.fetchone()
+            now = datetime.now()
+            
+            if not record:
+                # First trade - create record
+                cursor.execute("""
+                    INSERT INTO trade_rate_limits (league_id, user_id, trade_count, window_start, last_trade)
+                    VALUES (?, ?, ?, ?, ?)
+                """, (league_id, user_id, 1, now, now))
+                conn.commit()
+                return True, max_trades_per_hour - 1, 3600
+            
+            trade_count, window_start_str = record
+            window_start = datetime.fromisoformat(window_start_str)
+            
+            # Check if window has expired (1 hour)
+            if now - window_start > timedelta(hours=1):
+                # Reset window
+                cursor.execute("""
+                    UPDATE trade_rate_limits
+                    SET trade_count = 1, window_start = ?, last_trade = ?
+                    WHERE league_id = ? AND user_id = ?
+                """, (now, now, league_id, user_id))
+                conn.commit()
+                return True, max_trades_per_hour - 1, 3600
+            
+            # Check if exceeded limit
+            if trade_count >= max_trades_per_hour:
+                seconds_until_reset = int((timedelta(hours=1) - (now - window_start)).total_seconds())
+                logging.warning(f"User {user_id} exceeded trade rate limit in league {league_id}")
+                return False, 0, seconds_until_reset
+            
+            # Update trade count and last_trade timestamp
+            cursor.execute("""
+                UPDATE trade_rate_limits
+                SET trade_count = trade_count + 1, last_trade = ?
+                WHERE league_id = ? AND user_id = ?
+            """, (now, league_id, user_id))
+            conn.commit()
+            
+            seconds_until_reset = int((timedelta(hours=1) - (now - window_start)).total_seconds())
+            return True, max_trades_per_hour - (trade_count + 1), seconds_until_reset
+            
+        except sqlite3.Error as e:
+            logging.error(f"Error checking rate limit: {e}")
+            return True, max_trades_per_hour, 3600  # Allow on error to be safe
+        finally:
+            conn.close()
+    
+    def reset_trade_rate_limit(self, league_id, user_id):
+        """Reset trade rate limit for a user in a league (for admin purposes)."""
+        from datetime import datetime
+        
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        try:
+            cursor.execute("""
+                UPDATE trade_rate_limits
+                SET trade_count = 0, window_start = ?
+                WHERE league_id = ? AND user_id = ?
+            """, (datetime.now(), league_id, user_id))
+            conn.commit()
+            logging.info(f"Reset rate limit for user {user_id} in league {league_id}")
+            return True
+        except sqlite3.Error as e:
+            logging.error(f"Error resetting rate limit: {e}")
+            return False
+        finally:
+            conn.close()
 
     # ============ LEAGUE ADMIN / MODERATION HELPERS ============
 
@@ -2161,6 +2714,41 @@ class DatabaseManager:
             conn.commit()
         
         conn.close()
+    
+    def update_user_privacy(self, user_id, privacy_settings):
+        """Update user privacy settings."""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        # Update privacy settings in users table
+        profile_visibility = privacy_settings.get('profile_visibility', 'public')
+        email_visibility = privacy_settings.get('email_visibility', 'public')
+        notifications_enabled = privacy_settings.get('notifications_enabled', True)
+        display_portfolio_publicly = privacy_settings.get('display_portfolio_publicly', False)
+        
+        # is_public = 1 if profile is public, 0 if private
+        is_public = 1 if profile_visibility == 'public' else 0
+        notif_enabled = 1 if notifications_enabled else 0
+        display_portfolio = 1 if display_portfolio_publicly else 0
+        
+        try:
+            cursor.execute("""
+                UPDATE users 
+                SET is_public = ?, 
+                    email_visibility = ?,
+                    notifications_enabled = ?,
+                    display_portfolio_publicly = ?
+                WHERE id = ?
+            """, (is_public, email_visibility, notif_enabled, display_portfolio, user_id))
+            conn.commit()
+            success = True
+        except Exception as e:
+            logging.error(f"Error updating privacy settings for user {user_id}: {e}")
+            success = False
+        finally:
+            conn.close()
+        
+        return success
     
     def search_users(self, query, limit=20):
         """Search users by username."""
@@ -2725,7 +3313,6 @@ class DatabaseManager:
             SELECT 
                 cp.*,
                 u.username,
-                u.display_name,
                 u.avatar_url
             FROM challenge_participants cp
             JOIN users u ON cp.user_id = u.id
@@ -3477,13 +4064,13 @@ class DatabaseManager:
         cursor.execute("""
             SELECT 
                 u.id, u.username, u.avatar_url,
-                tf.started_at,
+                tf.created_at,
                 ts.total_return, ts.win_rate, ts.total_trades
             FROM trader_following tf
             JOIN users u ON tf.trader_id = u.id
             LEFT JOIN trader_stats ts ON u.id = ts.user_id
             WHERE tf.follower_id = ?
-            ORDER BY tf.started_at DESC
+            ORDER BY tf.created_at DESC
         """, (user_id,))
         
         following = cursor.fetchall()
@@ -3499,11 +4086,11 @@ class DatabaseManager:
         cursor.execute("""
             SELECT 
                 u.id, u.username, u.avatar_url,
-                tf.started_at
+                tf.created_at
             FROM trader_following tf
             JOIN users u ON tf.follower_id = u.id
             WHERE tf.trader_id = ?
-            ORDER BY tf.started_at DESC
+            ORDER BY tf.created_at DESC
         """, (trader_id,))
         
         followers = cursor.fetchall()
@@ -3609,7 +4196,7 @@ class DatabaseManager:
             FROM copy_trading ct
             JOIN users u ON ct.follower_id = u.id
             WHERE ct.trader_id = ? AND ct.is_active = 1
-            ORDER BY ct.started_at DESC
+            ORDER BY ct.created_at DESC
         """, (trader_id,))
         
         copiers = cursor.fetchall()
@@ -3631,7 +4218,7 @@ class DatabaseManager:
             JOIN users u ON ct.trader_id = u.id
             LEFT JOIN trader_stats ts ON u.id = ts.user_id
             WHERE ct.follower_id = ? AND ct.is_active = 1
-            ORDER BY ct.started_at DESC
+            ORDER BY ct.created_at DESC
         """, (follower_id,))
         
         copying = cursor.fetchall()

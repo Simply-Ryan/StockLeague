@@ -101,6 +101,95 @@
                 </div>
             </div>
 
+            <!-- League Statistics -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-chart-bar"></i> League Statistics</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <!-- Total League Value -->
+                        <div class="col-md-6 mb-3">
+                            <div class="stat-box p-3 bg-light rounded">
+                                <label class="text-muted small d-block">Total League Value</label>
+                                <h5 class="mb-0 text-primary"><strong>{{ league_stats.total_portfolio_value | usd }}</strong></h5>
+                            </div>
+                        </div>
+                        
+                        <!-- Average Portfolio Value -->
+                        <div class="col-md-6 mb-3">
+                            <div class="stat-box p-3 bg-light rounded">
+                                <label class="text-muted small d-block">Average Portfolio Value</label>
+                                <h5 class="mb-0 text-info"><strong>{{ league_stats.average_portfolio_value | usd }}</strong></h5>
+                            </div>
+                        </div>
+                        
+                        <!-- Total League Return -->
+                        <div class="col-md-6 mb-3">
+                            <div class="stat-box p-3 bg-light rounded">
+                                <label class="text-muted small d-block">Total League Return</label>
+                                <h5 class="{% if league_stats.total_returns >= 0 %}text-success{% else %}text-danger{% endif %} mb-0">
+                                    <strong>{{ league_stats.total_returns | usd }}</strong>
+                                </h5>
+                            </div>
+                        </div>
+                        
+                        <!-- Total Trades -->
+                        <div class="col-md-6 mb-3">
+                            <div class="stat-box p-3 bg-light rounded">
+                                <label class="text-muted small d-block">Total League Trades</label>
+                                <h5 class="mb-0"><strong>{{ league_stats.total_transactions }}</strong></h5>
+                            </div>
+                        </div>
+                    </div>
+
+                    <hr class="my-3">
+
+                    <!-- Performance Highlights -->
+                    <div class="row">
+                        {% if league_stats.best_performer %}
+                        <div class="col-md-6 mb-3">
+                            <div class="highlight-box p-2 bg-success bg-opacity-10 rounded border-start border-success border-3">
+                                <small class="text-muted d-block">Best Performer</small>
+                                <strong>{{ league_stats.best_performer }}</strong>
+                                <div class="text-success small mt-1">+{{ "%.2f"|format(league_stats.best_return_pct) }}%</div>
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        {% if league_stats.highest_gain_member and league_stats.highest_gain_value > 0 %}
+                        <div class="col-md-6 mb-3">
+                            <div class="highlight-box p-2 bg-info bg-opacity-10 rounded border-start border-info border-3">
+                                <small class="text-muted d-block">Highest Gain</small>
+                                <strong>{{ league_stats.highest_gain_member }}</strong>
+                                <div class="text-info small mt-1">+{{ league_stats.highest_gain_value | usd }}</div>
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        {% if league_stats.most_active_member %}
+                        <div class="col-md-6 mb-3">
+                            <div class="highlight-box p-2 bg-warning bg-opacity-10 rounded border-start border-warning border-3">
+                                <small class="text-muted d-block">Most Active Trader</small>
+                                <strong>{{ league_stats.most_active_member }}</strong>
+                                <div class="text-warning small mt-1">{{ league_stats.most_active_count }} trades</div>
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        {% if league_stats.highest_loss_member and league_stats.highest_loss_value < 0 %}
+                        <div class="col-md-6 mb-3">
+                            <div class="highlight-box p-2 bg-danger bg-opacity-10 rounded border-start border-danger border-3">
+                                <small class="text-muted d-block">Highest Loss</small>
+                                <strong>{{ league_stats.highest_loss_member }}</strong>
+                                <div class="text-danger small mt-1">{{ league_stats.highest_loss_value | usd }}</div>
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
             <!-- Recent Activity -->
             <div class="card">
                 <div class="card-header">

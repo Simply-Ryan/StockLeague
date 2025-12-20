@@ -3,186 +3,552 @@
 {% block title %}Settings - StockLeague{% endblock %}
 
 {% block main %}
-<div class="container">
+<div class="container mt-4">
     <div class="row justify-content-center">
         <div class="col-lg-8">
-            <h1 class="mb-4">
-                <i class="fas fa-cog"></i> Account Settings
-            </h1>
-            
-            <!-- Profile Settings -->
-            <div class="card shadow mb-4">
-                <div class="card-header bg-primary text-white">
-                    <h5 class="mb-0"><i class="fas fa-user"></i> Profile Information</h5>
+            <div class="d-flex align-items-center justify-content-between mb-4">
+                <div>
+                    <h1 class="mb-0">
+                        <i class="fas fa-cog"></i> Account Settings
+                    </h1>
+                    <p class="text-muted small">Manage your account preferences, security, and privacy</p>
                 </div>
-                <div class="card-body">
-                    <!-- Avatar Upload -->
-                    <form action="/settings/avatar" method="post" enctype="multipart/form-data" class="mb-4">
-                        <div class="mb-3 text-center">
-                            <label for="avatar" class="form-label">Avatar</label><br>
-                            {% if user.avatar_url %}
-                                <img src="{{ user.avatar_url }}" alt="Avatar" class="rounded-circle mb-2" style="width: 96px; height: 96px; object-fit: cover; border: 2px solid #ccc;">
-                            {% else %}
-                                <i class="fas fa-user-circle fa-5x text-secondary mb-2"></i>
-                            {% endif %}
-                            <input class="form-control mt-2" type="file" id="avatar" name="avatar" accept="image/*">
-                            <div class="form-text">JPG, PNG, GIF. Max 2MB.</div>
+                <div class="text-end">
+                    <p class="mb-1"><small class="text-muted">User ID: #{{ user.id }}</small></p>
+                    <p class="mb-0"><small class="text-muted">Joined: {{ user.created_at.split('.')[0] }}</small></p>
+                </div>
+            </div>
+
+            <!-- Navigation Tabs for Settings Sections -->
+            <ul class="nav nav-pills mb-4" id="settingsTab" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="profile-tab" data-bs-toggle="tab" data-bs-target="#profile" type="button" role="tab">
+                        <i class="fas fa-user"></i> Profile
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="security-tab" data-bs-toggle="tab" data-bs-target="#security" type="button" role="tab">
+                        <i class="fas fa-lock"></i> Security
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="privacy-tab" data-bs-toggle="tab" data-bs-target="#privacy" type="button" role="tab">
+                        <i class="fas fa-shield-alt"></i> Privacy
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="preferences-tab" data-bs-toggle="tab" data-bs-target="#preferences" type="button" role="tab">
+                        <i class="fas fa-sliders-h"></i> Preferences
+                    </button>
+                </li>
+            </ul>
+
+            <div class="tab-content" id="settingsContent">
+                <!-- Profile Tab -->
+                <div class="tab-pane fade show active" id="profile" role="tabpanel">
+                    <!-- Avatar Section -->
+                    <div class="card shadow mb-4">
+                        <div class="card-header bg-primary text-white">
+                            <h5 class="mb-0"><i class="fas fa-image"></i> Profile Picture</h5>
                         </div>
-                        <button type="submit" class="btn btn-outline-primary mb-3"><i class="fas fa-upload"></i> Upload Avatar</button>
-                    </form>
-                    <!-- Profile Edit Form -->
-                    <form action="/settings/profile" method="post">
-                        <div class="mb-3">
-                            <label for="theme" class="form-label">Theme</label>
-                            <select class="form-select" id="theme" name="theme">
-                                <option value="system" {% if user.theme == 'system' %}selected{% endif %}>System Default</option>
-                                <option value="light" {% if user.theme == 'light' %}selected{% endif %}>Light</option>
-                                <option value="dark" {% if user.theme == 'dark' or not user.theme %}selected{% endif %}>Dark</option>
-                                <option value="blue" {% if user.theme == 'blue' %}selected{% endif %}>Blue</option>
-                                <option value="green" {% if user.theme == 'green' %}selected{% endif %}>Green</option>
-                            </select>
-                            <div class="form-text">Choose your preferred site theme.</div>
+                        <div class="card-body">
+                            <div class="text-center mb-3">
+                                {% if user.avatar_url %}
+                                    <img id="avatarPreview" src="{{ user.avatar_url }}" alt="Avatar" class="rounded-circle mb-3" style="width: 120px; height: 120px; object-fit: cover; border: 3px solid #007bff;">
+                                {% else %}
+                                    <i id="avatarPlaceholder" class="fas fa-user-circle" style="font-size: 120px; color: #ccc;"></i>
+                                    <img id="avatarPreview" src="#" alt="Avatar" class="rounded-circle mb-3" style="width: 120px; height: 120px; object-fit: cover; border: 3px solid #007bff; display: none;">
+                                {% endif %}
+                            </div>
+                            <form id="avatarForm" action="/settings/avatar" method="post" enctype="multipart/form-data">
+                                <div class="mb-3">
+                                    <label for="avatar" class="form-label">Choose Image</label>
+                                    <input class="form-control" type="file" id="avatar" name="avatar" accept="image/*">
+                                    <div class="form-text">JPG, PNG, GIF. Max 2MB. Recommended: 400x400px</div>
+                                </div>
+                                
+                                <!-- Image Crop Controls (hidden by default) -->
+                                <div id="cropContainer" style="display: none;">
+                                    <div class="mb-3">
+                                        <label class="form-label">Adjust Your Image</label>
+                                        <div style="position: relative; overflow: hidden; border-radius: 8px; background: #f5f5f5;">
+                                            <img id="imageToCrop" src="#" alt="Preview" style="max-width: 100%; display: block;">
+                                        </div>
+                                        <div class="mt-3 btn-group w-100" role="group">
+                                            <button type="button" class="btn btn-outline-secondary" id="cropZoomIn">
+                                                <i class="fas fa-plus"></i> Zoom In
+                                            </button>
+                                            <button type="button" class="btn btn-outline-secondary" id="cropZoomOut">
+                                                <i class="fas fa-minus"></i> Zoom Out
+                                            </button>
+                                            <button type="button" class="btn btn-outline-secondary" id="cropRotate">
+                                                <i class="fas fa-redo"></i> Rotate
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <input type="hidden" id="cropDataX" name="crop_x" value="0">
+                                    <input type="hidden" id="cropDataY" name="crop_y" value="0">
+                                    <input type="hidden" id="cropDataWidth" name="crop_width" value="0">
+                                    <input type="hidden" id="cropDataHeight" name="crop_height" value="0">
+                                    <input type="hidden" id="cropDataRotate" name="crop_rotate" value="0">
+                                    <input type="hidden" id="cropDataZoom" name="crop_zoom" value="1">
+                                </div>
+                                
+                                <div id="uploadButtons">
+                                    <button type="button" class="btn btn-primary w-100" id="proceedToCrop" style="display: none;">
+                                        <i class="fas fa-crop"></i> Crop Image
+                                    </button>
+                                    <button type="button" class="btn btn-secondary w-100" id="cancelCrop" style="display: none;">
+                                        <i class="fas fa-times"></i> Cancel
+                                    </button>
+                                    <button type="submit" class="btn btn-primary w-100" id="uploadButton">
+                                        <i class="fas fa-upload"></i> Upload Avatar
+                                    </button>
+                                </div>
+                            </form>
                         </div>
-                        <div class="mb-3">
-                            <label for="username" class="form-label">Username</label>
-                            <input type="text" class="form-control" id="username" value="{{ user.username }}" disabled>
-                            <div class="form-text">Username cannot be changed</div>
+                    </div>
+
+                    <!-- Profile Information -->
+                    <div class="card shadow">
+                        <div class="card-header bg-primary text-white">
+                            <h5 class="mb-0"><i class="fas fa-user"></i> Profile Information</h5>
                         </div>
-                        
-                        <div class="mb-3">
-                            <label for="email" class="form-label">Email Address</label>
-                            <input type="email" class="form-control" id="email" name="email" 
-                                   value="{{ user.email if user.email else '' }}" placeholder="your@email.com">
-                            <div class="form-text">Optional - for notifications and password recovery</div>
+                        <div class="card-body">
+                            <form action="/settings/profile" method="post">
+                                <div class="mb-3">
+                                    <label for="username" class="form-label">Username</label>
+                                    <input type="text" class="form-control" id="username" value="{{ user.username }}" disabled>
+                                    <div class="form-text text-muted">Your username cannot be changed</div>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label for="email" class="form-label">Email Address</label>
+                                    <input type="email" class="form-control" id="email" name="email" 
+                                           value="{{ user.email if user.email else '' }}" placeholder="your@email.com">
+                                    <div class="form-text text-muted">Used for account recovery and important notifications</div>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label for="bio" class="form-label">Bio</label>
+                                    <textarea class="form-control" id="bio" name="bio" rows="3" 
+                                              placeholder="Tell other traders about yourself..." maxlength="200">{{ user.bio if user.bio else '' }}</textarea>
+                                    <div class="form-text text-muted"><span id="bioCount">0</span>/200 characters</div>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label for="theme" class="form-label">Theme</label>
+                                    <select class="form-select" id="theme" name="theme" onchange="previewTheme(this.value)">
+                                        <option value="dark" {% if user.theme == 'dark' or not user.theme %}selected{% endif %}>Dark (Default)</option>
+                                        <option value="light" {% if user.theme == 'light' %}selected{% endif %}>Light</option>
+                                        <option value="blue" {% if user.theme == 'blue' %}selected{% endif %}>Blue</option>
+                                        <option value="green" {% if user.theme == 'green' %}selected{% endif %}>Green</option>
+                                        <option value="system" {% if user.theme == 'system' %}selected{% endif %}>System Default</option>
+                                    </select>
+                                    <div class="form-text text-muted">Choose your preferred color scheme</div>
+                                </div>
+
+                                <div class="mb-3">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" id="is_public" name="is_public" 
+                                               {% if user.is_public %}checked{% endif %}>
+                                        <label class="form-check-label" for="is_public">
+                                            <strong>Make my profile public</strong>
+                                        </label>
+                                    </div>
+                                    <div class="form-text text-muted">Allow other traders to view your profile, portfolio, and trading statistics</div>
+                                </div>
+
+                                <button type="submit" class="btn btn-primary w-100">
+                                    <i class="fas fa-save"></i> Save Profile Changes
+                                </button>
+                            </form>
                         </div>
-                        
-                        <div class="mb-3">
-                            <label for="bio" class="form-label">Bio</label>
-                            <textarea class="form-control" id="bio" name="bio" rows="3" 
-                                      placeholder="Tell us about yourself..." maxlength="200">{{ user.bio if user.bio else '' }}</textarea>
-                            <div class="form-text">Maximum 200 characters</div>
+                    </div>
+                </div>
+
+                <!-- Security Tab -->
+                <div class="tab-pane fade" id="security" role="tabpanel">
+                    <div class="card shadow mb-4">
+                        <div class="card-header bg-warning text-dark">
+                            <h5 class="mb-0"><i class="fas fa-lock"></i> Change Password</h5>
                         </div>
-                        
-                        <div class="mb-3">
-                            <div class="form-check form-switch">
-                                <input class="form-check-input" type="checkbox" id="is_public" name="is_public" 
-                                       {% if user.is_public %}checked{% endif %}>
-                                <label class="form-check-label" for="is_public">
-                                    Public Profile - Allow others to view your profile and stats
-                                </label>
+                        <div class="card-body">
+                            <form action="/settings/password" method="post">
+                                <div class="alert alert-info" role="alert">
+                                    <i class="fas fa-info-circle"></i> Keep your password strong and unique to protect your account
+                                </div>
+
+                                <div class="mb-3">
+                                    <label for="current_password" class="form-label">Current Password</label>
+                                    <input type="password" class="form-control" id="current_password" 
+                                           name="current_password" required>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label for="new_password" class="form-label">New Password</label>
+                                    <input type="password" class="form-control" id="new_password" 
+                                           name="new_password" required minlength="6" onkeyup="checkPasswordStrength(this.value)">
+                                    <div class="form-text text-muted">Minimum 6 characters</div>
+                                    <div class="mt-2">
+                                        <small>Password strength: <span id="strengthIndicator" class="badge bg-secondary">Weak</span></small>
+                                    </div>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label for="confirm_password" class="form-label">Confirm New Password</label>
+                                    <input type="password" class="form-control" id="confirm_password" 
+                                           name="confirm_password" required minlength="6">
+                                </div>
+
+                                <button type="submit" class="btn btn-warning w-100">
+                                    <i class="fas fa-key"></i> Change Password
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- Danger Zone Card -->
+                    <div class="card shadow border-danger">
+                        <div class="card-header bg-danger text-white">
+                            <h5 class="mb-0"><i class="fas fa-exclamation-triangle"></i> Danger Zone</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="alert alert-danger" role="alert">
+                                <strong>Warning!</strong> The actions below are permanent and cannot be undone.
+                            </div>
+
+                            <div class="mb-4">
+                                <h6 class="mb-2">Reset Portfolio</h6>
+                                <p class="text-muted small">Clear all stocks and reset your cash to $10,000. Your transaction history will be deleted.</p>
+                                <form action="/settings/reset" method="post" onsubmit="return confirm('⚠️ Are you sure? This will delete all your stocks and transaction history. This action CANNOT be undone!')">
+                                    <button type="submit" class="btn btn-danger">
+                                        <i class="fas fa-redo"></i> Reset Portfolio
+                                    </button>
+                                </form>
+                            </div>
+
+                            <hr>
+
+                            <div>
+                                <h6 class="mb-2">Delete Account</h6>
+                                <p class="text-muted small">Permanently delete your account and all associated data. This cannot be recovered.</p>
+                                <button class="btn btn-outline-danger" data-bs-toggle="modal" data-bs-target="#deleteAccountModal">
+                                    <i class="fas fa-trash"></i> Delete Account
+                                </button>
                             </div>
                         </div>
-                        
-                        <button type="submit" class="btn btn-primary">
-                            <i class="fas fa-save"></i> Save Profile
-                        </button>
-                    </form>
+                    </div>
                 </div>
-            </div>
-            
-            <!-- Password Change -->
-            <div class="card shadow mb-4">
-                <div class="card-header bg-warning text-dark">
-                    <h5 class="mb-0"><i class="fas fa-lock"></i> Change Password</h5>
+
+                <!-- Privacy Tab -->
+                <div class="tab-pane fade" id="privacy" role="tabpanel">
+                    <div class="card shadow">
+                        <div class="card-header bg-secondary text-white">
+                            <h5 class="mb-0"><i class="fas fa-shield-alt"></i> Privacy Controls</h5>
+                        </div>
+                        <div class="card-body">
+                            <form action="/settings/privacy" method="post">
+                                <div class="alert alert-secondary" role="alert">
+                                    <i class="fas fa-eye-slash"></i> Control who can see your information across StockLeague
+                                </div>
+
+                                <div class="mb-4">
+                                    <h6 class="mb-3"><i class="fas fa-user-secret"></i> Profile Visibility</h6>
+                                    <div class="form-check form-check-lg mb-3">
+                                        <input class="form-check-input" type="radio" name="profile_visibility" id="profile_public" value="public" 
+                                               {% if user.is_public %}checked{% endif %}>
+                                        <label class="form-check-label" for="profile_public">
+                                            <strong>Public Profile</strong>
+                                            <div class="text-muted small">Everyone can view your profile, stats, and portfolio</div>
+                                        </label>
+                                    </div>
+                                    <div class="form-check form-check-lg">
+                                        <input class="form-check-input" type="radio" name="profile_visibility" id="profile_private" value="private" 
+                                               {% if not user.is_public %}checked{% endif %}>
+                                        <label class="form-check-label" for="profile_private">
+                                            <strong>Private Profile</strong>
+                                            <div class="text-muted small">Only you can view your full profile</div>
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <hr>
+
+                                <div class="mb-4">
+                                    <h6 class="mb-3"><i class="fas fa-envelope"></i> Email Visibility</h6>
+                                    <div class="form-check form-switch mb-3">
+                                        <input class="form-check-input" type="checkbox" id="email_visibility" name="email_visibility" 
+                                               {% if user.email_visibility == 'private' %}checked{% endif %}>
+                                        <label class="form-check-label" for="email_visibility">
+                                            <strong>Hide my email address</strong>
+                                        </label>
+                                    </div>
+                                    <div class="text-muted small">Email is used only for account recovery and important notifications</div>
+                                </div>
+
+                                <hr>
+
+                                <div class="mb-4">
+                                    <h6 class="mb-3"><i class="fas fa-chart-line"></i> Portfolio Visibility</h6>
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" id="display_portfolio" name="display_portfolio_publicly" 
+                                               {% if user.display_portfolio_publicly %}checked{% endif %}>
+                                        <label class="form-check-label" for="display_portfolio">
+                                            <strong>Display portfolio publicly</strong>
+                                        </label>
+                                    </div>
+                                    <div class="text-muted small">Allow other traders to see your holdings and performance</div>
+                                </div>
+
+                                <button type="submit" class="btn btn-secondary w-100 mt-4">
+                                    <i class="fas fa-save"></i> Save Privacy Settings
+                                </button>
+                            </form>
+                        </div>
+                    </div>
                 </div>
-                <div class="card-body">
-                    <form action="/settings/password" method="post">
-                        <div class="mb-3">
-                            <label for="current_password" class="form-label">Current Password</label>
-                            <input type="password" class="form-control" id="current_password" 
-                                   name="current_password" required>
+
+                <!-- Preferences Tab -->
+                <div class="tab-pane fade" id="preferences" role="tabpanel">
+                    <div class="card shadow">
+                        <div class="card-header bg-info text-white">
+                            <h5 class="mb-0"><i class="fas fa-sliders-h"></i> Notification Preferences</h5>
                         </div>
-                        
-                        <div class="mb-3">
-                            <label for="new_password" class="form-label">New Password</label>
-                            <input type="password" class="form-control" id="new_password" 
-                                   name="new_password" required minlength="6">
-                            <div class="form-text">Minimum 6 characters</div>
-                        </div>
-                        
-                        <div class="mb-3">
-                            <label for="confirm_password" class="form-label">Confirm New Password</label>
-                            <input type="password" class="form-control" id="confirm_password" 
-                                   name="confirm_password" required minlength="6">
-                        </div>
-                        
-                        <button type="submit" class="btn btn-warning">
-                            <i class="fas fa-key"></i> Change Password
-                        </button>
-                    </form>
-                </div>
-            </div>
-            
-            <!-- Account Info -->
-            <div class="card shadow mb-4">
-                <div class="card-header bg-info text-white">
-                    <h5 class="mb-0"><i class="fas fa-info-circle"></i> Account Information</h5>
-                </div>
-                <div class="card-body">
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <h6 class="text-muted">Account Created</h6>
-                            <p>{{ user.created_at.split('.')[0] }}</p>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <h6 class="text-muted">Last Active</h6>
-                            <p>{{ user.last_active.split('.')[0] }}</p>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <h6 class="text-muted">User ID</h6>
-                            <p>#{{ user.id }}</p>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <h6 class="text-muted">Account Type</h6>
-                            <p><span class="badge bg-success">Active Trader</span></p>
+                        <div class="card-body">
+                            <form action="/settings/privacy" method="post">
+                                <div class="alert alert-info" role="alert">
+                                    <i class="fas fa-bell"></i> Manage how you receive notifications
+                                </div>
+
+                                <div class="mb-3">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" id="notifications_enabled" name="notifications_enabled" 
+                                               {% if user.notifications_enabled %}checked{% endif %}>
+                                        <label class="form-check-label" for="notifications_enabled">
+                                            <strong>Enable notifications</strong>
+                                        </label>
+                                    </div>
+                                    <div class="text-muted small">Get notified about trades, achievements, and league updates</div>
+                                </div>
+
+                                <hr>
+
+                                <h6 class="mb-3"><i class="fas fa-flag"></i> Notification Types</h6>
+
+                                <div class="form-check mb-3">
+                                    <input class="form-check-input" type="checkbox" id="notif_trades" checked disabled>
+                                    <label class="form-check-label" for="notif_trades">
+                                        Trading activity (always enabled)
+                                    </label>
+                                </div>
+
+                                <div class="form-check mb-3">
+                                    <input class="form-check-input" type="checkbox" id="notif_achievements" checked>
+                                    <label class="form-check-label" for="notif_achievements">
+                                        Achievements and milestones
+                                    </label>
+                                </div>
+
+                                <div class="form-check mb-3">
+                                    <input class="form-check-input" type="checkbox" id="notif_leagues" checked>
+                                    <label class="form-check-label" for="notif_leagues">
+                                        League updates and invitations
+                                    </label>
+                                </div>
+
+                                <div class="form-check mb-3">
+                                    <input class="form-check-input" type="checkbox" id="notif_social" checked>
+                                    <label class="form-check-label" for="notif_social">
+                                        Social (friend requests, mentions)
+                                    </label>
+                                </div>
+
+                                <button type="submit" class="btn btn-info w-100 mt-4">
+                                    <i class="fas fa-save"></i> Save Preferences
+                                </button>
+                            </form>
                         </div>
                     </div>
                 </div>
             </div>
-            
-            <!-- Privacy Settings -->
-            <div class="card shadow mb-4">
-                <div class="card-header bg-secondary text-white">
-                    <h5 class="mb-0"><i class="fas fa-lock"></i> Privacy Settings</h5>
-                </div>
-                <div class="card-body">
-                    <form action="/settings/privacy" method="post">
-                        <div class="form-check form-switch mb-3">
-                            <input class="form-check-input" type="checkbox" id="profile_visibility" name="profile_visibility" {% if user.profile_visibility == 'private' %}checked{% endif %}>
-                            <label class="form-check-label" for="profile_visibility">Make my profile private</label>
-                        </div>
-                        <div class="form-check form-switch mb-3">
-                            <input class="form-check-input" type="checkbox" id="email_visibility" name="email_visibility" {% if user.email_visibility == 'private' %}checked{% endif %}>
-                            <label class="form-check-label" for="email_visibility">Hide my email address</label>
-                        </div>
-                        <button type="submit" class="btn btn-outline-secondary"><i class="fas fa-save"></i> Save Privacy Settings</button>
-                    </form>
-                </div>
-            </div>
 
-            <!-- Danger Zone -->
-            <div class="card shadow border-danger mb-4">
-                <div class="card-header bg-danger text-white">
-                    <h5 class="mb-0"><i class="fas fa-exclamation-triangle"></i> Danger Zone</h5>
-                </div>
-                <div class="card-body">
-                    <p class="text-muted">
-                        Reset your portfolio to start fresh with $10,000. This action cannot be undone.
-                    </p>
-                    <form action="/settings/reset" method="post" onsubmit="return confirm('Are you sure you want to reset your portfolio? This will delete all your stocks and transaction history!')">
-                        <button type="submit" class="btn btn-danger">
-                            <i class="fas fa-redo"></i> Reset Portfolio
-                        </button>
-                    </form>
-                </div>
-            </div>
-            
-            <div class="text-center mb-4">
-                <a href="/" class="btn btn-secondary">
-                    <i class="fas fa-arrow-left"></i> Back to Portfolio
+            <!-- Back Button -->
+            <div class="text-center mt-4 mb-4">
+                <a href="/dashboard" class="btn btn-secondary">
+                    <i class="fas fa-arrow-left"></i> Back to Dashboard
                 </a>
             </div>
         </div>
     </div>
 </div>
+
+<!-- Delete Account Confirmation Modal -->
+<div class="modal fade" id="deleteAccountModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-danger">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title"><i class="fas fa-exclamation-circle"></i> Delete Account</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-danger" role="alert">
+                    <strong>This action is permanent!</strong>
+                </div>
+                <p>Deleting your account will:</p>
+                <ul class="text-muted small">
+                    <li>Remove all your personal data</li>
+                    <li>Delete your portfolio and transaction history</li>
+                    <li>Remove you from all leagues</li>
+                    <li>Cannot be reversed</li>
+                </ul>
+                <p class="mt-3 mb-0">
+                    <strong>Type your username to confirm:</strong>
+                    <input type="text" id="deleteConfirmUsername" class="form-control form-control-sm mt-2" placeholder="{{ user.username }}">
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <form action="/settings/delete-account" method="post" id="deleteForm" style="display: inline;">
+                    <button type="submit" class="btn btn-danger" id="deleteBtn" disabled>
+                        <i class="fas fa-trash"></i> Delete Account
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Bio character counter
+document.getElementById('bio').addEventListener('input', function() {
+    document.getElementById('bioCount').textContent = this.value.length;
+});
+
+// Password strength indicator
+function checkPasswordStrength(password) {
+    let strength = 'Weak';
+    let color = 'bg-danger';
+    
+    if (password.length >= 8) {
+        if (/[A-Z]/.test(password) && /[0-9]/.test(password)) {
+            strength = 'Strong';
+            color = 'bg-success';
+        } else if (/[0-9]/.test(password)) {
+            strength = 'Medium';
+            color = 'bg-warning';
+        }
+    }
+    
+    const indicator = document.getElementById('strengthIndicator');
+    indicator.textContent = strength;
+    indicator.className = 'badge ' + color;
+}
+
+// Delete account confirmation
+document.getElementById('deleteConfirmUsername').addEventListener('input', function() {
+    const btn = document.getElementById('deleteBtn');
+    btn.disabled = this.value !== '{{ user.username }}';
+});
+
+// Image Cropping
+let cropZoom = 1;
+let cropRotate = 0;
+let selectedFile = null;
+
+document.getElementById('avatar').addEventListener('change', function(e) {
+    selectedFile = e.target.files[0];
+    if (selectedFile) {
+        const reader = new FileReader();
+        reader.onload = function(event) {
+            document.getElementById('imageToCrop').src = event.target.result;
+            document.getElementById('avatarPreview').src = event.target.result;
+            document.getElementById('avatarPlaceholder')?.style.display = 'none';
+            document.getElementById('avatarPreview').style.display = 'block';
+            
+            // Show crop tools
+            document.getElementById('cropContainer').style.display = 'block';
+            document.getElementById('proceedToCrop').style.display = 'block';
+            document.getElementById('cancelCrop').style.display = 'block';
+            document.getElementById('uploadButton').style.display = 'none';
+        };
+        reader.readAsDataURL(selectedFile);
+    }
+});
+
+document.getElementById('proceedToCrop')?.addEventListener('click', function() {
+    // Save crop data and submit form
+    document.getElementById('cropDataZoom').value = cropZoom;
+    document.getElementById('cropDataRotate').value = cropRotate;
+    document.getElementById('avatarForm').submit();
+});
+
+document.getElementById('cancelCrop')?.addEventListener('click', function() {
+    // Reset form
+    document.getElementById('avatarForm').reset();
+    document.getElementById('cropContainer').style.display = 'none';
+    document.getElementById('proceedToCrop').style.display = 'none';
+    document.getElementById('cancelCrop').style.display = 'none';
+    document.getElementById('uploadButton').style.display = 'block';
+    cropZoom = 1;
+    cropRotate = 0;
+});
+
+document.getElementById('cropZoomIn')?.addEventListener('click', function(e) {
+    e.preventDefault();
+    cropZoom += 0.2;
+    updateCropPreview();
+});
+
+document.getElementById('cropZoomOut')?.addEventListener('click', function(e) {
+    e.preventDefault();
+    cropZoom = Math.max(0.5, cropZoom - 0.2);
+    updateCropPreview();
+});
+
+document.getElementById('cropRotate')?.addEventListener('click', function(e) {
+    e.preventDefault();
+    cropRotate = (cropRotate + 90) % 360;
+    updateCropPreview();
+});
+
+function updateCropPreview() {
+    const img = document.getElementById('imageToCrop');
+    img.style.transform = `scale(${cropZoom}) rotate(${cropRotate}deg)`;
+}
+
+// Theme preview
+function previewTheme(theme) {
+    // In a real implementation, this would preview the theme
+    console.log('Theme selected:', theme);
+}
+</script>
+</script>
+
+<style>
+.form-check-lg .form-check-input {
+    width: 1.5em;
+    height: 1.5em;
+    margin-top: 0.25em;
+}
+
+.form-check-lg .form-check-label {
+    padding-left: 0.5rem;
+}
+
+/* Mobile responsiveness */
+@media (max-width: 576px) {
+    .nav-pills {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+    
+    .nav-pills .nav-link {
+        white-space: nowrap;
+        font-size: 0.9rem;
+    }
+}
+</style>
+
 {% endblock %}

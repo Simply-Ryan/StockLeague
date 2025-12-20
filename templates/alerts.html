@@ -68,7 +68,7 @@
                         {% for alert in active_alerts %}
                         <tr>
                             <td>
-                                <a href="/quote?symbol={{ alert.symbol }}" class="text-decoration-none">
+                                <a href="/trade?symbol={{ alert.symbol }}" class="text-decoration-none">
                                     <strong>{{ alert.symbol }}</strong>
                                 </a>
                             </td>
@@ -138,7 +138,7 @@
                         {% for alert in triggered_alerts[:10] %}
                         <tr>
                             <td>
-                                <a href="/quote?symbol={{ alert.symbol }}">{{ alert.symbol }}</a>
+                                <a href="/trade?symbol={{ alert.symbol }}">{{ alert.symbol }}</a>
                             </td>
                             <td>{{ alert.target_price | usd }}</td>
                             <td>

@@ -170,15 +170,15 @@
                                         <span class="text-muted">-</span>
                                         {% endif %}
                                     </td>
-                                    <td><strong>{{ member.score | usd }}</strong></td>
+                                    <td><strong>{{ member.total_value | usd if member.total_value else league.starting_cash | usd }}</strong></td>
                                     <td>
-                                        {% set return_val = member.score - league.starting_cash %}
+                                        {% set return_val = (member.total_value if member.total_value else league.starting_cash) - league.starting_cash %}
                                         <span class="{% if return_val >= 0 %}text-success{% else %}text-danger{% endif %}">
                                             {% if return_val >= 0 %}+{% endif %}{{ return_val | usd }}
                                         </span>
                                     </td>
                                     <td>
-                                        {% set return_pct = ((member.score - league.starting_cash) / league.starting_cash * 100) %}
+                                        {% set return_pct = ((member.total_value if member.total_value else league.starting_cash) - league.starting_cash) / league.starting_cash * 100 %}
                                         <div class="progress" style="height: 20px;">
                                             <div class="progress-bar {% if return_pct >= 0 %}bg-success{% else %}bg-danger{% endif %}" 
                                                  role="progressbar" 

@@ -5,15 +5,16 @@
 {% block main %}
 <style>
     .home-hero {
-        background: linear-gradient(135deg, #1976d2 0%, #0d47a1 100%);
+        background: var(--gradient-accent);
         color: white !important;
         padding: 5rem 2rem;
-        border-radius: 1rem;
+        border-radius: 1.2rem;
         margin-bottom: 3rem;
         text-align: center;
-        box-shadow: 0 12px 35px rgba(25, 118, 210, 0.3);
+        box-shadow: 0 15px 40px var(--shadow);
     }
 
+    /* Ensure excellent contrast for hero text on gradient background */
     .home-hero h1 {
         font-size: 3rem;
         font-weight: 800;
@@ -21,45 +22,49 @@
         line-height: 1.2;
         letter-spacing: -0.5px;
         color: white !important;
+        text-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
     }
 
     .home-hero p {
         font-size: 1.25rem;
-        opacity: 0.95;
+        opacity: 1;
         margin-bottom: 2rem;
         max-width: 600px;
         margin-left: auto;
         margin-right: auto;
         line-height: 1.6;
         color: white !important;
+        text-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
     }
 
     .hero-cta {
         display: flex;
-        gap: 1rem;
+        gap: 1.5rem;
         justify-content: center;
         flex-wrap: wrap;
     }
 
     .hero-cta a {
-        padding: 0.9rem 2.5rem;
+        padding: 1rem 2.5rem;
         font-size: 1.05rem;
-        border-radius: 0.65rem;
+        border-radius: 0.75rem;
         font-weight: 700;
         transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         text-decoration: none;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.15);
     }
 
     .hero-cta .btn-light {
         background: white;
         color: #1976d2;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        border: 2px solid white;
     }
 
     .hero-cta .btn-light:hover {
-        background: #f5f5f5;
+        background: #f0f0f0;
         transform: translateY(-3px);
-        box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+        box-shadow: 0 10px 28px rgba(0,0,0,0.2);
+        border-color: #f0f0f0;
     }
 
     .hero-cta .btn-outline-light {
@@ -69,9 +74,9 @@
     }
 
     .hero-cta .btn-outline-light:hover {
-        background: rgba(255,255,255,0.15);
+        background: rgba(255,255,255,0.2);
         transform: translateY(-3px);
-        box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+        box-shadow: 0 8px 24px rgba(0,0,0,0.2);
     }
 
     .feature-section {
@@ -97,7 +102,7 @@
 
     .feature-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
         gap: 2.5rem;
         margin-bottom: 3rem;
     }
@@ -105,24 +110,27 @@
     .feature-card {
         background: var(--card-bg);
         border: 2px solid var(--border-color);
-        border-radius: 1rem;
+        border-radius: 1.2rem;
         padding: 2.5rem 2rem;
         text-align: center;
-        transition: all 0.3s ease;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         display: flex;
         flex-direction: column;
     }
 
     .feature-card:hover {
-        border-color: #1976d2;
-        box-shadow: 0 15px 40px rgba(25, 118, 210, 0.2);
+        border-color: var(--primary-color);
+        box-shadow: 0 15px 40px var(--shadow);
         transform: translateY(-8px);
         background: var(--card-hover, var(--card-bg));
     }
 
     .feature-icon {
         font-size: 3.5rem;
-        color: #1976d2;
+        background: var(--gradient-accent);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
         margin-bottom: 1.5rem;
     }
 
@@ -141,9 +149,9 @@
     }
 
     .stats-section {
-        background: linear-gradient(135deg, rgba(25, 118, 210, 0.05), rgba(13, 71, 161, 0.05));
+        background: var(--card-bg);
         border: 2px solid var(--border-color);
-        border-radius: 1rem;
+        border-radius: 1.2rem;
         padding: 3.5rem 2rem;
         margin-bottom: 3rem;
     }
@@ -158,7 +166,10 @@
     .stat-item h3 {
         font-size: 2.8rem;
         font-weight: 800;
-        color: #1976d2;
+        background: var(--gradient-accent);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
         margin-bottom: 0.5rem;
     }
 
@@ -169,13 +180,13 @@
     }
 
     .cta-section {
-        background: linear-gradient(135deg, #1976d2 0%, #0d47a1 100%);
+        background: var(--gradient-accent);
         color: white !important;
         padding: 4rem 2rem;
         border-radius: 1.2rem;
         text-align: center;
         margin-bottom: 3rem;
-        box-shadow: 0 12px 35px rgba(25, 118, 210, 0.3);
+        box-shadow: 0 15px 40px var(--shadow);
     }
 
     .cta-section h2 {
@@ -184,14 +195,16 @@
         margin-bottom: 1rem;
         letter-spacing: -0.5px;
         color: white !important;
+        text-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
     }
 
     .cta-section p {
         font-size: 1.2rem;
-        opacity: 0.95;
+        opacity: 1;
         margin-bottom: 2rem;
         line-height: 1.6;
         color: white !important;
+        text-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
     }
 
     .how-it-works {
@@ -207,20 +220,32 @@
     .step-card {
         text-align: center;
         position: relative;
+        padding: 1.5rem;
+        background: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 1rem;
+        transition: all 0.3s ease;
+    }
+
+    .step-card:hover {
+        border-color: var(--primary-color);
+        box-shadow: 0 8px 20px var(--shadow);
+        transform: translateY(-4px);
     }
 
     .step-number {
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        width: 50px;
-        height: 50px;
-        background: var(--primary-color);
+        width: 60px;
+        height: 60px;
+        background: var(--gradient-accent);
         color: white;
         border-radius: 50%;
         font-weight: 700;
-        font-size: 1.5rem;
-        margin-bottom: 1rem;
+        font-size: 1.8rem;
+        margin-bottom: 1.5rem;
+        box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3);
     }
 
     .step-card h4 {
@@ -232,6 +257,24 @@
     .step-card p {
         color: var(--text-secondary);
         line-height: 1.6;
+    }
+
+    .about-section {
+        background: var(--card-bg);
+        border: 2px solid var(--border-color);
+        border-radius: 1.2rem;
+        padding: 2rem;
+        line-height: 1.8;
+        color: var(--text-secondary);
+    }
+
+    .about-section p {
+        color: var(--text-secondary) !important;
+        margin-bottom: 1.5rem;
+    }
+
+    .about-section p:last-child {
+        margin-bottom: 0;
     }
 
     @media (max-width: 768px) {
@@ -249,6 +292,7 @@
 
         .hero-cta {
             flex-direction: column;
+            gap: 1rem;
         }
 
         .hero-cta a {
@@ -423,9 +467,9 @@
         <h2 class="section-title">About StockLeague</h2>
         <p class="section-subtitle">Learn investing with zero risk</p>
 
-        <div style="background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 0.75rem; padding: 2rem; line-height: 1.8; color: var(--text-secondary);">
+        <div class="about-section">
             <p>
-                StockLeague is a free platform designed to teach people the fundamentals of stock trading and investing. 
+                <strong>StockLeague</strong> is a free platform designed to teach people the fundamentals of stock trading and investing. 
                 Our mission is to empower traders with the knowledge and experience they need to make informed investment decisions.
             </p>
             <p>
