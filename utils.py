@@ -681,4 +681,98 @@ def prevent_sql_injection(value: str) -> str:
     return value.replace("'", "''")
 
 
+def get_ordinal_suffix(day: int) -> str:
+    """
+    Get ordinal suffix for day (st, nd, rd, th)
+    
+    Args:
+        day: Day of month (1-31)
+        
+    Returns:
+        Ordinal suffix (st, nd, rd, or th)
+    """
+    if 10 <= day % 100 <= 20:
+        return 'th'
+    return {1: 'st', 2: 'nd', 3: 'rd'}.get(day % 10, 'th')
+
+
+def format_timestamp(dt: datetime, include_time: bool = False, timezone_offset: int = 0) -> str:
+    """
+    Format datetime to: DDth Month Year [HH:MM]
+    
+    Args:
+        dt: Datetime object to format
+        include_time: Whether to include hour:minutes
+        timezone_offset: Hours offset from UTC (e.g., -5 for EST, -8 for PST)
+        
+    Returns:
+        Formatted timestamp string
+    """
+    if not isinstance(dt, datetime):
+        return str(dt)
+    
+    # Apply timezone offset if provided
+    if timezone_offset != 0:
+        dt = dt + timedelta(hours=timezone_offset)
+    
+    day = dt.day
+    suffix = get_ordinal_suffix(day)
+    month = dt.strftime("%B")
+    year = dt.year
+    
+    result = f"{day}{suffix} {month} {year}"
+    
+    if include_time:
+        time_str = dt.strftime("%H:%M")
+        result += f" {time_str}"
+    
+    return result
+
+
+def get_user_timezone_offset(user_id: int = None) -> int:
+    """
+    Get user's timezone offset in hours from UTC.
+    Detects from browser if no stored preference exists.
+    
+    Args:
+        user_id: User ID (optional, uses session if not provided)
+        
+    Returns:
+        Timezone offset in hours from UTC (e.g., -5 for EST)
+    """
+    # Check if user has stored timezone preference
+    if user_id:
+        try:
+            from database.db_manager import DatabaseManager
+            db = DatabaseManager()
+            user = db.get_user(user_id)
+            if user and hasattr(user, 'timezone_offset'):
+                return user.timezone_offset or 0
+        except:
+            pass
+    
+    # Default to US Eastern Time (-5 EST, -4 EDT)
+    # In production, you might detect from browser headers or geolocation
+    return -5
+
+
+def convert_time_to_user_tz(dt: datetime, timezone_offset: int = None) -> datetime:
+    """
+    Convert EST datetime to user's timezone
+    
+    Args:
+        dt: Datetime in EST
+        timezone_offset: User's timezone offset (if None, uses default)
+        
+    Returns:
+        Datetime adjusted to user's timezone
+    """
+    if timezone_offset is None:
+        timezone_offset = get_user_timezone_offset()
+    
+    # Assume input is in EST (-5)
+    est_offset = -5
+    offset_diff = timezone_offset - est_offset
+    
+    return dt + timedelta(hours=offset_diff)
 

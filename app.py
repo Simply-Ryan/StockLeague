@@ -230,6 +230,20 @@ app.jinja_env.filters["abs"] = abs
 app.jinja_env.filters["min"] = min
 app.jinja_env.filters["max"] = max
 
+# Add timestamp formatting filter
+from utils import format_timestamp, get_user_timezone_offset
+def jinja_format_timestamp(dt, include_time=False):
+    """Jinja2 filter for formatting timestamps"""
+    if not dt:
+        return ""
+    # Get timezone from session if available
+    tz_offset = None
+    if "user_id" in session:
+        tz_offset = get_user_timezone_offset(session["user_id"])
+    return format_timestamp(dt, include_time=include_time, timezone_offset=tz_offset or -5)
+
+app.jinja_env.filters["format_timestamp"] = jinja_format_timestamp
+
 # Add built-in functions to Jinja2 globals
 app.jinja_env.globals.update(abs=abs, min=min, max=max)
 
@@ -274,7 +288,56 @@ def allowed_avatar_file(filename):
 @app.route("/settings/avatar", methods=["POST"])
 @login_required
 def upload_avatar():
+    import base64
+    from io import BytesIO
+    from PIL import Image
+    
     user_id = session["user_id"]
+    
+    # Check for cropped image data (canvas base64)
+    cropped_image = request.form.get("cropped_image")
+    
+    if cropped_image:
+        try:
+            # Parse base64 data
+            if "," in cropped_image:
+                cropped_image = cropped_image.split(",")[1]
+            
+            # Decode base64
+            image_data = base64.b64decode(cropped_image)
+            image = Image.open(BytesIO(image_data))
+            
+            # Ensure it's RGB (convert if needed)
+            if image.mode in ('RGBA', 'LA', 'P'):
+                rgb_image = Image.new('RGB', image.size, (255, 255, 255))
+                rgb_image.paste(image, mask=image.split()[-1] if image.mode == 'RGBA' else None)
+                image = rgb_image
+            
+            # Save cropped image
+            filename = f"user_{user_id}_{int(time.time())}.jpg"
+            avatar_folder = os.path.join(app.root_path, "static", "avatars")
+            
+            try:
+                os.makedirs(avatar_folder, exist_ok=True)
+            except OSError as e:
+                logger.error(f"Error creating avatar folder: {e}")
+                flash("Server error. Please try again later.")
+                return redirect(url_for("settings"))
+            
+            filepath = os.path.join(avatar_folder, filename)
+            image.save(filepath, "JPEG", quality=95)
+            
+            avatar_url = f"/static/avatars/{filename}"
+            db.update_user_profile(user_id, avatar_url=avatar_url)
+            flash("Profile picture updated successfully!")
+            return redirect(url_for("settings"))
+            
+        except Exception as e:
+            logger.error(f"Error processing cropped image: {e}")
+            flash("Error processing image. Please try again.")
+            return redirect(url_for("settings"))
+    
+    # Handle regular file upload
     if "avatar" not in request.files:
         flash("No file part")
         return redirect(url_for("settings"))
@@ -782,6 +845,14 @@ def init_advanced_league_system():
         # Get database connection
         conn = db.get_connection()
         cursor = conn.cursor()
+        
+        # Ensure users table has timezone_offset column
+        try:
+            cursor.execute("ALTER TABLE users ADD COLUMN timezone_offset INTEGER DEFAULT -5")
+            conn.commit()
+        except Exception:
+            # Column already exists or other error
+            pass
         
         # Run all schema upgrade functions
         upgrade_leagues_table(cursor)
@@ -4167,8 +4238,15 @@ def api_portfolio_value():
 def api_market_status():
     """Get current market status"""
     try:
-        from utils import is_market_hours
+        from utils import is_market_hours, format_timestamp, get_user_timezone_offset, convert_time_to_user_tz
         from datetime import datetime, timedelta
+        
+        # Get user timezone if authenticated
+        timezone_offset = None
+        if "user_id" in session:
+            timezone_offset = get_user_timezone_offset(session["user_id"])
+        else:
+            timezone_offset = get_user_timezone_offset()  # Default to -5 EST
         
         is_open = is_market_hours()
         current_time = datetime.now()
@@ -4186,12 +4264,15 @@ def api_market_status():
                 next_open_time = current_time + timedelta(days=1)
                 next_open_time = next_open_time.replace(hour=9, minute=30, second=0, microsecond=0)
             
-            next_open = next_open_time.strftime("%I:%M %p EST on %A")
+            # Convert to user's timezone and format nicely
+            user_tz_time = convert_time_to_user_tz(next_open_time, timezone_offset)
+            next_open = format_timestamp(user_tz_time, include_time=True)
         
         return jsonify({
             "is_open": is_open,
             "next_open": next_open,
-            "current_time": current_time.isoformat()
+            "current_time": current_time.isoformat(),
+            "timezone_offset": timezone_offset
         })
     except Exception as e:
         print(f"Error checking market status: {e}")
@@ -5397,6 +5478,40 @@ def update_privacy_settings():
         flash("Privacy settings updated successfully!", "success")
     else:
         flash("Error updating privacy settings. Please try again.", "danger")
+    
+    return redirect("/settings")
+
+
+@app.route("/settings/preferences", methods=["POST"])
+@login_required
+def update_preferences():
+    """Update user preferences (timezone, etc.)"""
+    user_id = session.get("user_id")
+    timezone_offset = request.form.get("timezone_offset", "-5")
+    
+    try:
+        timezone_offset = int(timezone_offset)
+        # Validate timezone is in reasonable range
+        if not -12 <= timezone_offset <= 14:
+            timezone_offset = -5  # Default to EST
+    except (ValueError, TypeError):
+        timezone_offset = -5
+    
+    try:
+        conn = db.get_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE users 
+            SET timezone_offset = ? 
+            WHERE id = ?
+        """, (timezone_offset, user_id))
+        conn.commit()
+        conn.close()
+        
+        flash("Preferences updated successfully!", "success")
+    except Exception as e:
+        logger.error(f"Error updating preferences: {e}")
+        flash("Error updating preferences. Please try again.", "danger")
     
     return redirect("/settings")
 
