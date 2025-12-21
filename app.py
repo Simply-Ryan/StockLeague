@@ -199,6 +199,12 @@ def push_recent_quote(symbol, limit=10):
 # Load environment variables
 load_dotenv()
 
+# Ensure logs directory exists
+import os as _os
+_logs_dir = 'logs'
+if not _os.path.exists(_logs_dir):
+    _os.makedirs(_logs_dir)
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
