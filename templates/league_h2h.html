@@ -1,0 +1,275 @@
+{% extends "layout.html" %}
+
+{% block title %}H2H Matchups - {{ league.name }} | StockLeague{% endblock %}
+
+{% block main %}
+<div class="container-fluid mt-4">
+    <!-- Header -->
+    <div class="card mb-4 border-primary">
+        <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+            <div>
+                <h4 class="mb-0">
+                    <i class="fas fa-crossed-swords"></i> H2H Matchups: {{ league.name }}
+                </h4>
+                <small>Challenge friends to 1v1 trading battles</small>
+            </div>
+            <div>
+                <a href="/leagues/{{ league.id }}" class="btn btn-outline-light btn-sm">
+                    <i class="fas fa-arrow-left"></i> Back to League
+                </a>
+                <button class="btn btn-success btn-sm ms-2" data-bs-toggle="modal" data-bs-target="#challengeModal">
+                    <i class="fas fa-plus"></i> Challenge Opponent
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Active Matchups -->
+        <div class="col-lg-8">
+            <div class="card mb-4">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0"><i class="fas fa-fire"></i> Active Matchups ({{ active_matchups|length }})</h5>
+                </div>
+                <div class="card-body">
+                    {% if active_matchups %}
+                        {% for matchup in active_matchups %}
+                        <div class="matchup-card card mb-3 border-warning">
+                            <div class="card-body">
+                                <div class="row align-items-center">
+                                    <!-- Left Player -->
+                                    <div class="col-md-3 text-center">
+                                        <div class="player-card">
+                                            <img src="{{ 'https://via.placeholder.com/60' if not (matchup.challenger_id|string in session) else user.avatar_url }}" 
+                                                 alt="player" class="rounded-circle mb-2" width="60" height="60" style="object-fit: cover;">
+                                            <p class="mb-0 fw-bold">{{ matchup.opponent_name if not matchup.is_challenger else 'You' }}</p>
+                                            <small class="text-muted">{{ matchup.challenger_final_value or 'N/A' | usd }}</small>
+                                        </div>
+                                    </div>
+
+                                    <!-- VS Badge -->
+                                    <div class="col-md-6 text-center">
+                                        <div class="vs-badge">
+                                            <h2 class="text-danger mb-2">⚔️</h2>
+                                            <p class="text-muted mb-2">
+                                                <i class="fas fa-clock"></i>
+                                                Started: {{ matchup.started_at.strftime('%m/%d') }}
+                                            </p>
+                                            <p class="text-muted">
+                                                <i class="fas fa-calendar"></i>
+                                                Duration: {{ matchup.duration_days }} days
+                                            </p>
+                                            <span class="badge bg-success">Active</span>
+                                        </div>
+                                    </div>
+
+                                    <!-- Right Player -->
+                                    <div class="col-md-3 text-center">
+                                        <div class="player-card">
+                                            <img src="{{ 'https://via.placeholder.com/60' if not (matchup.opponent_id|string in session) else user.avatar_url }}" 
+                                                 alt="player" class="rounded-circle mb-2" width="60" height="60" style="object-fit: cover;">
+                                            <p class="mb-0 fw-bold">{{ matchup.opponent_name if matchup.is_challenger else 'Opponent' }}</p>
+                                            <small class="text-muted">{{ matchup.opponent_final_value or 'N/A' | usd }}</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle"></i> No active matchups. Start one by challenging an opponent!
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Completed Matchups -->
+            <div class="card mb-4">
+                <div class="card-header bg-secondary text-white">
+                    <h5 class="mb-0"><i class="fas fa-history"></i> Recent Matchups ({{ completed_matchups|length }})</h5>
+                </div>
+                <div class="card-body" style="max-height: 500px; overflow-y: auto;">
+                    {% if completed_matchups %}
+                        {% for matchup in completed_matchups %}
+                        <div class="completed-matchup p-3 border-bottom" style="display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <p class="mb-1 fw-bold">vs {{ matchup.opponent_name }}</p>
+                                <small class="text-muted">{{ matchup.ended_at.strftime('%m/%d/%Y') if matchup.ended_at else 'N/A' }}</small>
+                            </div>
+                            <div class="text-end">
+                                {% if matchup.winner_id %}
+                                    {% if matchup.winner_id == session.user_id %}
+                                        <span class="badge bg-success"><i class="fas fa-trophy"></i> Won</span>
+                                    {% else %}
+                                        <span class="badge bg-danger"><i class="fas fa-heart-broken"></i> Lost</span>
+                                    {% endif %}
+                                {% else %}
+                                    <span class="badge bg-secondary">Draw</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <p class="text-muted">No completed matchups yet.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- H2H Leaderboard Sidebar -->
+        <div class="col-lg-4">
+            <div class="card sticky-top" style="top: 20px;">
+                <div class="card-header bg-warning text-dark">
+                    <h5 class="mb-0"><i class="fas fa-medal"></i> H2H Leaderboard</h5>
+                </div>
+                <div class="card-body p-0">
+                    {% if h2h_leaderboard %}
+                        <table class="table table-sm mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Rank</th>
+                                    <th>Player</th>
+                                    <th class="text-center">W-L-D</th>
+                                    <th class="text-end">WR%</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for record in h2h_leaderboard %}
+                                <tr class="{% if record.user_id == session.user_id %}table-primary fw-bold{% endif %}">
+                                    <td>
+                                        {% if loop.index == 1 %}
+                                            <i class="fas fa-crown" style="color: gold;"></i>
+                                        {% elif loop.index == 2 %}
+                                            <i class="fas fa-crown" style="color: silver;"></i>
+                                        {% elif loop.index == 3 %}
+                                            <i class="fas fa-crown" style="color: #cd7f32;"></i>
+                                        {% else %}
+                                            #{{ loop.index }}
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ record.username }}</td>
+                                    <td class="text-center">{{ record.wins }}-{{ record.losses }}-{{ record.draws }}</td>
+                                    <td class="text-end">{{ "%.1f"|format(record.win_rate) }}%</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    {% else %}
+                        <p class="text-muted p-3">No H2H history yet.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Challenge Modal -->
+<div class="modal fade" id="challengeModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title"><i class="fas fa-crossed-swords"></i> Challenge Opponent</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="challengeForm">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="opponentSelect" class="form-label">Select Opponent</label>
+                        <select class="form-select" id="opponentSelect" required>
+                            <option value="">-- Choose a league member --</option>
+                            {% for member in league_members %}
+                            <option value="{{ member.user_id }}">{{ member.username }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="durationSelect" class="form-label">Duration</label>
+                        <select class="form-select" id="durationSelect" required>
+                            <option value="7">7 Days</option>
+                            <option value="14">14 Days</option>
+                            <option value="30">30 Days</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="capitalInput" class="form-label">Starting Capital ($)</label>
+                        <input type="number" class="form-control" id="capitalInput" value="10000" min="1000" step="1000" required>
+                    </div>
+
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i> Both players start with the selected capital. Winner is determined by highest portfolio value at the end.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary"><i class="fas fa-check"></i> Send Challenge</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<style>
+    .matchup-card {
+        transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .matchup-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    }
+
+    .vs-badge {
+        background: linear-gradient(135deg, rgba(255, 193, 7, 0.1), rgba(244, 67, 54, 0.1));
+        padding: 15px;
+        border-radius: 8px;
+    }
+
+    .player-card {
+        padding: 10px;
+        border-radius: 8px;
+        background: rgba(0, 0, 0, 0.02);
+    }
+
+    .completed-matchup:hover {
+        background-color: rgba(0, 0, 0, 0.02);
+    }
+</style>
+
+<script>
+document.getElementById('challengeForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const opponentId = document.getElementById('opponentSelect').value;
+    const duration = document.getElementById('durationSelect').value;
+    const capital = document.getElementById('capitalInput').value;
+    const leagueId = {{ league.id }};
+
+    try {
+        const response = await fetch(`/api/league/${leagueId}/h2h/create`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                opponent_id: parseInt(opponentId),
+                duration_days: parseInt(duration),
+                starting_capital: parseFloat(capital)
+            })
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+            alert('Challenge sent! ⚔️');
+            location.reload();
+        } else {
+            alert('Error: ' + (data.error || 'Failed to create challenge'));
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Error sending challenge');
+    }
+});
+</script>
+{% endblock %}

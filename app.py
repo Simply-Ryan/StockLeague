@@ -35,6 +35,7 @@ from dotenv import load_dotenv
 from helpers import apology, lookup, usd, get_chart_data, get_popular_stocks, get_market_movers, get_stock_news, get_option_price_and_greeks, analyze_sentiment, fetch_news_finnhub, get_cached_or_fetch_news
 from database.db_manager import DatabaseManager
 from database.league_schema_upgrade import upgrade_leagues_table, create_league_seasons_table, create_league_member_stats_table, create_league_divisions_table, create_tournament_tables, create_team_tables, create_achievement_tables, create_quest_tables, create_analytics_tables, create_fairplay_tables, create_league_activity_feed_table
+from database.advanced_league_features import AdvancedLeagueDB
 from league_modes import get_league_mode, get_available_modes, MODE_ABSOLUTE_VALUE
 from league_rules import LeagueRuleEngine
 from advanced_league_system import AdvancedLeagueManager, RatingSystem, AchievementEngine, QuestSystem, FairPlayEngine, AnalyticsCalculator
@@ -771,6 +772,7 @@ def handle_disconnect():
 
 # Initialize database manager
 db = DatabaseManager()
+advanced_league_db = AdvancedLeagueDB(db)
 
 # Initialize advanced league system schema (run migrations if needed)
 def init_advanced_league_system():
@@ -797,6 +799,13 @@ def init_advanced_league_system():
         conn.commit()
         conn.close()
         logging.info("Advanced league system schema initialized successfully")
+        
+        # Initialize advanced league features
+        advanced_league_db.init_h2h_tables()
+        advanced_league_db.init_season_tables()
+        advanced_league_db.init_division_tables()
+        advanced_league_db.init_enhanced_activity_feed()
+        logging.info("Advanced league features initialized successfully")
     except Exception as e:
         logging.error(f"Error initializing advanced league system: {e}")
 
@@ -4154,6 +4163,40 @@ def api_portfolio_value():
     return jsonify({"notice": "moved to blueprints/portfolio_bp.py"})
     
 
+@app.route("/api/market/status")
+def api_market_status():
+    """Get current market status"""
+    try:
+        from utils import is_market_hours
+        from datetime import datetime, timedelta
+        
+        is_open = is_market_hours()
+        current_time = datetime.now()
+        next_open = None
+        
+        if not is_open:
+            # Calculate next market open
+            if current_time.weekday() >= 5:  # Weekend
+                # Calculate days until Monday
+                days_until_monday = 7 - current_time.weekday()
+                next_open_time = current_time + timedelta(days=days_until_monday)
+                next_open_time = next_open_time.replace(hour=9, minute=30, second=0, microsecond=0)
+            else:  # Weekday but after hours
+                # Market opens tomorrow at 9:30 AM
+                next_open_time = current_time + timedelta(days=1)
+                next_open_time = next_open_time.replace(hour=9, minute=30, second=0, microsecond=0)
+            
+            next_open = next_open_time.strftime("%I:%M %p EST on %A")
+        
+        return jsonify({
+            "is_open": is_open,
+            "next_open": next_open,
+            "current_time": current_time.isoformat()
+        })
+    except Exception as e:
+        print(f"Error checking market status: {e}")
+        return jsonify({"is_open": True, "next_open": None, "error": str(e)}), 500
+
 
 @app.route("/api/theme", methods=["POST"])
 @login_required
@@ -5356,6 +5399,194 @@ def update_privacy_settings():
         flash("Error updating privacy settings. Please try again.", "danger")
     
     return redirect("/settings")
+
+
+# ===== ADVANCED LEAGUE FEATURES ROUTES =====
+
+@app.route("/api/league/<int:league_id>/h2h/create", methods=["POST"])
+@login_required
+def api_create_h2h_matchup(league_id):
+    """Create a new H2H matchup."""
+    try:
+        user_id = session.get("user_id")
+        data = request.get_json()
+        
+        opponent_id = data.get("opponent_id")
+        duration_days = data.get("duration_days", 7)
+        starting_capital = data.get("starting_capital", 10000)
+        
+        if not opponent_id:
+            return jsonify({"error": "Opponent ID required"}), 400
+        
+        # Verify league membership
+        league = db.get_league(league_id)
+        if not league:
+            return jsonify({"error": "League not found"}), 404
+        
+        # Create matchup
+        matchup_id = advanced_league_db.create_h2h_matchup(
+            league_id, user_id, opponent_id, duration_days, starting_capital
+        )
+        
+        # Log activity
+        db.add_league_activity(
+            league_id=league_id,
+            activity_type='h2h_challenge',
+            title=f"H2H Challenge Started",
+            description=f"Challenge against opponent for {duration_days} days",
+            user_id=user_id,
+            metadata={"matchup_id": matchup_id, "opponent_id": opponent_id}
+        )
+        
+        return jsonify({"matchup_id": matchup_id, "status": "created"}), 201
+    
+    except Exception as e:
+        logging.error(f"Error creating H2H matchup: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/league/<int:league_id>/h2h/matchups", methods=["GET"])
+@login_required
+def api_get_user_h2h_matchups(league_id):
+    """Get H2H matchups for current user."""
+    try:
+        user_id = session.get("user_id")
+        status = request.args.get("status", "active")
+        
+        matchups = advanced_league_db.get_user_h2h_matchups(
+            user_id, league_id, status=status
+        )
+        
+        # Enrich with user info
+        for matchup in matchups:
+            if matchup['challenger_id'] == user_id:
+                opponent = db.get_user(matchup['opponent_id'])
+                matchup['opponent_name'] = opponent.get('username') if opponent else 'Unknown'
+                matchup['is_challenger'] = True
+            else:
+                opponent = db.get_user(matchup['challenger_id'])
+                matchup['opponent_name'] = opponent.get('username') if opponent else 'Unknown'
+                matchup['is_challenger'] = False
+        
+        return jsonify({"matchups": matchups}), 200
+    
+    except Exception as e:
+        logging.error(f"Error getting H2H matchups: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/league/<int:league_id>/h2h/leaderboard", methods=["GET"])
+@login_required
+def api_get_h2h_leaderboard(league_id):
+    """Get H2H leaderboard for a league."""
+    try:
+        leaderboard = advanced_league_db.get_h2h_leaderboard(league_id, limit=50)
+        
+        return jsonify({
+            "leaderboard": leaderboard,
+            "league_id": league_id
+        }), 200
+    
+    except Exception as e:
+        logging.error(f"Error getting H2H leaderboard: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/league/<int:league_id>/activity-feed/filtered", methods=["GET"])
+@login_required
+def api_get_filtered_activity_feed(league_id):
+    """Get activity feed filtered by category."""
+    try:
+        category = request.args.get("category", "general")
+        limit = int(request.args.get("limit", 20))
+        offset = int(request.args.get("offset", 0))
+        
+        activities = advanced_league_db.get_activity_feed_by_category(
+            league_id, category, limit=limit, offset=offset
+        )
+        
+        # Enrich with user info
+        for activity in activities:
+            if activity['user_id']:
+                user = db.get_user(activity['user_id'])
+                if user:
+                    activity['username'] = user.get('username')
+                    activity['user_avatar'] = user.get('avatar_url')
+        
+        return jsonify({
+            "activities": activities,
+            "category": category,
+            "league_id": league_id
+        }), 200
+    
+    except Exception as e:
+        logging.error(f"Error getting filtered activity feed: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/league/<int:league_id>/statistics", methods=["GET"])
+@login_required
+def api_get_league_statistics(league_id):
+    """Get comprehensive league statistics."""
+    try:
+        stats = advanced_league_db.get_league_statistics(league_id)
+        
+        return jsonify({
+            "statistics": stats,
+            "league_id": league_id
+        }), 200
+    
+    except Exception as e:
+        logging.error(f"Error getting league statistics: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/leagues/<int:league_id>/h2h", methods=["GET"])
+@login_required
+def league_h2h_matchups(league_id):
+    """View H2H matchups page."""
+    try:
+        user_id = session.get("user_id")
+        league = db.get_league(league_id)
+        
+        if not league:
+            return apology("League not found", 404)
+        
+        # Check membership
+        is_member = db.is_league_member(league_id, user_id)
+        if not is_member:
+            return apology("You are not a member of this league", 403)
+        
+        # Get user's active matchups
+        active_matchups = advanced_league_db.get_user_h2h_matchups(user_id, league_id, status='active')
+        completed_matchups = advanced_league_db.get_user_h2h_matchups(user_id, league_id, status='completed', limit=20)
+        h2h_leaderboard = advanced_league_db.get_h2h_leaderboard(league_id, limit=50)
+        
+        # Enrich matchups with opponent info
+        for matchup in active_matchups + completed_matchups:
+            if matchup['challenger_id'] == user_id:
+                opponent = db.get_user(matchup['opponent_id'])
+                matchup['opponent_name'] = opponent.get('username') if opponent else 'Unknown'
+                matchup['is_challenger'] = True
+            else:
+                opponent = db.get_user(matchup['challenger_id'])
+                matchup['opponent_name'] = opponent.get('username') if opponent else 'Unknown'
+                matchup['is_challenger'] = False
+        
+        league_members = db.get_league_members(league_id)
+        
+        return render_template(
+            "league_h2h.html",
+            league=league,
+            active_matchups=active_matchups,
+            completed_matchups=completed_matchups,
+            h2h_leaderboard=h2h_leaderboard,
+            league_members=league_members
+        )
+    
+    except Exception as e:
+        logging.error(f"Error displaying H2H matchups: {str(e)}")
+        return apology(f"Error: {str(e)}", 500)
 
 
 if __name__ == "__main__":

@@ -6,6 +6,7 @@ What to do:
 - Add lots of social features to connect friends and people making the trading experience fun.
 - Make the top bar more compact/reorganize it
 On dashboard show position, ranked up/down, percentage gained daily. (William)
+- ADD NOTIFICATION OF CLOSED MARKET
 
 let's proceed with the next step. please do it yourself.
 

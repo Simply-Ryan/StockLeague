@@ -1,0 +1,468 @@
+<!-- Enhanced League Activity Feed Component with Filtering -->
+<div class="card activity-feed-card">
+    <div class="card-header bg-secondary text-white">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5 class="mb-0">
+                <i class="fas fa-stream"></i> League Activity
+            </h5>
+            <button class="btn btn-sm btn-light" id="refresh-feed" title="Refresh feed">
+                <i class="fas fa-sync-alt"></i>
+            </button>
+        </div>
+        
+        <!-- Activity Filter Tabs -->
+        <ul class="nav nav-tabs nav-fill" role="tablist">
+            <li class="nav-item">
+                <a class="nav-link active activity-filter" href="#" data-filter="all">
+                    <i class="fas fa-list"></i> All
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link activity-filter" href="#" data-filter="trade">
+                    <i class="fas fa-exchange-alt"></i> Trades
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link activity-filter" href="#" data-filter="achievement">
+                    <i class="fas fa-star"></i> Achievements
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link activity-filter" href="#" data-filter="ranking">
+                    <i class="fas fa-arrow-up"></i> Rankings
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link activity-filter" href="#" data-filter="h2h_challenge">
+                    <i class="fas fa-crossed-swords"></i> H2H
+                </a>
+            </li>
+        </ul>
+    </div>
+    
+    <div class="card-body p-0" id="activity-feed-container" style="max-height: 600px; overflow-y: auto;">
+        <!-- Activities will be loaded here -->
+        <div class="text-center p-4">
+            <div class="spinner-border spinner-border-sm" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-2 text-muted">Loading activity feed...</p>
+        </div>
+    </div>
+    
+    <div class="card-footer text-center">
+        <button class="btn btn-sm btn-outline-secondary" id="load-more-btn" style="display: none;">
+            Load More Activities
+        </button>
+    </div>
+</div>
+
+<!-- Activity Item Template -->
+<template id="activity-item-template">
+    <div class="activity-item border-bottom px-3 py-3" data-activity-id="" data-category="">
+        <div class="d-flex align-items-start">
+            <!-- User Avatar -->
+            <div class="me-3">
+                <img src="https://via.placeholder.com/40" alt="user" class="rounded-circle" width="40" height="40" style="object-fit: cover;">
+            </div>
+            
+            <!-- Activity Content -->
+            <div class="flex-grow-1">
+                <div class="d-flex justify-content-between align-items-start mb-1">
+                    <div>
+                        <strong class="activity-username">Player</strong>
+                        <span class="activity-type-badge badge ms-2"></span>
+                    </div>
+                    <small class="text-muted activity-timestamp"></small>
+                </div>
+                
+                <p class="activity-title mb-1"></p>
+                <small class="text-muted activity-description d-block"></small>
+                
+                <!-- Activity-specific details -->
+                <div class="activity-details mt-2 small" style="display: none;"></div>
+            </div>
+        </div>
+    </div>
+</template>
+
+<style>
+    .activity-feed-card {
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+    }
+    
+    #activity-feed-container {
+        flex: 1;
+        overflow-y: auto;
+    }
+    
+    .activity-item {
+        transition: background-color 0.2s ease;
+        display: block;
+    }
+    
+    .activity-item:hover {
+        background-color: var(--bg-hover, rgba(0, 0, 0, 0.02));
+    }
+    
+    .activity-item.hidden {
+        display: none;
+    }
+    
+    .activity-item.new-activity {
+        background-color: var(--primary-light, rgba(25, 118, 210, 0.1));
+        animation: slideIn 0.4s ease;
+    }
+    
+    @keyframes slideIn {
+        from {
+            transform: translateX(-20px);
+            opacity: 0;
+        }
+        to {
+            transform: translateX(0);
+            opacity: 1;
+        }
+    }
+    
+    .activity-type-badge {
+        font-size: 0.7rem;
+        padding: 0.25rem 0.5rem;
+        white-space: nowrap;
+    }
+    
+    .activity-type-badge.trade {
+        background-color: #17a2b8;
+        color: white;
+    }
+    
+    .activity-type-badge.achievement {
+        background-color: #ffc107;
+        color: black;
+    }
+    
+    .activity-type-badge.ranking_change,
+    .activity-type-badge.ranking {
+        background-color: #dc3545;
+        color: white;
+    }
+    
+    .activity-type-badge.joined {
+        background-color: #28a745;
+        color: white;
+    }
+    
+    .activity-type-badge.milestone {
+        background-color: #6f42c1;
+        color: white;
+    }
+    
+    .activity-type-badge.achievement_unlocked {
+        background-color: #ffc107;
+        color: black;
+    }
+    
+    .activity-type-badge.h2h_challenge {
+        background-color: #ff6b6b;
+        color: white;
+    }
+    
+    .activity-username {
+        color: var(--text-primary, #333);
+        font-size: 0.95rem;
+        word-break: break-word;
+    }
+    
+    .activity-title {
+        color: var(--text-primary, #333);
+        font-size: 0.95rem;
+        margin-bottom: 0.25rem;
+        word-break: break-word;
+    }
+    
+    .activity-description {
+        color: var(--text-secondary, #666);
+        word-break: break-word;
+    }
+    
+    .activity-details {
+        padding: 0.5rem 0.75rem;
+        background-color: var(--bg-secondary, #f8f9fa);
+        border-radius: 4px;
+        color: var(--text-secondary, #666);
+        word-break: break-word;
+    }
+    
+    .activity-timestamp {
+        font-size: 0.85rem;
+        white-space: nowrap;
+        margin-left: auto;
+        padding-left: 0.5rem;
+    }
+    
+    /* Filter tabs styling */
+    .nav-tabs {
+        border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+    }
+    
+    .nav-tabs .nav-link {
+        color: rgba(255, 255, 255, 0.7);
+        font-size: 0.9rem;
+        padding: 0.5rem 0.75rem;
+        border: none;
+    }
+    
+    .nav-tabs .nav-link:hover {
+        color: white;
+        border-bottom: 2px solid white;
+    }
+    
+    .nav-tabs .nav-link.active {
+        color: white;
+        background-color: rgba(0, 0, 0, 0.2);
+        border-bottom: 2px solid white;
+    }
+    
+    /* Theme-aware styling */
+    :root[data-theme="dark"] .activity-item {
+        border-bottom-color: rgba(255, 255, 255, 0.1);
+    }
+    
+    :root[data-theme="dark"] .activity-item:hover {
+        background-color: rgba(255, 255, 255, 0.05);
+    }
+    
+    :root[data-theme="dark"] .activity-details {
+        background-color: rgba(255, 255, 255, 0.05);
+    }
+    
+    /* Mobile responsive */
+    @media (max-width: 768px) {
+        .activity-feed-card {
+            max-height: 400px;
+        }
+        
+        #activity-feed-container {
+            max-height: 350px;
+        }
+        
+        .nav-tabs .nav-link {
+            font-size: 0.8rem;
+            padding: 0.4rem 0.5rem;
+        }
+        
+        .activity-item {
+            padding: 0.5rem !important;
+        }
+        
+        .activity-type-badge {
+            font-size: 0.65rem;
+            padding: 0.2rem 0.4rem;
+        }
+        
+        .activity-username {
+            font-size: 0.9rem;
+        }
+        
+        .activity-title {
+            font-size: 0.9rem;
+        }
+        
+        .activity-timestamp {
+            font-size: 0.75rem;
+        }
+    }
+    
+    @media (max-width: 576px) {
+        .activity-feed-card {
+            max-height: 300px;
+        }
+        
+        #activity-feed-container {
+            max-height: 250px;
+        }
+        
+        .activity-item {
+            padding: 0.5rem !important;
+        }
+        
+        .activity-item img {
+            width: 32px !important;
+            height: 32px !important;
+        }
+    }
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const leagueId = {{ league_id | default('null') }};
+    if (!leagueId) {
+        console.error('League ID not provided to activity feed component');
+        return;
+    }
+    
+    let currentOffset = 0;
+    const pageLimit = 20;
+    let hasMore = true;
+    let currentFilter = 'all';
+    let allActivities = [];
+    
+    // Load initial activities
+    loadActivities();
+    
+    // Refresh button
+    document.getElementById('refresh-feed').addEventListener('click', function() {
+        currentOffset = 0;
+        allActivities = [];
+        hasMore = true;
+        document.getElementById('activity-feed-container').innerHTML = '<div class="text-center p-4"><div class="spinner-border spinner-border-sm" role="status"><span class="visually-hidden">Loading...</span></div></div>';
+        loadActivities();
+    });
+    
+    // Filter buttons
+    document.querySelectorAll('.activity-filter').forEach(button => {
+        button.addEventListener('click', function(e) {
+            e.preventDefault();
+            
+            // Update active tab
+            document.querySelectorAll('.activity-filter').forEach(btn => btn.classList.remove('active'));
+            this.classList.add('active');
+            
+            // Update filter
+            currentFilter = this.getAttribute('data-filter');
+            filterActivities();
+        });
+    });
+    
+    // Load More button
+    document.getElementById('load-more-btn').addEventListener('click', function() {
+        currentOffset += pageLimit;
+        loadActivities();
+    });
+    
+    function loadActivities() {
+        const url = currentFilter === 'all' 
+            ? `/api/league/${leagueId}/activity-feed?limit=${pageLimit}&offset=${currentOffset}`
+            : `/api/league/${leagueId}/activity-feed/filtered?category=${currentFilter}&limit=${pageLimit}&offset=${currentOffset}`;
+        
+        fetch(url)
+            .then(response => response.json())
+            .then(data => {
+                const activities = data.activities || [];
+                
+                if (currentOffset === 0) {
+                    allActivities = activities;
+                    displayActivities(activities);
+                } else {
+                    allActivities = allActivities.concat(activities);
+                    appendActivities(activities);
+                }
+                
+                hasMore = data.has_more || false;
+                document.getElementById('load-more-btn').style.display = hasMore ? 'block' : 'none';
+            })
+            .catch(error => {
+                console.error('Error loading activities:', error);
+            });
+    }
+    
+    function displayActivities(activities) {
+        const container = document.getElementById('activity-feed-container');
+        
+        if (activities.length === 0) {
+            container.innerHTML = '<div class="alert alert-info m-3"><i class="fas fa-info-circle"></i> No activities yet.</div>';
+            return;
+        }
+        
+        container.innerHTML = '';
+        activities.forEach(activity => {
+            container.appendChild(createActivityElement(activity));
+        });
+    }
+    
+    function appendActivities(activities) {
+        const container = document.getElementById('activity-feed-container');
+        activities.forEach(activity => {
+            container.appendChild(createActivityElement(activity));
+        });
+    }
+    
+    function createActivityElement(activity) {
+        const template = document.getElementById('activity-item-template');
+        const clone = template.content.cloneNode(true);
+        
+        const item = clone.querySelector('.activity-item');
+        item.setAttribute('data-activity-id', activity.id);
+        item.setAttribute('data-category', activity.activity_type);
+        
+        // Avatar
+        const avatar = clone.querySelector('img');
+        avatar.src = activity.user_avatar || 'https://via.placeholder.com/40';
+        avatar.alt = activity.username || 'User';
+        
+        // Username
+        clone.querySelector('.activity-username').textContent = activity.username || 'System';
+        
+        // Badge
+        const badge = clone.querySelector('.activity-type-badge');
+        badge.textContent = activity.activity_type.replace(/_/g, ' ').toUpperCase();
+        badge.className = `activity-type-badge badge ${activity.activity_type}`;
+        
+        // Timestamp
+        const timestamp = new Date(activity.created_at);
+        const now = new Date();
+        const diff = now - timestamp;
+        const minutes = Math.floor(diff / 60000);
+        const hours = Math.floor(diff / 3600000);
+        const days = Math.floor(diff / 86400000);
+        
+        let timeStr = '';
+        if (minutes < 1) timeStr = 'now';
+        else if (minutes < 60) timeStr = `${minutes}m ago`;
+        else if (hours < 24) timeStr = `${hours}h ago`;
+        else timeStr = `${days}d ago`;
+        
+        clone.querySelector('.activity-timestamp').textContent = timeStr;
+        
+        // Title and description
+        clone.querySelector('.activity-title').textContent = activity.title;
+        clone.querySelector('.activity-description').textContent = activity.description;
+        
+        // Details
+        if (activity.metadata && Object.keys(activity.metadata).length > 0) {
+            const details = clone.querySelector('.activity-details');
+            details.style.display = 'block';
+            details.innerHTML = formatMetadata(activity.metadata);
+        }
+        
+        return clone;
+    }
+    
+    function formatMetadata(metadata) {
+        let html = '';
+        for (const [key, value] of Object.entries(metadata)) {
+            if (key !== 'type') {
+                const displayKey = key.replace(/_/g, ' ').toUpperCase();
+                html += `<div><strong>${displayKey}:</strong> ${formatValue(value)}</div>`;
+            }
+        }
+        return html;
+    }
+    
+    function formatValue(value) {
+        if (typeof value === 'number') {
+            if (value > 100) return '$' + value.toFixed(2);
+            return value.toFixed(2);
+        }
+        return String(value);
+    }
+    
+    function filterActivities() {
+        currentOffset = 0;
+        loadActivities();
+    }
+});
+</script>

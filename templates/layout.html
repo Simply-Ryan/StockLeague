@@ -412,6 +412,19 @@
               </div>
             </li>
 
+            <!-- Market Status Indicator -->
+            <li class="nav-item">
+              <span 
+                id="marketStatusIndicator"
+                class="text-success"
+                title="Market: Open"
+                data-bs-toggle="tooltip"
+                style="cursor: help; font-size: 1.1rem;"
+              >
+                <i class="fas fa-circle"></i>
+              </span>
+            </li>
+
             <!-- Account Menu -->
             <li class="nav-item dropdown">
               <a
@@ -997,5 +1010,48 @@
     </script>
 
     {% block scripts %}{% endblock %}
+
+    <script>
+        // Check market status first, then initialize tooltips
+        document.addEventListener('DOMContentLoaded', function() {
+            checkMarketStatus(true);
+            // Check every 60 seconds
+            setInterval(() => checkMarketStatus(false), 60000);
+        });
+
+        function checkMarketStatus(initializeTooltips) {
+            fetch('/api/market/status')
+                .then(response => response.json())
+                .then(data => {
+                    const indicator = document.getElementById('marketStatusIndicator');
+                    
+                    if (indicator) {
+                        // Dispose existing tooltip if any
+                        const existingTooltip = bootstrap.Tooltip.getInstance(indicator);
+                        if (existingTooltip) {
+                            existingTooltip.dispose();
+                        }
+                        
+                        if (!data.is_open) {
+                            // Market is closed
+                            indicator.className = 'text-danger';
+                            indicator.title = `Market Closed - Next Open: ${data.next_open}`;
+                        } else {
+                            // Market is open
+                            indicator.className = 'text-success';
+                            indicator.title = 'Market: Open';
+                        }
+                        
+                        // Create new tooltip with updated title
+                        if (initializeTooltips) {
+                            new bootstrap.Tooltip(indicator);
+                        } else {
+                            new bootstrap.Tooltip(indicator);
+                        }
+                    }
+                })
+                .catch(error => console.error('Error checking market status:', error));
+        }
+    </script>
   </body>
 </html>
