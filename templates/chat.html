@@ -816,6 +816,96 @@
         --background: var(--bg-secondary);
         --text-color: var(--text-primary);
     }
+
+    /* ============ ACTIVITY MESSAGE STYLING ============ */
+    .activity-message {
+        margin: 0.5rem 0;
+    }
+
+    .activity-bubble {
+        max-width: 80%;
+        background: var(--card-bg);
+        border: 1px dashed var(--border-color);
+        border-radius: 12px;
+        padding: 0.75rem 1rem;
+        text-align: left;
+    }
+
+    .activity-message-header {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-bottom: 0.5rem;
+        flex-wrap: wrap;
+    }
+
+    .activity-type-badge {
+        font-size: 0.7rem;
+        padding: 0.25rem 0.5rem;
+        white-space: nowrap;
+        border-radius: 4px;
+    }
+
+    .activity-type-badge.trade {
+        background-color: #17a2b8;
+        color: white;
+    }
+
+    .activity-type-badge.achievement {
+        background-color: #ffc107;
+        color: black;
+    }
+
+    .activity-type-badge.ranking,
+    .activity-type-badge.ranking_change {
+        background-color: #dc3545;
+        color: white;
+    }
+
+    .activity-type-badge.h2h_challenge {
+        background-color: #6f42c1;
+        color: white;
+    }
+
+    .activity-message-username {
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+
+    .activity-message-time {
+        color: var(--text-muted);
+        font-size: 0.75rem;
+        margin-left: auto;
+    }
+
+    .activity-message-title {
+        font-weight: 600;
+        color: var(--text-primary);
+        margin: 0.25rem 0;
+    }
+
+    .activity-message-description {
+        color: var(--text-muted);
+        display: block;
+        margin: 0.25rem 0;
+    }
+
+    .activity-message-details {
+        margin-top: 0.5rem;
+        padding: 0.5rem;
+        background: var(--bg-tertiary);
+        border-radius: 6px;
+        font-size: 0.85rem;
+    }
+
+    .activity-message-details div {
+        color: var(--text-secondary);
+        margin: 0.25rem 0;
+    }
+
+    .activity-message-details strong {
+        color: var(--text-primary);
+    }
 </style>
 
 <div class="chat-page">
@@ -972,6 +1062,24 @@ const username = "{{ username }}";
 let currentRoom = null;
 let currentConversation = null;
 let typingTimeout;
+let emojiPicker = null;
+
+// Handle socket connection errors
+socket.on('connect_error', (error) => {
+    console.error('Chat connection error:', error);
+    chatInput.disabled = true;
+    sendBtn.disabled = true;
+});
+
+// Handle disconnection
+socket.on('disconnect', () => {
+    chatInput.disabled = true;
+    sendBtn.disabled = true;
+    if (emojiPicker) {
+        emojiPicker.remove();
+        emojiPicker = null;
+    }
+});
 
 // DOM Elements
 const conversationsPanel = document.getElementById('conversations-panel');
@@ -1108,6 +1216,14 @@ socket.on('show_typing', (data) => {
     }
 });
 
+socket.on('chat_activity', (activity) => {
+    if (document.querySelector('.empty-state')) {
+        document.querySelector('.empty-state').remove();
+    }
+    displayActivityMessage(activity);
+    scrollToBottom();
+});
+
 socket.on('user_presence', (users) => {
     if (currentConversation && currentConversation.type === 'league') {
         const count = users.length;
@@ -1146,9 +1262,7 @@ function displayMessage(msg) {
             <span class="message-username">${msg.username}</span>
             <span class="message-time">${msg.time || new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
         `;
-        if (!isOwn) {
-            bubble.appendChild(info);
-        }
+        bubble.appendChild(info);
     }
 
     const content = document.createElement('div');
@@ -1174,15 +1288,13 @@ function displayFile(msg) {
     const bubble = document.createElement('div');
     bubble.className = 'message-bubble';
 
-    if (!isOwn) {
-        const info = document.createElement('div');
-        info.className = 'message-info';
-        info.innerHTML = `
-            <span class="message-username">${msg.username}</span>
-            <span class="message-time">${msg.time}</span>
-        `;
-        bubble.appendChild(info);
-    }
+    const info = document.createElement('div');
+    info.className = 'message-info';
+    info.innerHTML = `
+        <span class="message-username">${msg.username}</span>
+        <span class="message-time">${msg.time}</span>
+    `;
+    bubble.appendChild(info);
 
     const fileDiv = document.createElement('div');
     fileDiv.className = 'message-file';
@@ -1212,10 +1324,95 @@ function displayFile(msg) {
     chatMessages.appendChild(msgDiv);
 }
 
+// Display activity message
+function displayActivityMessage(activity) {
+    const msgDiv = document.createElement('div');
+    msgDiv.className = 'message-group system activity-message';
+
+    const bubble = document.createElement('div');
+    bubble.className = 'message-bubble activity-bubble';
+
+    // Create activity header with badge and username
+    const header = document.createElement('div');
+    header.className = 'activity-message-header';
+    
+    // Badge
+    const badge = document.createElement('span');
+    badge.className = `activity-type-badge badge ${activity.activity_type}`;
+    badge.textContent = activity.activity_type.replace(/_/g, ' ').toUpperCase();
+    
+    // Username
+    const username_span = document.createElement('span');
+    username_span.className = 'activity-message-username';
+    username_span.textContent = activity.username || 'System';
+    
+    // Timestamp
+    const timestamp = document.createElement('span');
+    timestamp.className = 'activity-message-time';
+    const actTime = new Date(activity.created_at);
+    const now = new Date();
+    const diff = now - actTime;
+    const minutes = Math.floor(diff / 60000);
+    const hours = Math.floor(diff / 3600000);
+    const days = Math.floor(diff / 86400000);
+    
+    let timeStr = '';
+    if (minutes < 1) timeStr = 'now';
+    else if (minutes < 60) timeStr = `${minutes}m ago`;
+    else if (hours < 24) timeStr = `${hours}h ago`;
+    else timeStr = `${days}d ago`;
+    
+    timestamp.textContent = timeStr;
+    
+    header.appendChild(badge);
+    header.appendChild(username_span);
+    header.appendChild(timestamp);
+    bubble.appendChild(header);
+
+    // Title
+    const title = document.createElement('div');
+    title.className = 'activity-message-title';
+    title.textContent = activity.title;
+    bubble.appendChild(title);
+
+    // Description
+    const description = document.createElement('small');
+    description.className = 'activity-message-description';
+    description.textContent = activity.description;
+    bubble.appendChild(description);
+
+    // Metadata details
+    if (activity.metadata && Object.keys(activity.metadata).length > 0) {
+        const details = document.createElement('div');
+        details.className = 'activity-message-details';
+        
+        for (const [key, value] of Object.entries(activity.metadata)) {
+            if (key !== 'type') {
+                const detail = document.createElement('div');
+                const displayKey = key.replace(/_/g, ' ').toUpperCase();
+                const formatVal = typeof value === 'number' && value > 100 ? '$' + value.toFixed(2) : String(value);
+                detail.innerHTML = `<strong>${displayKey}:</strong> ${formatVal}`;
+                details.appendChild(detail);
+            }
+        }
+        
+        bubble.appendChild(details);
+    }
+
+    msgDiv.appendChild(bubble);
+    chatMessages.appendChild(msgDiv);
+}
+
 // Send message
 function sendCurrentMessage() {
     const message = chatInput.value.trim();
     if (!message || !currentRoom) return;
+
+    // Validate message length (5000 char limit)
+    if (message.length > 5000) {
+        alert('Message too long. Maximum length is 5000 characters');
+        return;
+    }
 
     sendBtn.classList.add('processing');
     sendBtn.setAttribute('aria-busy', 'true');
@@ -1254,31 +1451,30 @@ chatInput.addEventListener('input', () => {
 });
 
 // Emoji picker
-let picker = null;
 emojiBtn.addEventListener('click', async () => {
-    if (!picker) {
+    if (!emojiPicker) {
         const { default: EmojiPicker } = await import('https://cdn.jsdelivr.net/npm/emoji-picker-element@^1/index.js');
-        picker = document.createElement('emoji-picker');
-        picker.style.position = 'absolute';
-        picker.style.bottom = '100px';
-        picker.style.right = '20px';
-        picker.style.zIndex = '1000';
-        document.body.appendChild(picker);
+        emojiPicker = document.createElement('emoji-picker');
+        emojiPicker.style.position = 'fixed';
+        emojiPicker.style.bottom = '100px';
+        emojiPicker.style.right = '20px';
+        emojiPicker.style.zIndex = '1000';
+        document.body.appendChild(emojiPicker);
 
-        picker.addEventListener('emoji-click', (e) => {
+        emojiPicker.addEventListener('emoji-click', (e) => {
             chatInput.value += e.detail.unicode;
             chatInput.focus();
         });
 
         document.addEventListener('click', (e) => {
-            if (picker && !picker.contains(e.target) && e.target !== emojiBtn) {
-                picker.remove();
-                picker = null;
+            if (emojiPicker && !emojiPicker.contains(e.target) && e.target !== emojiBtn) {
+                emojiPicker.remove();
+                emojiPicker = null;
             }
         });
     } else {
-        picker.remove();
-        picker = null;
+        emojiPicker.remove();
+        emojiPicker = null;
     }
 });
 
@@ -1290,6 +1486,15 @@ fileBtn.addEventListener('click', () => {
 fileInput.addEventListener('change', () => {
     const file = fileInput.files[0];
     if (file && currentRoom) {
+        // Validate file size (10MB limit)
+        const maxFileSize = 10 * 1024 * 1024;
+        if (file.size > maxFileSize) {
+            console.error('File too large. Max size is 10MB');
+            alert('File too large. Maximum file size is 10MB');
+            fileInput.value = '';
+            return;
+        }
+
         const reader = new FileReader();
         reader.onload = (e) => {
             socket.emit('chat_file', {
@@ -1297,6 +1502,10 @@ fileInput.addEventListener('change', () => {
                 filename: file.name,
                 data: e.target.result
             });
+        };
+        reader.onerror = () => {
+            console.error('Error reading file');
+            alert('Error reading file');
         };
         reader.readAsDataURL(file);
         fileInput.value = '';

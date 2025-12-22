@@ -1,0 +1,1031 @@
+<!-- League Chat Component - Full Chat System Implementation -->
+<style>
+    .league-chat-container {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        background: var(--bg-primary);
+    }
+
+    .league-chat-header {
+        padding: 1rem;
+        border-bottom: 1px solid var(--border-color);
+        background: var(--bg-secondary);
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    .league-chat-header-left {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        min-width: 0;
+    }
+
+    .league-chat-header h5 {
+        margin: 0;
+        font-weight: 600;
+        color: var(--text-primary);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .league-chat-avatar {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-weight: 700;
+        font-size: 1rem;
+        flex-shrink: 0;
+        box-shadow: 0 2px 8px rgba(102, 126, 234, 0.2);
+    }
+
+    .league-chat-messages {
+        flex: 1;
+        overflow-y: auto;
+        padding: 1.5rem;
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+        scroll-behavior: smooth;
+    }
+
+    .league-chat-empty {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        height: 100%;
+        color: var(--text-muted);
+        text-align: center;
+    }
+
+    .league-chat-empty i {
+        font-size: 3rem;
+        margin-bottom: 1rem;
+        opacity: 0.3;
+    }
+
+    .league-chat-empty h3 {
+        color: var(--text-primary);
+        font-size: 1.2rem;
+        margin: 0;
+    }
+
+    .league-message-group {
+        display: flex;
+        gap: 0.75rem;
+        align-items: flex-end;
+    }
+
+    .league-message-group.own {
+        flex-direction: row-reverse;
+    }
+
+    .league-message-group.system {
+        justify-content: center;
+    }
+
+    .league-message-avatar {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-weight: 700;
+        font-size: 0.8rem;
+        flex-shrink: 0;
+    }
+
+    .league-message-bubble {
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+        max-width: 60%;
+    }
+
+    .league-message-group.own .league-message-bubble {
+        align-items: flex-end;
+    }
+
+    .league-message-info {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.75rem;
+        color: var(--text-muted);
+    }
+
+    .league-message-group.own .league-message-info {
+        flex-direction: row-reverse;
+    }
+
+    .league-message-username {
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+
+    .league-message-time {
+        color: var(--text-muted);
+    }
+
+    .league-message-content {
+        background: var(--card-bg);
+        padding: 0.75rem 1rem;
+        border-radius: 16px;
+        border: 1px solid var(--border-color);
+        color: var(--text-primary);
+        word-wrap: break-word;
+        line-height: 1.4;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    }
+
+    .league-message-group.own .league-message-content {
+        background: linear-gradient(135deg, var(--primary-color), rgba(99, 102, 241, 0.9));
+        color: white;
+        border-color: var(--primary-color);
+    }
+
+    .league-message-group.system .league-message-content {
+        background: var(--chat-bg-light, #f8f9fa);
+        text-align: center;
+        font-size: 0.85rem;
+        color: var(--text-muted);
+        border-style: dashed;
+    }
+
+    .league-message-file {
+        background: var(--card-bg);
+        padding: 0.75rem 1rem;
+        border-radius: 16px;
+        border: 1px solid var(--border-color);
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    }
+
+    .league-message-group.own .league-message-file {
+        background: linear-gradient(135deg, var(--primary-color), rgba(99, 102, 241, 0.9));
+    }
+
+    .league-file-preview {
+        max-width: 180px;
+        border-radius: 8px;
+        overflow: hidden;
+    }
+
+    .league-file-preview img {
+        width: 100%;
+        height: auto;
+        display: block;
+    }
+
+    .league-file-link {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        color: var(--primary-color);
+        text-decoration: none;
+        font-size: 0.9rem;
+        transition: all 0.2s;
+    }
+
+    .league-message-group.own .league-file-link {
+        color: white;
+    }
+
+    .league-file-link:hover {
+        text-decoration: underline;
+    }
+
+    .league-chat-typing {
+        display: none;
+        font-size: 0.85rem;
+        color: var(--text-muted);
+        padding: 0.5rem 1.5rem;
+    }
+
+    .league-typing-dots {
+        display: inline-flex;
+        gap: 0.25rem;
+    }
+
+    .league-typing-dot {
+        width: 4px;
+        height: 4px;
+        border-radius: 50%;
+        background: var(--text-muted);
+        animation: leagueTyping 1.4s infinite;
+    }
+
+    .league-typing-dot:nth-child(2) {
+        animation-delay: 0.2s;
+    }
+
+    .league-typing-dot:nth-child(3) {
+        animation-delay: 0.4s;
+    }
+
+    @keyframes leagueTyping {
+        0%, 60%, 100% { opacity: 0.3; transform: translateY(0); }
+        30% { opacity: 1; transform: translateY(-8px); }
+    }
+
+    .league-chat-input-area {
+        padding: 1rem 1.5rem;
+        border-top: 1px solid var(--border-color);
+        background: var(--bg-secondary);
+        flex-shrink: 0;
+    }
+
+    .league-chat-input-wrapper {
+        display: flex;
+        gap: 0.75rem;
+        align-items: flex-end;
+    }
+
+    .league-input-actions {
+        display: flex;
+        gap: 0.5rem;
+    }
+
+    .league-input-action-btn {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        border: none;
+        background: var(--card-bg);
+        color: var(--text-secondary);
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1rem;
+        transition: all 0.2s ease;
+    }
+
+    .league-input-action-btn:hover {
+        background: var(--primary-color);
+        color: white;
+        transform: scale(1.08);
+    }
+
+    .league-input-action-btn:active {
+        transform: scale(0.95);
+    }
+
+    .league-chat-textarea-wrapper {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        background: var(--bg-tertiary);
+        border: 1px solid var(--border-color);
+        border-radius: 24px;
+        padding: 0.5rem 1rem;
+        transition: all 0.2s ease;
+    }
+
+    .league-chat-textarea-wrapper:focus-within {
+        border-color: var(--primary-color);
+        box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+    }
+
+    .league-chat-input {
+        flex: 1;
+        border: none;
+        background: transparent;
+        color: var(--text-primary);
+        font-size: 0.95rem;
+        resize: none;
+        max-height: 100px;
+        outline: none;
+        line-height: 1.4;
+        font-family: inherit;
+    }
+
+    .league-chat-input::placeholder {
+        color: var(--text-muted);
+    }
+
+    .league-send-btn {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        border: none;
+        background: var(--primary-color);
+        color: white;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1rem;
+        transition: all 0.2s ease;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .league-send-btn:hover:not(:disabled) {
+        background: linear-gradient(135deg, var(--primary-color), rgba(99, 102, 241, 0.8));
+        transform: scale(1.05);
+    }
+
+    .league-send-btn:active:not(:disabled) {
+        transform: scale(0.95);
+    }
+
+    .league-send-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    .league-send-icon, .league-send-spinner, .league-send-check {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        position: absolute;
+        width: 100%;
+        height: 100%;
+    }
+
+    .league-send-spinner {
+        display: none;
+    }
+
+    .league-send-check {
+        display: none;
+    }
+
+    .league-send-btn.processing .league-send-icon {
+        display: none;
+    }
+
+    .league-send-btn.processing .league-send-spinner {
+        display: flex;
+    }
+
+    .league-send-btn.sent .league-send-icon,
+    .league-send-btn.sent .league-send-spinner {
+        display: none;
+    }
+
+    .league-send-btn.sent .league-send-check {
+        display: flex;
+    }
+
+    #league-file-input {
+        display: none;
+    }
+
+    .league-chat-messages::-webkit-scrollbar {
+        width: 6px;
+    }
+
+    .league-chat-messages::-webkit-scrollbar-track {
+        background: transparent;
+    }
+
+    .league-chat-messages::-webkit-scrollbar-thumb {
+        background: var(--border-color);
+        border-radius: 3px;
+    }
+
+    .league-chat-messages::-webkit-scrollbar-thumb:hover {
+        background: var(--text-muted);
+    }
+
+    emoji-picker {
+        --border-radius: 12px;
+        --background: var(--bg-secondary);
+        --text-color: var(--text-primary);
+    }
+
+    @media (max-width: 768px) {
+        .league-message-bubble {
+            max-width: 85%;
+        }
+
+        .league-input-action-btn,
+        .league-send-btn {
+            width: 36px;
+            height: 36px;
+            font-size: 0.9rem;
+        }
+    }
+
+    @media (max-width: 480px) {
+        .league-message-bubble {
+            max-width: 95%;
+        }
+
+        .league-chat-messages {
+            padding: 0.75rem;
+        }
+
+        .league-chat-input {
+            font-size: 0.85rem;
+        }
+    }
+
+    /* Activity Message Styling */
+    .activity-message {
+        margin: 0.5rem 0;
+    }
+
+    .activity-bubble {
+        max-width: 80%;
+        background: var(--card-bg);
+        border: 1px dashed var(--border-color);
+        border-radius: 12px;
+        padding: 0.75rem 1rem;
+        text-align: left;
+    }
+
+    .activity-message-header {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-bottom: 0.5rem;
+        flex-wrap: wrap;
+    }
+
+    .activity-type-badge {
+        font-size: 0.7rem;
+        padding: 0.25rem 0.5rem;
+        white-space: nowrap;
+        border-radius: 4px;
+    }
+
+    .activity-type-badge.trade {
+        background-color: #17a2b8;
+        color: white;
+    }
+
+    .activity-type-badge.achievement {
+        background-color: #ffc107;
+        color: black;
+    }
+
+    .activity-type-badge.ranking,
+    .activity-type-badge.ranking_change {
+        background-color: #dc3545;
+        color: white;
+    }
+
+    .activity-type-badge.h2h_challenge {
+        background-color: #6f42c1;
+        color: white;
+    }
+
+    .activity-message-username {
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+
+    .activity-message-time {
+        color: var(--text-muted);
+        font-size: 0.75rem;
+        margin-left: auto;
+    }
+
+    .activity-message-title {
+        font-weight: 600;
+        color: var(--text-primary);
+        margin: 0.25rem 0;
+    }
+
+    .activity-message-description {
+        color: var(--text-muted);
+        display: block;
+        margin: 0.25rem 0;
+    }
+
+    .activity-message-details {
+        margin-top: 0.5rem;
+        padding: 0.5rem;
+        background: var(--bg-tertiary);
+        border-radius: 6px;
+        font-size: 0.85rem;
+    }
+
+    .activity-message-details div {
+        color: var(--text-secondary);
+        margin: 0.25rem 0;
+    }
+
+    .activity-message-details strong {
+        color: var(--text-primary);
+    }
+</style>
+
+<div class="league-chat-container" id="league-chat-container">
+    <div class="league-chat-header">
+        <div class="league-chat-header-left">
+            <div class="league-chat-avatar" id="league-chat-avatar">L</div>
+            <h5 id="league-chat-title"><i class="fas fa-comments"></i> League Chat</h5>
+        </div>
+    </div>
+
+    <div class="league-chat-messages" id="league-chat-messages">
+        <div class="league-chat-empty">
+            <i class="fas fa-comments"></i>
+            <h3>Loading chat...</h3>
+        </div>
+    </div>
+
+    <div class="league-chat-typing" id="league-chat-typing">
+        <span id="league-typing-username">Someone</span> is typing
+        <span class="league-typing-dots">
+            <span class="league-typing-dot"></span>
+            <span class="league-typing-dot"></span>
+            <span class="league-typing-dot"></span>
+        </span>
+    </div>
+
+    <div class="league-chat-input-area">
+        <form class="league-chat-input-wrapper" id="league-chat-form">
+            <input type="file" id="league-file-input">
+            
+            <div class="league-input-actions">
+                <button type="button" class="league-input-action-btn" id="league-emoji-btn" title="Add emoji">
+                    <i class="fas fa-smile"></i>
+                </button>
+                <button type="button" class="league-input-action-btn" id="league-file-btn" title="Attach file">
+                    <i class="fas fa-paperclip"></i>
+                </button>
+            </div>
+
+            <div class="league-chat-textarea-wrapper">
+                <textarea 
+                    class="league-chat-input" 
+                    id="league-chat-input" 
+                    placeholder="Type a message..." 
+                    rows="1"
+                    disabled
+                ></textarea>
+            </div>
+
+            <button type="submit" class="league-send-btn" id="league-send-btn" disabled aria-label="Send message">
+                <span class="league-send-icon"><i class="fas fa-paper-plane"></i></span>
+                <span class="league-send-spinner"><i class="fas fa-circle-notch fa-spin"></i></span>
+                <span class="league-send-check"><i class="fas fa-check"></i></span>
+            </button>
+        </form>
+    </div>
+</div>
+
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+
+<!-- Emoji Picker -->
+<script type="module">
+    import('https://cdn.jsdelivr.net/npm/emoji-picker-element@^1/index.js');
+</script>
+
+<script>
+(function() {
+    // jshint ignore: start
+    const leagueId = {{ league_id | default('null') }};
+    const userId = {{ session.user_id if session.user_id else 'null' }};
+    const username = "{{ session.username if session.username else 'User' }}";
+    // jshint ignore: end
+
+    if (!leagueId || !userId) return;
+
+    const messagesDiv = document.getElementById('league-chat-messages');
+    const chatInput = document.getElementById('league-chat-input');
+    const chatForm = document.getElementById('league-chat-form');
+    const sendBtn = document.getElementById('league-send-btn');
+    const typingIndicator = document.getElementById('league-chat-typing');
+    const typingUser = document.getElementById('league-typing-username');
+    const emojiBtn = document.getElementById('league-emoji-btn');
+    const fileBtn = document.getElementById('league-file-btn');
+    const fileInput = document.getElementById('league-file-input');
+
+    const roomId = `league_${leagueId}`;
+    const socket = io();
+    
+    let typingTimeout;
+    let emojiPicker = null;
+
+    // Join the league chat room
+    socket.emit('join_room', { room: roomId });
+
+    // Enable input after connecting
+    socket.on('connect', () => {
+        chatInput.disabled = false;
+        sendBtn.disabled = false;
+    });
+
+    // Handle connection errors
+    socket.on('connect_error', (error) => {
+        console.error('Chat connection error:', error);
+        chatInput.disabled = true;
+        sendBtn.disabled = true;
+    });
+
+    // Handle disconnection
+    socket.on('disconnect', () => {
+        chatInput.disabled = true;
+        sendBtn.disabled = true;
+        if (emojiPicker) {
+            emojiPicker.remove();
+            emojiPicker = null;
+        }
+    });
+
+    // Load chat history
+    socket.on('chat_history', (messages) => {
+        messagesDiv.innerHTML = '';
+        if (messages.length === 0) {
+            messagesDiv.innerHTML = `
+                <div class="league-chat-empty">
+                    <i class="fas fa-comments"></i>
+                    <h3>No messages yet</h3>
+                    <p>Start the conversation!</p>
+                </div>
+            `;
+        } else {
+            messages.forEach(msg => {
+                if (msg.type === 'file') {
+                    displayFile(msg);
+                } else {
+                    displayMessage(msg);
+                }
+            });
+            scrollToBottom();
+        }
+    });
+
+    // Receive new messages
+    socket.on('chat_message', (msg) => {
+        if (messagesDiv.querySelector('.league-chat-empty')) {
+            messagesDiv.innerHTML = '';
+        }
+        displayMessage(msg);
+        scrollToBottom();
+
+        if (msg.username === username) {
+            sendBtn.classList.remove('processing');
+            sendBtn.removeAttribute('aria-busy');
+            sendBtn.disabled = false;
+
+            try {
+                sendBtn.classList.add('sent');
+                setTimeout(() => { sendBtn.classList.remove('sent'); }, 900);
+                chatInput.focus();
+            } catch (err) {
+                // ignore
+            }
+        }
+    });
+
+    // Receive file messages
+    socket.on('chat_file', (msg) => {
+        if (messagesDiv.querySelector('.league-chat-empty')) {
+            messagesDiv.innerHTML = '';
+        }
+        displayFile(msg);
+        scrollToBottom();
+    });
+
+    // Receive typing notifications
+    socket.on('show_typing', (data) => {
+        if (data.username !== username) {
+            typingUser.textContent = data.username;
+            typingIndicator.style.display = 'block';
+            clearTimeout(typingTimeout);
+            typingTimeout = setTimeout(() => {
+                typingIndicator.style.display = 'none';
+            }, 3000);
+        }
+    });
+
+    // Handle user presence
+    socket.on('user_presence', (users) => {
+        // Can be used for member count if needed
+    });
+
+    // Handle errors
+    socket.on('chat_notification', (data) => {
+        if (data.type === 'error') {
+            console.error('Chat error:', data.message);
+            chatInput.disabled = true;
+            sendBtn.disabled = true;
+        }
+    });
+
+    // Receive activity feed events
+    socket.on('chat_activity', (activity) => {
+        if (messagesDiv.querySelector('.league-chat-empty')) {
+            messagesDiv.innerHTML = '';
+        }
+        displayActivityMessage(activity);
+        scrollToBottom();
+    });
+
+    // Display message
+    function displayMessage(msg) {
+        const isOwn = msg.username === username;
+        const isSystem = msg.username === 'System';
+
+        const msgDiv = document.createElement('div');
+        msgDiv.className = `league-message-group${isOwn ? ' own' : ''}${isSystem ? ' system' : ''}`;
+
+        if (!isSystem) {
+            const avatar = document.createElement('div');
+            avatar.className = 'league-message-avatar';
+            avatar.textContent = msg.username[0].toUpperCase();
+            msgDiv.appendChild(avatar);
+        }
+
+        const bubble = document.createElement('div');
+        bubble.className = 'league-message-bubble';
+
+        if (!isSystem) {
+            const info = document.createElement('div');
+            info.className = 'league-message-info';
+            info.innerHTML = `
+                <span class="league-message-username">${escapeHtml(msg.username)}</span>
+                <span class="league-message-time">${msg.time || new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+            `;
+            bubble.appendChild(info);
+        }
+
+        const content = document.createElement('div');
+        content.className = 'league-message-content';
+        content.textContent = msg.message || '';
+        bubble.appendChild(content);
+
+        msgDiv.appendChild(bubble);
+        messagesDiv.appendChild(msgDiv);
+    }
+
+    // Display activity message
+    function displayActivityMessage(activity) {
+        const msgDiv = document.createElement('div');
+        msgDiv.className = 'league-message-group system activity-message';
+
+        const bubble = document.createElement('div');
+        bubble.className = 'league-message-bubble activity-bubble';
+
+        // Create activity header with badge and username
+        const header = document.createElement('div');
+        header.className = 'activity-message-header';
+        
+        // Badge
+        const badge = document.createElement('span');
+        badge.className = `activity-type-badge badge ${activity.activity_type}`;
+        badge.textContent = activity.activity_type.replace(/_/g, ' ').toUpperCase();
+        
+        // Username
+        const username_span = document.createElement('span');
+        username_span.className = 'activity-message-username';
+        username_span.textContent = activity.username || 'System';
+        
+        // Timestamp
+        const timestamp = document.createElement('span');
+        timestamp.className = 'activity-message-time';
+        const actTime = new Date(activity.created_at);
+        const now = new Date();
+        const diff = now - actTime;
+        const minutes = Math.floor(diff / 60000);
+        const hours = Math.floor(diff / 3600000);
+        const days = Math.floor(diff / 86400000);
+        
+        let timeStr = '';
+        if (minutes < 1) timeStr = 'now';
+        else if (minutes < 60) timeStr = `${minutes}m ago`;
+        else if (hours < 24) timeStr = `${hours}h ago`;
+        else timeStr = `${days}d ago`;
+        
+        timestamp.textContent = timeStr;
+        
+        header.appendChild(badge);
+        header.appendChild(username_span);
+        header.appendChild(timestamp);
+        bubble.appendChild(header);
+
+        // Title
+        const title = document.createElement('div');
+        title.className = 'activity-message-title';
+        title.textContent = activity.title;
+        bubble.appendChild(title);
+
+        // Description
+        const description = document.createElement('small');
+        description.className = 'activity-message-description';
+        description.textContent = activity.description;
+        bubble.appendChild(description);
+
+        // Metadata details
+        if (activity.metadata && Object.keys(activity.metadata).length > 0) {
+            const details = document.createElement('div');
+            details.className = 'activity-message-details';
+            
+            for (const [key, value] of Object.entries(activity.metadata)) {
+                if (key !== 'type') {
+                    const detail = document.createElement('div');
+                    const displayKey = key.replace(/_/g, ' ').toUpperCase();
+                    const formatVal = typeof value === 'number' && value > 100 ? '$' + value.toFixed(2) : String(value);
+                    detail.innerHTML = `<strong>${displayKey}:</strong> ${formatVal}`;
+                    details.appendChild(detail);
+                }
+            }
+            
+            bubble.appendChild(details);
+        }
+
+        msgDiv.appendChild(bubble);
+        messagesDiv.appendChild(msgDiv);
+    }
+
+    // Display file message
+    function displayFile(msg) {
+        const isOwn = msg.username === username;
+        const msgDiv = document.createElement('div');
+        msgDiv.className = `league-message-group${isOwn ? ' own' : ''}`;
+
+        const avatar = document.createElement('div');
+        avatar.className = 'league-message-avatar';
+        avatar.textContent = msg.username[0].toUpperCase();
+        msgDiv.appendChild(avatar);
+
+        const bubble = document.createElement('div');
+        bubble.className = 'league-message-bubble';
+
+        const info = document.createElement('div');
+        info.className = 'league-message-info';
+        info.innerHTML = `
+            <span class="league-message-username">${escapeHtml(msg.username)}</span>
+            <span class="league-message-time">${msg.time || new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+        `;
+        bubble.appendChild(info);
+
+        const fileDiv = document.createElement('div');
+        fileDiv.className = 'league-message-file';
+
+        const imageTypes = ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp'];
+        const lowerName = msg.filename ? msg.filename.toLowerCase() : '';
+        
+        if (imageTypes.some(ext => lowerName.endsWith(ext))) {
+            const preview = document.createElement('div');
+            preview.className = 'league-file-preview';
+            const img = document.createElement('img');
+            img.src = msg.data;
+            img.alt = msg.filename;
+            preview.appendChild(img);
+            fileDiv.appendChild(preview);
+        }
+
+        const link = document.createElement('a');
+        link.className = 'league-file-link';
+        link.href = msg.data;
+        link.download = msg.filename;
+        link.innerHTML = `<i class="fas fa-file"></i><span>${escapeHtml(msg.filename)}</span>`;
+        fileDiv.appendChild(link);
+
+        bubble.appendChild(fileDiv);
+        msgDiv.appendChild(bubble);
+        messagesDiv.appendChild(msgDiv);
+    }
+
+    // Send message
+    function sendCurrentMessage() {
+        const message = chatInput.value.trim();
+        if (!message || !roomId) return;
+
+        // Validate message length (5000 char limit)
+        if (message.length > 5000) {
+            alert('Message too long. Maximum length is 5000 characters');
+            return;
+        }
+
+        sendBtn.classList.add('processing');
+        sendBtn.setAttribute('aria-busy', 'true');
+        sendBtn.disabled = true;
+
+        socket.emit('chat_message', { room: roomId, message });
+        chatInput.value = '';
+        chatInput.style.height = 'auto';
+    }
+
+    // Form submission
+    chatForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        sendCurrentMessage();
+    });
+
+    // Enter to send (Shift+Enter for new line)
+    chatInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            if (!sendBtn.disabled) sendCurrentMessage();
+        }
+    });
+
+    // Auto-resize textarea and send typing indicator
+    chatInput.addEventListener('input', () => {
+        chatInput.style.height = 'auto';
+        chatInput.style.height = Math.min(chatInput.scrollHeight, 100) + 'px';
+
+        if (roomId) {
+            socket.emit('typing', { room: roomId });
+        }
+
+        clearTimeout(typingTimeout);
+        typingTimeout = setTimeout(() => {
+            // Typing stopped
+        }, 1000);
+    });
+
+    // Emoji picker
+    emojiBtn.addEventListener('click', async () => {
+        if (!emojiPicker) {
+            const { default: EmojiPicker } = await import('https://cdn.jsdelivr.net/npm/emoji-picker-element@^1/index.js');
+            emojiPicker = document.createElement('emoji-picker');
+            emojiPicker.style.position = 'fixed';
+            emojiPicker.style.bottom = '120px';
+            emojiPicker.style.right = '20px';
+            emojiPicker.style.zIndex = '1000';
+            document.body.appendChild(emojiPicker);
+
+            emojiPicker.addEventListener('emoji-click', (e) => {
+                chatInput.value += e.detail.unicode;
+                chatInput.focus();
+            });
+
+            document.addEventListener('click', (e) => {
+                if (emojiPicker && !emojiPicker.contains(e.target) && e.target !== emojiBtn) {
+                    emojiPicker.remove();
+                    emojiPicker = null;
+                }
+            });
+        } else {
+            emojiPicker.remove();
+            emojiPicker = null;
+        }
+    });
+
+    // File upload
+    fileBtn.addEventListener('click', () => {
+        fileInput.click();
+    });
+
+    fileInput.addEventListener('change', () => {
+        const file = fileInput.files[0];
+        if (file && roomId) {
+            // Validate file size (10MB limit)
+            const maxFileSize = 10 * 1024 * 1024;
+            if (file.size > maxFileSize) {
+                console.error('File too large. Max size is 10MB');
+                alert('File too large. Maximum file size is 10MB');
+                fileInput.value = '';
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                socket.emit('chat_file', {
+                    room: roomId,
+                    filename: file.name,
+                    data: e.target.result
+                });
+            };
+            reader.onerror = () => {
+                console.error('Error reading file');
+                alert('Error reading file');
+            };
+            reader.readAsDataURL(file);
+            fileInput.value = '';
+        }
+    });
+
+    // Scroll to bottom
+    function scrollToBottom() {
+        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    }
+
+    // Escape HTML to prevent XSS
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    // Cleanup on unload
+    window.addEventListener('beforeunload', () => {
+        socket.emit('leave_room', { room: roomId });
+    });
+})();
+</script>

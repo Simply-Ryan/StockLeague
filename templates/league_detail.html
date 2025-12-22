@@ -146,7 +146,7 @@
     <!-- Main Content -->
     <div class="row g-4">
         <!-- Leaderboard -->
-        <div class="col-lg-8">
+        <div class="col-12">
             <div class="card h-100 shadow-sm">
                 <div class="card-header bg-gradient bg-primary text-white border-0">
                     <div class="d-flex align-items-center justify-content-between">
@@ -164,9 +164,11 @@
                                 <tr>
                                     <th style="width: 60px;" class="text-center">Rank</th>
                                     <th>Trader</th>
+                                    <th class="text-center" style="width: 100px;">Positions</th>
                                     <th class="text-end" style="width: 130px;">Portfolio</th>
                                     <th class="text-end" style="width: 100px;">P&L</th>
                                     <th class="text-end" style="width: 110px;">Return %</th>
+                                    {% if is_admin %}<th style="width: 50px;" class="text-center">Actions</th>{% endif %}
                                 </tr>
                             </thead>
                             <tbody>
@@ -200,6 +202,9 @@
                                             </div>
                                         </div>
                                     </td>
+                                    <td class="text-center">
+                                        <span class="badge bg-info">{{ member.position_count | default(0) }} stocks</span>
+                                    </td>
                                     <td class="text-end">
                                         <strong>{{ member.total_value | usd if member.total_value else league.starting_cash | usd }}</strong>
                                     </td>
@@ -215,30 +220,44 @@
                                             {% if return_pct >= 0 %}+{% endif %}{{ "%.1f" | format(return_pct) }}%
                                         </span>
                                     </td>
-                                </tr>
-                                {% if is_admin and member.id != session.user_id %}
-                                <tr class="table-light" style="font-size: 0.85rem;">
-                                    <td colspan="5">
-                                        <div class="d-flex gap-1 flex-wrap">
-                                            <button class="btn btn-sm btn-outline-danger btn-kick" data-user-id="{{ member.id }}" title="Remove from league">
-                                                <i class="fas fa-times-circle"></i> Kick
+                                    {% if is_admin %}
+                                    <td class="text-center">
+                                        {% if member.id != session.user_id %}
+                                        <div class="dropdown">
+                                            <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" id="dropdownMenu{{ member.id }}" data-bs-toggle="dropdown" aria-expanded="false">
+                                                <i class="fas fa-cog"></i>
                                             </button>
-                                            <button class="btn btn-sm btn-outline-warning btn-mute" data-user-id="{{ member.id }}" title="Mute member">
-                                                <i class="fas fa-volume-mute"></i> Mute
-                                            </button>
-                                            {% if member.is_admin %}
-                                            <button class="btn btn-sm btn-outline-secondary btn-set-admin" data-user-id="{{ member.id }}" data-is-admin="0" title="Revoke admin">
-                                                <i class="fas fa-shield-alt"></i> Revoke Admin
-                                            </button>
-                                            {% else %}
-                                            <button class="btn btn-sm btn-outline-warning btn-set-admin" data-user-id="{{ member.id }}" data-is-admin="1" title="Make admin">
-                                                <i class="fas fa-crown"></i> Make Admin
-                                            </button>
-                                            {% endif %}
+                                            <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="dropdownMenu{{ member.id }}">
+                                                <li>
+                                                    <button class="dropdown-item btn-kick" data-user-id="{{ member.id }}" style="color: #dc3545; cursor: pointer;">
+                                                        <i class="fas fa-times-circle"></i> Kick
+                                                    </button>
+                                                </li>
+                                                <li>
+                                                    <button class="dropdown-item btn-mute" data-user-id="{{ member.id }}" style="cursor: pointer;">
+                                                        <i class="fas fa-volume-mute"></i> Mute
+                                                    </button>
+                                                </li>
+                                                <li><hr class="dropdown-divider"></li>
+                                                {% if member.is_admin %}
+                                                <li>
+                                                    <button class="dropdown-item btn-set-admin" data-user-id="{{ member.id }}" data-is-admin="0" style="cursor: pointer;">
+                                                        <i class="fas fa-shield-alt"></i> Revoke Admin
+                                                    </button>
+                                                </li>
+                                                {% else %}
+                                                <li>
+                                                    <button class="dropdown-item btn-set-admin" data-user-id="{{ member.id }}" data-is-admin="1" style="cursor: pointer;">
+                                                        <i class="fas fa-crown"></i> Make Admin
+                                                    </button>
+                                                </li>
+                                                {% endif %}
+                                            </ul>
                                         </div>
+                                        {% endif %}
                                     </td>
+                                    {% endif %}
                                 </tr>
-                                {% endif %}
                                 {% endfor %}
                             </tbody>
                         </table>
@@ -252,20 +271,14 @@
                 </div>
             </div>
         </div>
-        
-        <!-- Activity Feed Sidebar -->
-        <div class="col-lg-4">
-            <div class="card h-100 shadow-sm">
-                <div class="card-header bg-gradient bg-info text-white border-0">
-                    <h5 class="mb-0"><i class="fas fa-bolt"></i> Recent Activity</h5>
-                </div>
-                <div class="card-body p-0">
-                    <!-- Pass league_id to enhanced activity feed component -->
-                    {% set league_id = league.id %}
-                    {% include "components/league_activity_feed_enhanced.html" %}
-                </div>
-            </div>
-        </div>
+    </div>
+</div>
+
+<!-- League Chat Section -->
+<div class="mt-4 mb-4">
+    <div class="card shadow-sm" style="height: 500px;">
+        {% set league_id = league.id %}
+        {% include "components/league_chat.html" %}
     </div>
 </div>
 

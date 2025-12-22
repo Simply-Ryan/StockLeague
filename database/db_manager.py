@@ -1515,10 +1515,13 @@ class DatabaseManager:
         cursor = conn.cursor()
         
         cursor.execute("""
-            SELECT u.id, u.username, u.avatar_url, lm.score, lm.current_rank, lm.user_id
+            SELECT u.id, u.username, u.avatar_url, lm.score, lm.current_rank, lm.user_id,
+                   COALESCE(COUNT(DISTINCT lh.symbol), 0) as position_count
             FROM league_members lm
             JOIN users u ON lm.user_id = u.id
+            LEFT JOIN league_holdings lh ON lm.user_id = lh.user_id AND lm.league_id = lh.league_id AND lh.shares > 0
             WHERE lm.league_id = ?
+            GROUP BY u.id, u.username, u.avatar_url, lm.score, lm.current_rank, lm.user_id
             ORDER BY lm.score DESC, lm.joined_at ASC
         """, (league_id,))
         
@@ -2357,6 +2360,21 @@ class DatabaseManager:
         conn.close()
         
         return [dict(row) for row in leagues]
+    
+    def is_league_member(self, user_id, league_id):
+        """Check if a user is a member of a league."""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute(
+            "SELECT COUNT(*) as count FROM league_members WHERE league_id = ? AND user_id = ?",
+            (league_id, user_id)
+        )
+        
+        result = cursor.fetchone()
+        conn.close()
+        
+        return result['count'] > 0 if result else False
     
     def get_league_members(self, league_id):
         """Get all members of a league with their stats."""

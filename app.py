@@ -618,6 +618,43 @@ def handle_join_room(data):
     try:
         history = db.get_chat_history(room, limit=100)
         emit('chat_history', history, room=request.sid)
+        
+        # For league chats, also load recent activities
+        if room.startswith('league_'):
+            try:
+                league_id = int(room.split('_')[1])
+                conn = db.get_connection()
+                cursor = conn.cursor()
+                
+                # Get recent activities (last 20)
+                cursor.execute('''
+                    SELECT id, user_id, username, activity_type, title, description, metadata, created_at
+                    FROM league_activity_feed
+                    WHERE league_id = ?
+                    ORDER BY created_at DESC
+                    LIMIT 20
+                ''', (league_id,))
+                
+                activities = []
+                for row in cursor.fetchall():
+                    import json
+                    activities.append({
+                        'id': row[0],
+                        'username': row[2],
+                        'activity_type': row[3],
+                        'title': row[4],
+                        'description': row[5],
+                        'metadata': json.loads(row[6]) if row[6] else {},
+                        'created_at': row[7]
+                    })
+                
+                conn.close()
+                
+                # Emit activities in reverse chronological order (oldest first)
+                for activity in reversed(activities):
+                    emit('chat_activity', activity, room=request.sid)
+            except Exception as e:
+                logging.error(f"Error loading activities for league {league_id}: {e}")
     except Exception as e:
         logging.error(f"Error loading chat history for room {room}: {e}")
         emit('chat_history', [], room=request.sid)
@@ -4986,6 +5023,9 @@ def emit_league_activity(league_id, activity):
             'league_id': league_id,
             'activity': activity
         }, room=f'league_{league_id}')
+        
+        # Also emit to chat_activity for chat integration
+        socketio.emit('chat_activity', activity, room=f'league_{league_id}')
     except Exception as e:
         logging.error(f"Error emitting league activity: {e}")
 
