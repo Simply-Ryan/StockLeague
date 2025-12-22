@@ -17,10 +17,7 @@ from typing import Dict, List, Tuple, Optional, Any
 # League mode identifiers
 MODE_ABSOLUTE_VALUE = 'absolute_value'
 MODE_PERCENTAGE_RETURN = 'percentage_return'
-MODE_RISK_ADJUSTED = 'risk_adjusted'
 MODE_LIMITED_CAPITAL = 'limited_capital'
-MODE_SECTOR_RESTRICTED = 'sector_restricted'
-MODE_DRAFT = 'draft'
 
 
 class LeagueMode(ABC):
@@ -231,91 +228,6 @@ class PercentageReturnMode(LeagueMode):
         return "Percentage Return: Ranked by % gain from starting cash"
 
 
-class RiskAdjustedMode(LeagueMode):
-    """
-    Score = Sharpe ratio (risk-adjusted return).
-    
-    This mode rewards consistent returns over volatile gains.
-    Uses portfolio snapshots to calculate daily returns and volatility.
-    
-    Formula: (avg_return - risk_free_rate) / std_deviation
-    """
-    
-    def _apply_default_rules(self) -> None:
-        defaults = {
-            'transaction_fee_percent': 0,
-            'risk_free_rate': 0.02,  # 2% annual, converted to daily for calc
-            'min_snapshots': 5,  # Minimum snapshots needed for valid calculation
-        }
-        for key, value in defaults.items():
-            if key not in self.rules:
-                self.rules[key] = value
-    
-    def calculate_score(self, portfolio_value: float, starting_cash: float,
-                        trades: List[Dict] = None, snapshots: List[Dict] = None) -> float:
-        if not snapshots or len(snapshots) < self.rules.get('min_snapshots', 5):
-            # Not enough data - fall back to percentage return
-            if starting_cash <= 0:
-                return 0
-            return ((portfolio_value - starting_cash) / starting_cash) * 100
-        
-        # Calculate daily returns from snapshots
-        values = [s['total_value'] for s in sorted(snapshots, key=lambda x: x['snapshot_date'])]
-        
-        if len(values) < 2:
-            return 0
-        
-        returns = []
-        for i in range(1, len(values)):
-            if values[i-1] > 0:
-                daily_return = (values[i] - values[i-1]) / values[i-1]
-                returns.append(daily_return)
-        
-        if not returns:
-            return 0
-        
-        # Calculate Sharpe ratio
-        import statistics
-        avg_return = statistics.mean(returns)
-        std_dev = statistics.stdev(returns) if len(returns) > 1 else 0.0001
-        
-        # Convert annual risk-free rate to daily (approx 252 trading days)
-        daily_rf = self.rules.get('risk_free_rate', 0.02) / 252
-        
-        if std_dev == 0:
-            std_dev = 0.0001  # Prevent division by zero
-        
-        sharpe = (avg_return - daily_rf) / std_dev
-        
-        # Annualize and scale for readability (multiply by sqrt(252))
-        annualized_sharpe = sharpe * (252 ** 0.5)
-        
-        return annualized_sharpe
-    
-    def validate_trade(self, symbol: str, shares: int, price: float,
-                       trade_type: str, portfolio: Dict,
-                       current_holdings: List[Dict]) -> Tuple[bool, str]:
-        # Standard validation
-        if trade_type == 'sell':
-            holding = next((h for h in current_holdings if h['symbol'] == symbol), None)
-            current_shares = holding['shares'] if holding else 0
-            if shares > current_shares:
-                return False, "Cannot sell more shares than you own"
-        
-        if trade_type == 'buy':
-            total_cost = shares * price + self.apply_fee(shares * price)
-            if total_cost > portfolio.get('cash', 0):
-                return False, "Insufficient funds"
-        
-        return True, ""
-    
-    def get_tiebreaker_key(self, member_data: Dict) -> Tuple:
-        # Tiebreaker: higher absolute return
-        return (member_data.get('total_value', 0),)
-    
-    def get_description(self) -> str:
-        return "Risk-Adjusted: Ranked by Sharpe ratio (rewards consistency)"
-
 
 class LimitedCapitalMode(LeagueMode):
     """
@@ -414,143 +326,12 @@ class LimitedCapitalMode(LeagueMode):
         return desc + ", ".join(parts) if parts else desc + "position limits apply"
 
 
-class SectorRestrictedMode(LeagueMode):
-    """
-    Mode that restricts trading to specific sectors or symbols.
-    
-    Examples:
-    - Tech-only league: allowed_sectors = ['Technology']
-    - Blue-chip league: allowed_symbols = ['AAPL', 'MSFT', 'GOOGL', ...]
-    """
-    
-    def _apply_default_rules(self) -> None:
-        defaults = {
-            'transaction_fee_percent': 0,
-            'allowed_sectors': None,  # List of sector names, or None for all
-            'allowed_symbols': None,  # List of symbols, or None for all
-        }
-        for key, value in defaults.items():
-            if key not in self.rules:
-                self.rules[key] = value
-    
-    def calculate_score(self, portfolio_value: float, starting_cash: float,
-                        trades: List[Dict] = None, snapshots: List[Dict] = None) -> float:
-        if starting_cash <= 0:
-            return 0
-        return ((portfolio_value - starting_cash) / starting_cash) * 100
-    
-    def validate_trade(self, symbol: str, shares: int, price: float,
-                       trade_type: str, portfolio: Dict,
-                       current_holdings: List[Dict]) -> Tuple[bool, str]:
-        # Check symbol restrictions on buys
-        if trade_type == 'buy':
-            allowed_symbols = self.rules.get('allowed_symbols')
-            if allowed_symbols and symbol.upper() not in [s.upper() for s in allowed_symbols]:
-                return False, f"{symbol} is not allowed in this league"
-            
-            total_cost = shares * price + self.apply_fee(shares * price)
-            if total_cost > portfolio.get('cash', 0):
-                return False, "Insufficient funds"
-        
-        if trade_type == 'sell':
-            holding = next((h for h in current_holdings if h['symbol'] == symbol), None)
-            current_shares = holding['shares'] if holding else 0
-            if shares > current_shares:
-                return False, "Cannot sell more shares than you own"
-        
-        return True, ""
-    
-    def get_tiebreaker_key(self, member_data: Dict) -> Tuple:
-        return (member_data.get('total_value', 0),)
-    
-    def get_allowed_symbols(self) -> Optional[List[str]]:
-        return self.rules.get('allowed_symbols')
-    
-    def get_allowed_sectors(self) -> Optional[List[str]]:
-        return self.rules.get('allowed_sectors')
-    
-    def get_description(self) -> str:
-        if self.rules.get('allowed_sectors'):
-            sectors = ", ".join(self.rules['allowed_sectors'])
-            return f"Sector Restricted: {sectors} only"
-        if self.rules.get('allowed_symbols'):
-            count = len(self.rules['allowed_symbols'])
-            return f"Symbol Restricted: {count} allowed stocks"
-        return "Sector/Symbol restricted mode"
-
-
-class DraftMode(LeagueMode):
-    """
-    Draft-based stock selection mode.
-    
-    Members take turns drafting stocks before the league starts.
-    Each member can only trade their drafted stocks.
-    
-    This mode requires additional setup:
-    - draft_order: List of user_ids in draft order
-    - drafted_stocks: Dict of user_id -> list of drafted symbols
-    """
-    
-    def _apply_default_rules(self) -> None:
-        defaults = {
-            'transaction_fee_percent': 0,
-            'stocks_per_member': 5,  # How many stocks each member drafts
-            'drafted_stocks': {},  # user_id -> [symbols]
-            'draft_complete': False,
-        }
-        for key, value in defaults.items():
-            if key not in self.rules:
-                self.rules[key] = value
-    
-    def calculate_score(self, portfolio_value: float, starting_cash: float,
-                        trades: List[Dict] = None, snapshots: List[Dict] = None) -> float:
-        if starting_cash <= 0:
-            return 0
-        return ((portfolio_value - starting_cash) / starting_cash) * 100
-    
-    def validate_trade(self, symbol: str, shares: int, price: float,
-                       trade_type: str, portfolio: Dict,
-                       current_holdings: List[Dict],
-                       user_id: int = None) -> Tuple[bool, str]:
-        # Check if draft is complete
-        if not self.rules.get('draft_complete', False):
-            return False, "Cannot trade until draft is complete"
-        
-        # Check if symbol was drafted by this user
-        if user_id:
-            drafted = self.rules.get('drafted_stocks', {}).get(str(user_id), [])
-            if symbol.upper() not in [s.upper() for s in drafted]:
-                return False, f"You did not draft {symbol}"
-        
-        if trade_type == 'buy':
-            total_cost = shares * price + self.apply_fee(shares * price)
-            if total_cost > portfolio.get('cash', 0):
-                return False, "Insufficient funds"
-        
-        if trade_type == 'sell':
-            holding = next((h for h in current_holdings if h['symbol'] == symbol), None)
-            current_shares = holding['shares'] if holding else 0
-            if shares > current_shares:
-                return False, "Cannot sell more shares than you own"
-        
-        return True, ""
-    
-    def get_tiebreaker_key(self, member_data: Dict) -> Tuple:
-        return (member_data.get('total_value', 0),)
-    
-    def get_description(self) -> str:
-        stocks_per = self.rules.get('stocks_per_member', 5)
-        return f"Draft Mode: Each member drafts {stocks_per} stocks"
-
 
 # Mode registry for easy lookup
 MODE_REGISTRY = {
     MODE_ABSOLUTE_VALUE: AbsoluteValueMode,
     MODE_PERCENTAGE_RETURN: PercentageReturnMode,
-    MODE_RISK_ADJUSTED: RiskAdjustedMode,
     MODE_LIMITED_CAPITAL: LimitedCapitalMode,
-    MODE_SECTOR_RESTRICTED: SectorRestrictedMode,
-    MODE_DRAFT: DraftMode,
 }
 
 
@@ -594,23 +375,8 @@ def get_available_modes() -> List[Dict[str, str]]:
             'description': 'Ranked by % gain from starting cash - levels the playing field'
         },
         {
-            'id': MODE_RISK_ADJUSTED,
-            'name': 'Risk-Adjusted (Sharpe)',
-            'description': 'Ranked by Sharpe ratio - rewards consistent returns'
-        },
-        {
             'id': MODE_LIMITED_CAPITAL,
             'name': 'Limited Capital',
             'description': 'Position limits and trading fees - tests discipline'
-        },
-        {
-            'id': MODE_SECTOR_RESTRICTED,
-            'name': 'Sector Restricted',
-            'description': 'Trade only in specific sectors or stocks'
-        },
-        {
-            'id': MODE_DRAFT,
-            'name': 'Draft Mode',
-            'description': 'Draft stocks before trading begins - fantasy sports style'
         },
     ]

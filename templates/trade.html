@@ -107,19 +107,6 @@
     <!-- Portfolio Context & Trading Panel -->
     <div class="row g-3 mb-4">
         <div class="col-12">
-            <!-- Portfolio Context Alert -->
-            {% if active_context.type == 'league' %}
-            <div class="alert alert-info alert-dismissible fade show mb-3" role="alert">
-                <i class="fas fa-trophy"></i> <strong>Trading in League:</strong> {{ active_context.league_name }}
-                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-            </div>
-            {% else %}
-            <div class="alert alert-primary alert-dismissible fade show mb-3" role="alert">
-                <i class="fas fa-user"></i> <strong>Trading in Personal Portfolio</strong>
-                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-            </div>
-            {% endif %}
-
             <!-- Trading Card with Tabs -->
             <div class="card shadow-sm border-0">
                 <div class="card-header bg-light border-0">
@@ -389,10 +376,7 @@
 
     function calculateMaxShares() {
         if (USER_CASH > 0 && STOCK_PRICE > 0) {
-            const maxShares = Math.floor(USER_CASH / STOCK_PRICE);
-            document.getElementById('maxShares').textContent = maxShares.toLocaleString();
-            document.getElementById('buy_shares').max = maxShares;
-            return maxShares;
+            return Math.floor(USER_CASH / STOCK_PRICE);
         }
         return 0;
     }
@@ -440,22 +424,34 @@
 
     // Initialize on page load
     document.addEventListener('DOMContentLoaded', function() {
-        // Calculate max shares
-        calculateMaxShares();
-
-        // Buy form handlers
+        // Get form elements
         const buySharesInput = document.getElementById('buy_shares');
+        const maxBuyBtn = document.getElementById('maxBuyBtn');
+        const sellSharesInput = document.getElementById('sell_shares');
+        const maxSellBtn = document.getElementById('maxSellBtn');
+
+        // Update max shares display
+        const maxShares = calculateMaxShares();
+        if (document.getElementById('maxShares')) {
+            document.getElementById('maxShares').textContent = maxShares.toLocaleString();
+        }
+        if (buySharesInput) {
+            buySharesInput.setAttribute('max', maxShares);
+        }
+
+        // Buy input event listener
         if (buySharesInput) {
             buySharesInput.addEventListener('input', updateBuyCalculations);
         }
 
-        const maxBuyBtn = document.getElementById('maxBuyBtn');
+        // Max Buy button click handler
         if (maxBuyBtn) {
             maxBuyBtn.addEventListener('click', function(e) {
                 e.preventDefault();
-                const maxShares = calculateMaxShares();
-                if (maxShares > 0) {
-                    buySharesInput.value = maxShares;
+                e.stopPropagation();
+                const max = calculateMaxShares();
+                if (max > 0 && buySharesInput) {
+                    buySharesInput.value = max;
                     updateBuyCalculations();
                     buySharesInput.focus();
                 } else {
@@ -464,17 +460,17 @@
             });
         }
 
-        // Sell form handlers
-        const sellSharesInput = document.getElementById('sell_shares');
+        // Sell input event listener
         if (sellSharesInput) {
             sellSharesInput.addEventListener('input', updateSellCalculations);
         }
 
-        const maxSellBtn = document.getElementById('maxSellBtn');
+        // Max Sell button click handler
         if (maxSellBtn) {
             maxSellBtn.addEventListener('click', function(e) {
                 e.preventDefault();
-                if (USER_SHARES > 0) {
+                e.stopPropagation();
+                if (USER_SHARES > 0 && sellSharesInput) {
                     sellSharesInput.value = USER_SHARES;
                     updateSellCalculations();
                     sellSharesInput.focus();

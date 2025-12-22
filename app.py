@@ -628,10 +628,11 @@ def handle_join_room(data):
                 
                 # Get recent activities (last 20)
                 cursor.execute('''
-                    SELECT id, user_id, username, activity_type, title, description, metadata, created_at
-                    FROM league_activity_feed
-                    WHERE league_id = ?
-                    ORDER BY created_at DESC
+                    SELECT laf.id, laf.user_id, u.username, laf.activity_type, laf.title, laf.description, laf.metadata_json, laf.created_at
+                    FROM league_activity_feed laf
+                    LEFT JOIN users u ON laf.user_id = u.id
+                    WHERE laf.league_id = ?
+                    ORDER BY laf.created_at DESC
                     LIMIT 20
                 ''', (league_id,))
                 
@@ -640,7 +641,7 @@ def handle_join_room(data):
                     import json
                     activities.append({
                         'id': row[0],
-                        'username': row[2],
+                        'username': row[2] or 'System',
                         'activity_type': row[3],
                         'title': row[4],
                         'description': row[5],
@@ -1083,13 +1084,88 @@ def after_request(response):
 @app.route("/")
 def home():
     """Show landing/home page - public route"""
-    return render_template("home.html")
+    # Get real stats from database
+    stats = {
+        'total_traders': 0,
+        'total_leagues': 0,
+        'total_trades': 0,
+        'total_portfolio_value': 0,
+    }
+    
+    try:
+        conn = db.get_connection()
+        cursor = conn.cursor()
+        
+        # Count total traders (all registered users)
+        try:
+            cursor.execute("SELECT COUNT(*) as count FROM users")
+            result = cursor.fetchone()
+            if result:
+                count_val = result['count'] if isinstance(result, dict) else result[0]
+                stats['total_traders'] = max(0, int(count_val) if count_val else 0)
+                logging.info(f"Total traders: {stats['total_traders']}")
+        except Exception as e:
+            logging.error(f"Error counting traders: {e}", exc_info=True)
+        
+        # Count total leagues
+        try:
+            cursor.execute("SELECT COUNT(*) as count FROM leagues")
+            result = cursor.fetchone()
+            if result:
+                count_val = result['count'] if isinstance(result, dict) else result[0]
+                stats['total_leagues'] = max(0, int(count_val) if count_val else 0)
+                logging.info(f"Total leagues: {stats['total_leagues']}")
+        except Exception as e:
+            logging.error(f"Error counting leagues: {e}", exc_info=True)
+        
+        # Count total trades executed (league trades + personal trades)
+        league_trades = 0
+        try:
+            cursor.execute("SELECT COUNT(*) as count FROM league_transactions")
+            result = cursor.fetchone()
+            if result:
+                count_val = result['count'] if isinstance(result, dict) else result[0]
+                league_trades = max(0, int(count_val) if count_val else 0)
+                logging.info(f"League transactions: {league_trades}")
+        except Exception as e:
+            logging.error(f"Error counting league_transactions: {e}", exc_info=True)
+        
+        personal_trades = 0
+        try:
+            cursor.execute("SELECT COUNT(*) as count FROM transactions")
+            result = cursor.fetchone()
+            if result:
+                count_val = result['count'] if isinstance(result, dict) else result[0]
+                personal_trades = max(0, int(count_val) if count_val else 0)
+                logging.info(f"Personal transactions: {personal_trades}")
+        except Exception as e:
+            logging.error(f"Error counting transactions: {e}", exc_info=True)
+        
+        stats['total_trades'] = league_trades + personal_trades
+        
+        # Calculate total portfolio value - sum of all league portfolio cash
+        try:
+            cursor.execute("SELECT SUM(cash) as total_cash FROM league_portfolios")
+            result = cursor.fetchone()
+            if result:
+                cash_val = result['total_cash'] if isinstance(result, dict) else result[0]
+                stats['total_portfolio_value'] = max(0, float(cash_val) if cash_val else 0)
+                logging.info(f"Total portfolio value: ${stats['total_portfolio_value']:,.2f}")
+        except Exception as e:
+            logging.error(f"Error calculating portfolio value: {e}", exc_info=True)
+        
+        conn.close()
+    except Exception as e:
+        logging.error(f"Error fetching home page stats (connection): {e}", exc_info=True)
+    
+    return render_template("home.html", stats=stats)
 
 
 @app.route("/home")
 def home_alias():
     """Alias for home page"""
-    return render_template("home.html")
+    # Redirect to main home page
+    return home()
 
 
 @app.route("/dashboard")
@@ -5584,7 +5660,9 @@ def api_create_h2h_matchup(league_id):
         )
         
         # Log activity
-        db.add_league_activity(
+        user = db.get_user(user_id)
+        username = user.get('username') if user else 'Unknown'
+        activity_id = db.add_league_activity(
             league_id=league_id,
             activity_type='h2h_challenge',
             title=f"H2H Challenge Started",
@@ -5592,6 +5670,18 @@ def api_create_h2h_matchup(league_id):
             user_id=user_id,
             metadata={"matchup_id": matchup_id, "opponent_id": opponent_id}
         )
+        
+        # Emit real-time activity update
+        emit_league_activity(league_id, {
+            'id': activity_id,
+            'username': username,
+            'user_avatar': user.get('avatar_url') if user else None,
+            'activity_type': 'h2h_challenge',
+            'title': f"H2H Challenge Started",
+            'description': f"Challenge against opponent for {duration_days} days",
+            'created_at': datetime.now().isoformat(),
+            'metadata': {"matchup_id": matchup_id, "opponent_id": opponent_id}
+        })
         
         return jsonify({"matchup_id": matchup_id, "status": "created"}), 201
     

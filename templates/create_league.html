@@ -63,26 +63,12 @@
                         <div class="mb-3">
                             <label for="mode" class="form-label">Competition Mode</label>
                             <select class="form-select" id="mode" name="mode" onchange="toggleModeOptions()">
-                                {% if available_modes %}
-                                    {% for m in available_modes %}
-                                    <option value="{{ m.id }}" {% if m.id == 'absolute_value' %}selected{% endif %}>
-                                        {{ m.name }}
-                                    </option>
-                                    {% endfor %}
-                                {% else %}
-                                    <option value="absolute_value" selected>Absolute Value</option>
-                                    <option value="percentage_return">Percentage Return</option>
-                                    <option value="risk_adjusted">Risk-Adjusted (Sharpe)</option>
-                                    <option value="limited_capital">Limited Capital</option>
-                                    <option value="sector_restricted">Sector Restricted</option>
-                                {% endif %}
+                                <option value="absolute_value" selected>Absolute Value</option>
+                                <option value="percentage_return">Percentage Return</option>
+                                <option value="limited_capital">Limited Capital</option>
                             </select>
                             <div class="form-text" id="mode-description">
-                                {% if available_modes %}
-                                    {{ available_modes[0].description }}
-                                {% else %}
-                                    Ranked by total portfolio value - simple and straightforward
-                                {% endif %}
+                                Ranked by total portfolio value - simple and straightforward
                             </div>
                         </div>
 
@@ -151,10 +137,7 @@
 const modeDescriptions = {
     'absolute_value': 'Ranked by total portfolio value - simple and straightforward',
     'percentage_return': 'Ranked by % gain from starting cash - levels the playing field',
-    'risk_adjusted': 'Ranked by Sharpe ratio - rewards consistent returns',
-    'limited_capital': 'Position limits and trading fees - tests discipline',
-    'sector_restricted': 'Trade only in specific sectors or stocks',
-    'draft': 'Draft stocks before trading begins - fantasy sports style'
+    'limited_capital': 'Position limits and trading fees - tests discipline'
 };
 
 function toggleModeOptions() {

@@ -351,37 +351,37 @@
             <div class="feature-card">
                 <div class="feature-icon"><i class="fas fa-chart-line"></i></div>
                 <h4>Paper Trading</h4>
-                <p>Trade real stocks with virtual money. Practice strategies and build confidence without financial risk.</p>
-            </div>
-
-            <div class="feature-card">
-                <div class="feature-icon"><i class="fas fa-users"></i></div>
-                <h4>Compete in Leagues</h4>
-                <p>Create or join trading leagues to compete with friends, colleagues, and traders worldwide.</p>
+                <p>Trade real stocks with virtual money. Practice strategies, test theories, and build confidence without financial risk.</p>
             </div>
 
             <div class="feature-card">
                 <div class="feature-icon"><i class="fas fa-trophy"></i></div>
-                <h4>Climb Rankings</h4>
-                <p>Track your performance against others, earn badges, and prove your trading skills on the leaderboard.</p>
+                <h4>Compete in Leagues</h4>
+                <p>Create or join trading leagues with custom competition modes. Track rankings, earn badges, and compete with friends.</p>
             </div>
 
             <div class="feature-card">
                 <div class="feature-icon"><i class="fas fa-bell"></i></div>
                 <h4>Price Alerts</h4>
-                <p>Set custom price alerts for your watched stocks and get notified when targets are reached.</p>
+                <p>Set custom price alerts for your watched stocks. Get notified when prices reach your targets or hit support/resistance levels.</p>
             </div>
 
             <div class="feature-card">
                 <div class="feature-icon"><i class="fas fa-star"></i></div>
                 <h4>Watchlists</h4>
-                <p>Build custom watchlists to track potential investments and monitor market opportunities.</p>
+                <p>Build custom watchlists to track potential investments. Monitor market opportunities and organize stocks by strategy.</p>
             </div>
 
             <div class="feature-card">
                 <div class="feature-icon"><i class="fas fa-chart-bar"></i></div>
-                <h4>Real Market Data</h4>
-                <p>Access live stock quotes, charts, and market analysis powered by real financial data.</p>
+                <h4>Real-Time Charts</h4>
+                <p>Access live stock quotes, interactive charts, and technical analysis tools to make informed trading decisions.</p>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon"><i class="fas fa-users"></i></div>
+                <h4>League Chat</h4>
+                <p>Communicate with fellow traders in league chats. Share insights, discuss strategy, and watch trades happen in real-time.</p>
             </div>
         </div>
     </section>
@@ -391,20 +391,20 @@
         <h2 class="section-title mb-3">By The Numbers</h2>
         <div class="stats-grid">
             <div class="stat-item">
-                <h3>1000+</h3>
-                <p>Active Traders</p>
+                <h3>{{ stats.total_traders }}</h3>
+                <p>Traders</p>
             </div>
             <div class="stat-item">
-                <h3>500+</h3>
+                <h3>{{ stats.total_leagues }}</h3>
                 <p>Trading Leagues</p>
             </div>
             <div class="stat-item">
-                <h3>$100M+</h3>
-                <p>Virtual Trading Volume</p>
+                <h3>{{ "{:,.0f}".format(stats.total_trades) }}</h3>
+                <p>Trades Executed</p>
             </div>
             <div class="stat-item">
-                <h3>24/7</h3>
-                <p>Live Market Data</p>
+                <h3>${{ "{:,.0f}".format(stats.total_portfolio_value / 1000000) }}M</h3>
+                <p>Total Portfolio Value</p>
             </div>
         </div>
     </section>
