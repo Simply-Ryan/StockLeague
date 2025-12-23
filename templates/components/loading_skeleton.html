@@ -1,0 +1,130 @@
+<!-- templates/components/loading_skeleton.html -->
+<!-- Reusable loading skeleton component for async data loads -->
+
+<!-- Portfolio Skeleton -->
+<div id="portfolio-skeleton" class="skeleton-card skeleton" style="display: none;">
+    <div class="skeleton-text skeleton" style="width: 40%; height: 1.5rem; margin-bottom: 1rem;"></div>
+    <div class="row g-3">
+        <div class="col-md-3">
+            <div class="skeleton-text skeleton" style="width: 100%; height: 2rem;"></div>
+            <div class="skeleton-text skeleton" style="width: 100%; height: 0.75rem;"></div>
+        </div>
+        <div class="col-md-3">
+            <div class="skeleton-text skeleton" style="width: 100%; height: 2rem;"></div>
+            <div class="skeleton-text skeleton" style="width: 100%; height: 0.75rem;"></div>
+        </div>
+        <div class="col-md-3">
+            <div class="skeleton-text skeleton" style="width: 100%; height: 2rem;"></div>
+            <div class="skeleton-text skeleton" style="width: 100%; height: 0.75rem;"></div>
+        </div>
+        <div class="col-md-3">
+            <div class="skeleton-text skeleton" style="width: 100%; height: 2rem;"></div>
+            <div class="skeleton-text skeleton" style="width: 100%; height: 0.75rem;"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Chart Skeleton -->
+<div id="chart-skeleton" class="skeleton-chart skeleton" style="display: none;"></div>
+
+<!-- Table Skeleton -->
+<div id="table-skeleton" style="display: none;">
+    <div class="skeleton-text skeleton" style="width: 100%; height: 2rem; margin-bottom: 0.5rem;"></div>
+    <div class="skeleton-text skeleton" style="width: 100%; height: 2rem; margin-bottom: 0.5rem;"></div>
+    <div class="skeleton-text skeleton" style="width: 100%; height: 2rem; margin-bottom: 0.5rem;"></div>
+    <div class="skeleton-text skeleton" style="width: 100%; height: 2rem; margin-bottom: 0.5rem;"></div>
+</div>
+
+<!-- Activity Feed Skeleton -->
+<div id="feed-skeleton" style="display: none;">
+    <div class="card mb-3" style="opacity: 0.6;">
+        <div class="card-body">
+            <div class="d-flex align-items-start">
+                <div class="skeleton-avatar skeleton me-2"></div>
+                <div class="flex-grow-1">
+                    <div class="skeleton-text skeleton" style="width: 30%; height: 0.875rem;"></div>
+                    <div class="skeleton-text skeleton" style="width: 100%; height: 0.875rem;"></div>
+                    <div class="skeleton-text skeleton" style="width: 50%; height: 0.75rem;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="card mb-3" style="opacity: 0.6;">
+        <div class="card-body">
+            <div class="d-flex align-items-start">
+                <div class="skeleton-avatar skeleton me-2"></div>
+                <div class="flex-grow-1">
+                    <div class="skeleton-text skeleton" style="width: 30%; height: 0.875rem;"></div>
+                    <div class="skeleton-text skeleton" style="width: 100%; height: 0.875rem;"></div>
+                    <div class="skeleton-text skeleton" style="width: 50%; height: 0.75rem;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Leaderboard Skeleton -->
+<div id="leaderboard-skeleton" style="display: none;">
+    <table class="table">
+        <tbody>
+            <tr>
+                <td><div class="skeleton-text skeleton" style="width: 100%; height: 0.875rem;"></div></td>
+                <td><div class="skeleton-text skeleton" style="width: 100%; height: 0.875rem;"></div></td>
+                <td><div class="skeleton-text skeleton" style="width: 100%; height: 0.875rem;"></div></td>
+            </tr>
+            <tr>
+                <td><div class="skeleton-text skeleton" style="width: 100%; height: 0.875rem;"></div></td>
+                <td><div class="skeleton-text skeleton" style="width: 100%; height: 0.875rem;"></div></td>
+                <td><div class="skeleton-text skeleton" style="width: 100%; height: 0.875rem;"></div></td>
+            </tr>
+            <tr>
+                <td><div class="skeleton-text skeleton" style="width: 100%; height: 0.875rem;"></div></td>
+                <td><div class="skeleton-text skeleton" style="width: 100%; height: 0.875rem;"></div></td>
+                <td><div class="skeleton-text skeleton" style="width: 100%; height: 0.875rem;"></div></td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+
+<!-- Helper JavaScript Functions -->
+<script>
+/**
+ * Show loading skeleton for a component
+ * @param {string} skeletonId - ID of skeleton element to show
+ * @param {string} contentId - ID of content element to hide (optional)
+ */
+function showSkeleton(skeletonId, contentId = null) {
+    const skeleton = document.getElementById(skeletonId);
+    if (skeleton) skeleton.style.display = 'block';
+    if (contentId) {
+        const content = document.getElementById(contentId);
+        if (content) content.style.display = 'none';
+    }
+}
+
+/**
+ * Hide loading skeleton for a component
+ * @param {string} skeletonId - ID of skeleton element to hide
+ * @param {string} contentId - ID of content element to show (optional)
+ */
+function hideSkeleton(skeletonId, contentId = null) {
+    const skeleton = document.getElementById(skeletonId);
+    if (skeleton) skeleton.style.display = 'none';
+    if (contentId) {
+        const content = document.getElementById(contentId);
+        if (content) content.style.display = 'block';
+    }
+}
+
+/**
+ * Show skeleton with delay (simulates network latency)
+ * @param {string} skeletonId - ID of skeleton element
+ * @param {string} contentId - ID of content element (optional)
+ * @param {number} delay - Delay in milliseconds
+ */
+function showSkeletonWithDelay(skeletonId, contentId = null, delay = 200) {
+    setTimeout(() => {
+        showSkeleton(skeletonId, contentId);
+    }, delay);
+}
+</script>

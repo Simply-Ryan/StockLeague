@@ -796,31 +796,72 @@ class DatabaseManager:
         return dict(user) if user else None
     
     def update_cash(self, user_id, new_cash):
-        """Update user's cash balance."""
-        conn = self.get_connection()
-        cursor = conn.cursor()
-        
-        cursor.execute(
-            "UPDATE users SET cash = ? WHERE id = ?",
-            (new_cash, user_id)
-        )
-        
-        conn.commit()
-        conn.close()
+        """Update user's cash balance with validation and error handling."""
+        try:
+            if new_cash < 0:
+                logging.warning(f"Attempted to set negative cash for user {user_id}: ${new_cash}")
+                raise ValueError(f"Cash cannot be negative: ${new_cash}")
+            
+            conn = self.get_connection()
+            cursor = conn.cursor()
+            
+            # Verify user exists
+            cursor.execute("SELECT id FROM users WHERE id = ?", (user_id,))
+            if not cursor.fetchone():
+                logging.error(f"Attempted to update cash for non-existent user {user_id}")
+                raise ValueError(f"User {user_id} does not exist")
+            
+            cursor.execute(
+                "UPDATE users SET cash = ? WHERE id = ?",
+                (new_cash, user_id)
+            )
+            
+            conn.commit()
+            conn.close()
+            logging.debug(f"Updated cash for user {user_id} to ${new_cash:.2f}")
+            
+        except Exception as e:
+            logging.error(f"Error updating cash for user {user_id}: {e}", exc_info=True)
+            raise
     
     def record_transaction(self, user_id, symbol, shares, price, transaction_type, strategy=None, notes=None):
-        """Record a stock transaction."""
-        conn = self.get_connection()
-        cursor = conn.cursor()
-        
-        cursor.execute(
-            "INSERT INTO transactions (user_id, symbol, shares, price, type, strategy, notes) VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (user_id, symbol, shares, price, transaction_type, strategy, notes)
-        )
-        txn_id = cursor.lastrowid
-        conn.commit()
-        conn.close()
-        return txn_id
+        """Record a stock transaction with validation and error handling."""
+        try:
+            # Input validation
+            if not user_id:
+                raise ValueError("user_id is required")
+            if not symbol:
+                raise ValueError("symbol is required")
+            if shares == 0:
+                logging.warning(f"Attempted to record transaction with 0 shares for user {user_id}, symbol {symbol}")
+                raise ValueError("shares must be non-zero")
+            if price < 0:
+                logging.warning(f"Attempted to record transaction with negative price: ${price} for user {user_id}, symbol {symbol}")
+                raise ValueError("price cannot be negative")
+            
+            conn = self.get_connection()
+            cursor = conn.cursor()
+            
+            # Verify user exists
+            cursor.execute("SELECT id FROM users WHERE id = ?", (user_id,))
+            if not cursor.fetchone():
+                logging.error(f"Attempted transaction for non-existent user {user_id}")
+                raise ValueError(f"User {user_id} does not exist")
+            
+            cursor.execute(
+                "INSERT INTO transactions (user_id, symbol, shares, price, type, strategy, notes) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (user_id, symbol, shares, price, transaction_type, strategy, notes)
+            )
+            txn_id = cursor.lastrowid
+            conn.commit()
+            conn.close()
+            
+            logging.info(f"Recorded {transaction_type} transaction: user_id={user_id}, symbol={symbol}, shares={shares}, price=${price:.2f}, txn_id={txn_id}")
+            return txn_id
+            
+        except Exception as e:
+            logging.error(f"Error recording transaction for user {user_id}, symbol {symbol}: {e}", exc_info=True)
+            raise
     
     def get_transactions(self, user_id):
         """Get all transactions for a user."""
@@ -838,22 +879,33 @@ class DatabaseManager:
         return [dict(row) for row in transactions]
     
     def get_user_stocks(self, user_id):
-        """Get user's current stock holdings."""
-        conn = self.get_connection()
-        cursor = conn.cursor()
-        
-        cursor.execute("""
-            SELECT symbol, SUM(shares) as shares
-            FROM transactions
-            WHERE user_id = ?
-            GROUP BY symbol
-            HAVING SUM(shares) > 0
-        """, (user_id,))
-        
-        stocks = cursor.fetchall()
-        conn.close()
-        
-        return [dict(row) for row in stocks]
+        """Get user's current stock holdings with error handling."""
+        try:
+            if not user_id:
+                logging.warning("Attempted to get stocks for null user_id")
+                return []
+            
+            conn = self.get_connection()
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                SELECT symbol, SUM(shares) as shares
+                FROM transactions
+                WHERE user_id = ?
+                GROUP BY symbol
+                HAVING SUM(shares) > 0
+            """, (user_id,))
+            
+            stocks = cursor.fetchall()
+            conn.close()
+            
+            result = [dict(row) for row in stocks]
+            logging.debug(f"Retrieved {len(result)} stock holdings for user {user_id}")
+            return result
+            
+        except Exception as e:
+            logging.error(f"Error retrieving stocks for user {user_id}: {e}", exc_info=True)
+            return []
     
     def get_user_stock(self, user_id, symbol):
         """Get user's holdings of a specific stock."""
