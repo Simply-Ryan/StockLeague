@@ -1,0 +1,634 @@
+{% extends "layout.html" %}
+
+{% block title %}Portfolio Analytics - StockLeague{% endblock %}
+
+{% block main %}
+<style>
+    .analytics-container {
+        max-width: 1600px;
+        margin: 0 auto;
+        padding: 0 1rem;
+    }
+
+    .analytics-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 2rem;
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+
+    .analytics-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 1.5rem;
+        margin-bottom: 2rem;
+    }
+
+    .metric-card {
+        background: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 0.75rem;
+        padding: 1.5rem;
+        transition: all 0.3s ease;
+    }
+
+    .metric-card:hover {
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+        transform: translateY(-2px);
+    }
+
+    .metric-card.highlight {
+        border-color: var(--primary-color);
+        background: linear-gradient(135deg, var(--card-bg), rgba(99, 102, 241, 0.05));
+    }
+
+    .metric-label {
+        font-size: 0.85rem;
+        color: var(--text-secondary);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 0.5rem;
+    }
+
+    .metric-value {
+        font-size: 2rem;
+        font-weight: 700;
+        color: var(--text-primary);
+        margin-bottom: 0.25rem;
+        display: flex;
+        align-items: baseline;
+        gap: 0.5rem;
+    }
+
+    .metric-change {
+        font-size: 0.85rem;
+        font-weight: 600;
+    }
+
+    .metric-change.positive {
+        color: #10b981;
+    }
+
+    .metric-change.negative {
+        color: #ef4444;
+    }
+
+    .analytics-section {
+        background: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 0.75rem;
+        padding: 1.5rem;
+        margin-bottom: 2rem;
+    }
+
+    .section-title {
+        font-size: 1.25rem;
+        font-weight: 700;
+        margin-bottom: 1.5rem;
+        padding-bottom: 1rem;
+        border-bottom: 2px solid var(--border-color);
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .allocation-chart {
+        height: 300px;
+        position: relative;
+    }
+
+    .performance-chart {
+        height: 350px;
+        position: relative;
+    }
+
+    .holding-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr 1fr 1fr;
+        gap: 1rem;
+        padding: 1rem;
+        border-bottom: 1px solid var(--border-color);
+        align-items: center;
+    }
+
+    .holding-row:last-child {
+        border-bottom: none;
+    }
+
+    .holding-symbol {
+        font-weight: 700;
+        color: var(--text-primary);
+    }
+
+    .holding-shares {
+        text-align: right;
+        color: var(--text-secondary);
+    }
+
+    .holding-value {
+        text-align: right;
+        font-weight: 600;
+    }
+
+    .holding-change {
+        text-align: right;
+        font-weight: 600;
+    }
+
+    .holding-pct {
+        text-align: right;
+        color: var(--text-secondary);
+    }
+
+    .benchmark-bar {
+        background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
+        height: 30px;
+        border-radius: 4px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-size: 0.85rem;
+        font-weight: 600;
+    }
+
+    .filter-tabs {
+        display: flex;
+        gap: 0.5rem;
+        margin-bottom: 1.5rem;
+        flex-wrap: wrap;
+    }
+
+    .filter-btn {
+        padding: 0.5rem 1rem;
+        border: 1px solid var(--border-color);
+        background: transparent;
+        border-radius: 0.5rem;
+        color: var(--text-secondary);
+        cursor: pointer;
+        transition: all 0.2s ease;
+        font-size: 0.9rem;
+        font-weight: 500;
+    }
+
+    .filter-btn.active {
+        background: var(--primary-color);
+        color: white;
+        border-color: var(--primary-color);
+    }
+
+    .filter-btn:hover {
+        border-color: var(--primary-color);
+        color: var(--primary-color);
+    }
+
+    @media (max-width: 767px) {
+        .holding-row {
+            grid-template-columns: 1fr 1fr;
+            gap: 0.5rem;
+            padding: 0.75rem;
+        }
+
+        .metric-value {
+            font-size: 1.5rem;
+        }
+
+        .allocation-chart,
+        .performance-chart {
+            height: 250px;
+        }
+    }
+</style>
+
+<div class="analytics-container">
+    <!-- Header -->
+    <div class="analytics-header">
+        <div>
+            <h1 class="mb-1"><i class="fas fa-chart-line text-primary"></i> Portfolio Analytics</h1>
+            <p class="text-muted mb-0">Comprehensive analysis of your trading performance</p>
+        </div>
+        <div class="d-flex gap-2 flex-wrap">
+            <button class="btn btn-outline-primary btn-sm" onclick="exportPDF()">
+                <i class="fas fa-file-pdf"></i> Export PDF
+            </button>
+            <button class="btn btn-outline-success btn-sm" onclick="exportCSV()">
+                <i class="fas fa-download"></i> Export Data
+            </button>
+        </div>
+    </div>
+
+    <!-- Key Metrics Row -->
+    <div class="analytics-grid">
+        <div class="metric-card highlight">
+            <div class="metric-label"><i class="fas fa-wallet"></i> Total Portfolio Value</div>
+            <div class="metric-value">{{ portfolio_value | usd }}</div>
+            <div class="metric-change positive">
+                <i class="fas fa-arrow-up"></i> From ${{ initial_cash | usd }}
+            </div>
+        </div>
+
+        <div class="metric-card">
+            <div class="metric-label"><i class="fas fa-chart-bar"></i> Total Return</div>
+            <div class="metric-value" style="color: {% if total_return >= 0 %}#10b981{% else %}#ef4444{% endif %}">
+                {{ total_return | usd }}
+            </div>
+            <div class="metric-change {% if total_return_pct >= 0 %}positive{% else %}negative{% endif %}">
+                {% if total_return_pct >= 0 %}<i class="fas fa-arrow-up"></i>{% else %}<i class="fas fa-arrow-down"></i>{% endif %}
+                {{ "%.2f" | format(total_return_pct) }}%
+            </div>
+        </div>
+
+        <div class="metric-card">
+            <div class="metric-label"><i class="fas fa-shield-alt"></i> Sharpe Ratio</div>
+            <div class="metric-value">{{ "%.2f" | format(sharpe_ratio or 0) }}</div>
+            <div class="metric-change">Risk-adjusted returns</div>
+        </div>
+
+        <div class="metric-card">
+            <div class="metric-label"><i class="fas fa-percent"></i> Win Rate</div>
+            <div class="metric-value">{{ "%.1f" | format(win_rate or 0) }}%</div>
+            <div class="metric-change">{{ winning_trades }}/{{ total_trades }} trades</div>
+        </div>
+
+        <div class="metric-card">
+            <div class="metric-label"><i class="fas fa-coins"></i> Avg Trade Size</div>
+            <div class="metric-value">{{ avg_trade_size | usd }}</div>
+            <div class="metric-change">{{ total_trades }} total trades</div>
+        </div>
+
+        <div class="metric-card">
+            <div class="metric-label"><i class="fas fa-calendar"></i> Trading Days</div>
+            <div class="metric-value">{{ trading_days }}</div>
+            <div class="metric-change">{{ "%.1f" | format(daily_avg or 0) }} trades/day</div>
+        </div>
+    </div>
+
+    <!-- Performance vs Benchmark -->
+    <div class="analytics-section">
+        <div class="section-title">
+            <i class="fas fa-chess text-info"></i> Performance vs S&P 500
+        </div>
+        <div class="row g-3">
+            <div class="col-md-6">
+                <div class="mb-3">
+                    <label class="mb-2"><strong>Your Portfolio</strong></label>
+                    <div class="benchmark-bar" style="width: 100%;">
+                        +{{ "%.1f" | format(total_return_pct or 0) }}%
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="mb-3">
+                    <label class="mb-2"><strong>S&P 500 (YTD)</strong></label>
+                    <div class="benchmark-bar" style="width: 85%; background: linear-gradient(90deg, #94a3b8, #cbd5e1);">
+                        +18.5%
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="mt-3 p-3 bg-light rounded">
+            <small class="text-muted">
+                {% if total_return_pct > 18.5 %}
+                <i class="fas fa-star text-warning"></i> Your portfolio is outperforming the S&P 500!
+                {% else %}
+                <i class="fas fa-info-circle"></i> Keep diversifying to match broader market performance.
+                {% endif %}
+            </small>
+        </div>
+    </div>
+
+    <!-- Portfolio Allocation -->
+    <div class="row g-3 mb-4">
+        <div class="col-lg-6">
+            <div class="analytics-section">
+                <div class="section-title">
+                    <i class="fas fa-pie-chart text-success"></i> Asset Allocation
+                </div>
+                <div class="allocation-chart">
+                    <canvas id="allocationChart"></canvas>
+                </div>
+                <div class="mt-3 text-center small text-muted">
+                    <strong>{{ stocks|length }}</strong> holdings • <strong>{{ cash_pct }}%</strong> cash
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-6">
+            <div class="analytics-section">
+                <div class="section-title">
+                    <i class="fas fa-layer-group text-warning"></i> Sector Distribution
+                </div>
+                <div class="allocation-chart">
+                    <canvas id="sectorChart"></canvas>
+                </div>
+                <div class="mt-3 text-center small text-muted">
+                    Diversification index: <strong>{{ "%.1f" | format(diversification_score or 0) }}/10</strong>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Holdings Detail -->
+    <div class="analytics-section">
+        <div class="section-title">
+            <i class="fas fa-table text-primary"></i> Holdings Breakdown
+        </div>
+
+        <!-- Filter Buttons -->
+        <div class="filter-tabs">
+            <button class="filter-btn active" onclick="filterHoldings('all')">All Holdings</button>
+            <button class="filter-btn" onclick="filterHoldings('winners')">Winners</button>
+            <button class="filter-btn" onclick="filterHoldings('losers')">Losers</button>
+            <button class="filter-btn" onclick="filterHoldings('large')">Largest Positions</button>
+        </div>
+
+        <!-- Holdings Table -->
+        <div style="overflow-x: auto;">
+            <div class="holding-row" style="font-weight: 700; color: var(--text-secondary); background: var(--bg-tertiary); margin: -1.5rem -1.5rem 0 -1.5rem; padding: 1rem 1.5rem;">
+                <div>Symbol</div>
+                <div class="holding-shares">Shares</div>
+                <div class="holding-value">Value</div>
+                <div class="holding-change">Gain/Loss</div>
+                <div class="holding-pct">% of Portfolio</div>
+            </div>
+
+            {% for stock in stocks %}
+            <div class="holding-row" data-change="{% if stock.gain_loss >= 0 %}positive{% else %}negative{% endif %}">
+                <div>
+                    <span class="holding-symbol">{{ stock.symbol }}</span>
+                    <br>
+                    <small class="text-muted">{{ stock.shares }} shares</small>
+                </div>
+                <div class="holding-shares">{{ stock.shares }}</div>
+                <div class="holding-value">{{ stock.value | usd }}</div>
+                <div class="holding-change {% if stock.gain_loss >= 0 %}positive{% else %}negative{% endif %}">
+                    {% if stock.gain_loss >= 0 %}
+                    <i class="fas fa-arrow-up"></i> {{ stock.gain_loss | usd }}
+                    {% else %}
+                    <i class="fas fa-arrow-down"></i> {{ stock.gain_loss | usd }}
+                    {% endif %}
+                    <br>
+                    <small>({{ "%.1f" | format(stock.gain_loss_pct) }}%)</small>
+                </div>
+                <div class="holding-pct">{{ "%.1f" | format(stock.portfolio_pct) }}%</div>
+            </div>
+            {% endfor %}
+
+            <!-- Cash Position -->
+            <div class="holding-row" style="background: var(--bg-tertiary);">
+                <div>
+                    <span class="holding-symbol">💰 Cash</span>
+                </div>
+                <div class="holding-shares">—</div>
+                <div class="holding-value">{{ cash | usd }}</div>
+                <div class="holding-change">—</div>
+                <div class="holding-pct">{{ cash_pct }}%</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Performance Chart -->
+    <div class="analytics-section">
+        <div class="section-title">
+            <i class="fas fa-chart-area text-info"></i> Portfolio Value Over Time
+        </div>
+        <div class="performance-chart">
+            <canvas id="performanceChart"></canvas>
+        </div>
+    </div>
+
+    <!-- Trading Activity -->
+    <div class="row g-3 mb-4">
+        <div class="col-lg-6">
+            <div class="analytics-section">
+                <div class="section-title">
+                    <i class="fas fa-fire text-danger"></i> Top Performers
+                </div>
+                <div style="max-height: 300px; overflow-y: auto;">
+                    {% for stock in top_performers[:5] %}
+                    <div class="d-flex justify-content-between align-items-center p-2 border-bottom">
+                        <div>
+                            <strong>{{ stock.symbol }}</strong>
+                            <br>
+                            <small class="text-muted">{{ stock.shares }} shares</small>
+                        </div>
+                        <div class="text-end">
+                            <div style="color: #10b981; font-weight: 600;">
+                                +{{ "%.1f" | format(stock.gain_loss_pct) }}%
+                            </div>
+                            <small class="text-muted">{{ stock.gain_loss | usd }}</small>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-6">
+            <div class="analytics-section">
+                <div class="section-title">
+                    <i class="fas fa-chart-line text-danger"></i> Biggest Losers
+                </div>
+                <div style="max-height: 300px; overflow-y: auto;">
+                    {% for stock in worst_performers[:5] %}
+                    <div class="d-flex justify-content-between align-items-center p-2 border-bottom">
+                        <div>
+                            <strong>{{ stock.symbol }}</strong>
+                            <br>
+                            <small class="text-muted">{{ stock.shares }} shares</small>
+                        </div>
+                        <div class="text-end">
+                            <div style="color: #ef4444; font-weight: 600;">
+                                {{ "%.1f" | format(stock.gain_loss_pct) }}%
+                            </div>
+                            <small class="text-muted">{{ stock.gain_loss | usd }}</small>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Risk Analysis -->
+    <div class="analytics-section">
+        <div class="section-title">
+            <i class="fas fa-exclamation-triangle text-warning"></i> Risk Analysis
+        </div>
+        <div class="row g-3">
+            <div class="col-md-3">
+                <div class="p-3 border rounded">
+                    <div class="text-muted small mb-2">Portfolio Beta</div>
+                    <div class="fs-5 fw-bold">{{ "%.2f" | format(portfolio_beta or 0) }}</div>
+                    <small class="text-muted">Market sensitivity</small>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="p-3 border rounded">
+                    <div class="text-muted small mb-2">Max Drawdown</div>
+                    <div class="fs-5 fw-bold" style="color: #ef4444;">-{{ "%.1f" | format(max_drawdown or 0) }}%</div>
+                    <small class="text-muted">Worst period</small>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="p-3 border rounded">
+                    <div class="text-muted small mb-2">Volatility (Annualized)</div>
+                    <div class="fs-5 fw-bold">{{ "%.1f" | format(volatility or 0) }}%</div>
+                    <small class="text-muted">Price swings</small>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="p-3 border rounded">
+                    <div class="text-muted small mb-2">Concentration</div>
+                    <div class="fs-5 fw-bold">{{ "%.1f" | format(concentration or 0) }}%</div>
+                    <small class="text-muted">Top 3 holdings</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recommendations -->
+    <div class="analytics-section" style="background: linear-gradient(135deg, rgba(99, 102, 241, 0.05), rgba(139, 92, 246, 0.05)); border-color: var(--primary-color);">
+        <div class="section-title">
+            <i class="fas fa-lightbulb text-warning"></i> Recommendations
+        </div>
+        <div class="row g-2">
+            {% if concentration > 60 %}
+            <div class="col-md-6">
+                <div class="alert alert-warning mb-0" style="margin-bottom: 0 !important;">
+                    <strong>Diversify More</strong> - Your top 3 holdings represent over 60% of your portfolio. Consider reducing concentration.
+                </div>
+            </div>
+            {% endif %}
+
+            {% if cash_pct > 30 %}
+            <div class="col-md-6">
+                <div class="alert alert-info mb-0">
+                    <strong>Deploy Cash</strong> - You're holding {{ "%.0f" | format(cash_pct) }}% in cash. Consider deploying to take advantage of opportunities.
+                </div>
+            </div>
+            {% endif %}
+
+            {% if win_rate < 40 %}
+            <div class="col-md-6">
+                <div class="alert alert-warning mb-0">
+                    <strong>Improve Win Rate</strong> - Your win rate is {{ "%.0f" | format(win_rate) }}%. Focus on better entry points.
+                </div>
+            </div>
+            {% endif %}
+
+            {% if portfolio_beta > 1.5 %}
+            <div class="col-md-6">
+                <div class="alert alert-warning mb-0">
+                    <strong>High Risk Portfolio</strong> - Your portfolio is {{ "%.1f" | format(portfolio_beta) }}x more volatile than the market.
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Chart.js Library -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+
+<script>
+// Allocation Chart
+const allocationCtx = document.getElementById('allocationChart').getContext('2d');
+new Chart(allocationCtx, {
+    type: 'doughnut',
+    data: {
+        labels: [{% for stock in stocks %}'{{ stock.symbol }}',{% endfor %}'Cash'],
+        datasets: [{
+            data: [{% for stock in stocks %}{{ stock.portfolio_pct }},{% endfor %}{{ cash_pct }}],
+            backgroundColor: [
+                '#6366f1', '#8b5cf6', '#ec4899', '#f43f5e', '#fb7185',
+                '#fda4af', '#fdba74', '#fbbf24', '#fcd34d', '#bfdbfe'
+            ],
+            borderColor: 'var(--card-bg)',
+            borderWidth: 2
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: { position: 'bottom' }
+        }
+    }
+});
+
+// Performance Chart
+const performanceCtx = document.getElementById('performanceChart').getContext('2d');
+new Chart(performanceCtx, {
+    type: 'line',
+    data: {
+        labels: {{ portfolio_history_dates|safe }},
+        datasets: [{
+            label: 'Portfolio Value',
+            data: {{ portfolio_history_values|safe }},
+            borderColor: '#6366f1',
+            backgroundColor: 'rgba(99, 102, 241, 0.1)',
+            borderWidth: 2,
+            fill: true,
+            tension: 0.4,
+            pointRadius: 4,
+            pointBackgroundColor: '#6366f1',
+            pointBorderColor: 'white',
+            pointBorderWidth: 2
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: { display: true }
+        },
+        scales: {
+            y: { beginAtZero: false }
+        }
+    }
+});
+
+// Filter Holdings
+function filterHoldings(type) {
+    const rows = document.querySelectorAll('.holding-row');
+    rows.forEach(row => {
+        const change = row.dataset.change;
+        let show = true;
+        
+        if (type === 'winners' && change !== 'positive') show = false;
+        if (type === 'losers' && change !== 'negative') show = false;
+        
+        row.style.display = show ? 'grid' : 'none';
+    });
+    
+    // Update active button
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    event.target.classList.add('active');
+}
+
+// Export Functions
+function exportPDF() {
+    window.print();
+}
+
+function exportCSV() {
+    const csv = [
+        ['Symbol', 'Shares', 'Value', 'Gain/Loss', 'Change %'],
+        {% for stock in stocks %}
+        ['{{ stock.symbol }}', {{ stock.shares }}, {{ stock.value }}, {{ stock.gain_loss }}, {{ stock.gain_loss_pct }}],
+        {% endfor %}
+    ].map(row => row.join(',')).join('\n');
+    
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'portfolio-analytics.csv';
+    a.click();
+}
+</script>
