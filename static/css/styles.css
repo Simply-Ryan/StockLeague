@@ -2234,3 +2234,285 @@ small,
     border-radius: 8px;
     margin-bottom: 1rem;
 }
+
+/* ============================================
+   REAL-TIME LEADERBOARD UPDATES
+   ============================================ */
+
+/* Rank change animations */
+.leaderboard-row.rank-up {
+    animation: rankUpAnimation 1s ease-out;
+}
+
+.leaderboard-row.rank-down {
+    animation: rankDownAnimation 1s ease-out;
+}
+
+@keyframes rankUpAnimation {
+    0% {
+        background-color: rgba(16, 185, 129, 0.2);
+        transform: translateY(5px);
+    }
+    50% {
+        background-color: rgba(16, 185, 129, 0.1);
+    }
+    100% {
+        background-color: transparent;
+        transform: translateY(0);
+    }
+}
+
+@keyframes rankDownAnimation {
+    0% {
+        background-color: rgba(239, 68, 68, 0.2);
+        transform: translateY(-5px);
+    }
+    50% {
+        background-color: rgba(239, 68, 68, 0.1);
+    }
+    100% {
+        background-color: transparent;
+        transform: translateY(0);
+    }
+}
+
+/* Value change animations */
+.portfolio-value.value-increase {
+    animation: valueIncreaseAnimation 1.5s ease-out;
+}
+
+.portfolio-value.value-decrease {
+    animation: valueDecreaseAnimation 1.5s ease-out;
+}
+
+@keyframes valueIncreaseAnimation {
+    0% {
+        color: var(--success-color);
+        font-weight: bold;
+        transform: scale(1.1);
+    }
+    50% {
+        color: var(--success-color);
+    }
+    100% {
+        color: inherit;
+        transform: scale(1);
+    }
+}
+
+@keyframes valueDecreaseAnimation {
+    0% {
+        color: var(--danger-color);
+        font-weight: bold;
+        transform: scale(1.1);
+    }
+    50% {
+        color: var(--danger-color);
+    }
+    100% {
+        color: inherit;
+        transform: scale(1);
+    }
+}
+
+/* Rank badge colors */
+.rank-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    font-weight: bold;
+    font-size: 0.875rem;
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+}
+
+.rank.gold .rank-badge {
+    background: linear-gradient(135deg, #ffd700 0%, #ffed4e 100%);
+    color: #333;
+    box-shadow: 0 2px 8px rgba(255, 215, 0, 0.4);
+}
+
+.rank.silver .rank-badge {
+    background: linear-gradient(135deg, #c0c0c0 0%, #e8e8e8 100%);
+    color: #333;
+    box-shadow: 0 2px 8px rgba(192, 192, 192, 0.4);
+}
+
+.rank.bronze .rank-badge {
+    background: linear-gradient(135deg, #cd7f32 0%, #daa520 100%);
+    color: white;
+    box-shadow: 0 2px 8px rgba(205, 127, 50, 0.4);
+}
+
+/* Toast notifications */
+.toast-container {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    pointer-events: none;
+}
+
+.toast {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    border-radius: 8px;
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    box-shadow: 0 4px 12px var(--shadow);
+    animation: slideInRight 0.3s ease-out, slideOutRight 0.3s ease-in 2.7s forwards;
+    pointer-events: auto;
+    max-width: 400px;
+}
+
+.toast-success {
+    border-left: 4px solid var(--success-color);
+}
+
+.toast-error {
+    border-left: 4px solid var(--danger-color);
+}
+
+.toast-info {
+    border-left: 4px solid var(--info-color);
+}
+
+.toast-warning {
+    border-left: 4px solid var(--warning-color);
+}
+
+.toast-icon {
+    font-size: 1.25rem;
+    min-width: 24px;
+}
+
+.toast-message {
+    flex: 1;
+    color: var(--text-primary);
+    font-size: 0.875rem;
+}
+
+@keyframes slideInRight {
+    from {
+        transform: translateX(400px);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+@keyframes slideOutRight {
+    from {
+        transform: translateX(0);
+        opacity: 1;
+    }
+    to {
+        transform: translateX(400px);
+        opacity: 0;
+    }
+}
+
+/* Leaderboard table styling enhancements */
+.leaderboard-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.leaderboard-table tbody tr {
+    transition: background-color 0.2s ease;
+}
+
+.leaderboard-table tbody tr:hover {
+    background-color: var(--bg-tertiary);
+}
+
+.leaderboard-table td {
+    padding: 12px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.username-text {
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.portfolio-value {
+    color: var(--text-primary);
+    font-weight: 600;
+    transition: color 0.2s ease, transform 0.2s ease;
+}
+
+.profit-loss {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.profit-loss.positive {
+    color: var(--success-color);
+}
+
+.profit-loss.negative {
+    color: var(--danger-color);
+}
+
+.profit-loss .amount {
+    font-weight: 600;
+}
+
+.profit-loss .percent {
+    font-size: 0.875rem;
+    opacity: 0.8;
+}
+
+/* Member details panel */
+.member-details {
+    padding: 16px;
+    border-radius: 8px;
+    background: var(--bg-tertiary);
+}
+
+.member-details h4 {
+    margin: 0 0 12px 0;
+    color: var(--text-primary);
+}
+
+.detail-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.detail-row:last-child {
+    border-bottom: none;
+}
+
+.detail-row .label {
+    color: var(--text-muted);
+    font-weight: 500;
+}
+
+.detail-row .value {
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
+.detail-row .value.positive {
+    color: var(--success-color);
+}
+
+.detail-row .value.negative {
+    color: var(--danger-color);
+}
+

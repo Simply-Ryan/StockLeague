@@ -1,0 +1,390 @@
+{% extends "layout.html" %}
+
+{% block title %}Archived Leagues{% endblock %}
+
+{% block main %}
+<div class="container mt-4">
+    <div class="row mb-4">
+        <div class="col">
+            <h1>Archived Leagues</h1>
+            <p class="text-muted">Your archived leagues can be restored within 14 days of archiving</p>
+        </div>
+    </div>
+
+    {% if archived_leagues %}
+        <div class="row">
+            {% for league in archived_leagues %}
+                <div class="col-md-6 col-lg-4 mb-4">
+                    <div class="card h-100 archive-card">
+                        <!-- Card Header -->
+                        <div class="card-header bg-secondary text-white">
+                            <h5 class="mb-0">{{ league.name }}</h5>
+                        </div>
+
+                        <!-- Card Body -->
+                        <div class="card-body">
+                            <!-- Description -->
+                            {% if league.description %}
+                                <p class="card-text text-muted small">{{ league.description }}</p>
+                            {% endif %}
+
+                            <!-- Archive Stats -->
+                            <div class="archive-stats">
+                                <div class="stat-row mb-2">
+                                    <span class="stat-label">Archived:</span>
+                                    <span class="stat-value">{{ league.archived_at|strftime('%b %d, %Y') }}</span>
+                                </div>
+
+                                <div class="stat-row mb-2">
+                                    <span class="stat-label">Members:</span>
+                                    <span class="stat-value">{{ league.member_count }}</span>
+                                </div>
+
+                                {% if league.final_stats %}
+                                    <div class="stat-row mb-2">
+                                        <span class="stat-label">Final Top Score:</span>
+                                        <span class="stat-value">${{ league.final_stats.top_return|default('N/A') }}</span>
+                                    </div>
+                                {% endif %}
+
+                                <!-- Restoration Countdown -->
+                                <div class="restoration-window mt-3 p-2 bg-light border-left border-warning">
+                                    <div class="countdown-timer" 
+                                         data-league-id="{{ league.id }}"
+                                         data-expires-at="{{ league.expires_at }}">
+                                        <strong>Restore before:</strong> <span class="expiration-date">{{ league.expires_at|strftime('%b %d, %Y') }}</span>
+                                        <div class="countdown-text mt-2">
+                                            <span class="days-left">{{ league.days_until_expiration }} day(s)</span> remaining
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Expiration Warning -->
+                                {% if league.days_until_expiration <= 3 %}
+                                    <div class="alert alert-danger mt-2 mb-0" role="alert">
+                                        <i class="fas fa-exclamation-circle"></i>
+                                        Expires in {{ league.days_until_expiration }} day(s)!
+                                    </div>
+                                {% elif league.days_until_expiration <= 7 %}
+                                    <div class="alert alert-warning mt-2 mb-0" role="alert">
+                                        <i class="fas fa-clock"></i>
+                                        {{ league.days_until_expiration }} day(s) to restore
+                                    </div>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <!-- Card Footer with Actions -->
+                        <div class="card-footer bg-light">
+                            <div class="btn-group w-100" role="group">
+                                <!-- Restore Button -->
+                                <button type="button" 
+                                        class="btn btn-sm btn-success restore-btn"
+                                        data-league-id="{{ league.id }}"
+                                        data-league-name="{{ league.name }}"
+                                        {% if league.days_until_expiration <= 0 %}disabled{% endif %}>
+                                    <i class="fas fa-undo"></i> Restore
+                                </button>
+
+                                <!-- View Snapshot Button -->
+                                <button type="button"
+                                        class="btn btn-sm btn-info snapshot-btn"
+                                        data-league-id="{{ league.id }}"
+                                        data-league-name="{{ league.name }}">
+                                    <i class="fas fa-eye"></i> Snapshot
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <div class="alert alert-info" role="alert">
+            <i class="fas fa-archive"></i>
+            <strong>No archived leagues yet.</strong> When you archive a league, it will appear here and can be restored within 14 days.
+        </div>
+
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">How Archiving Works</h5>
+                <ul>
+                    <li>Archive a league from its detail page (admin only)</li>
+                    <li>Archived leagues are removed from your active list</li>
+                    <li>You have <strong>14 days</strong> to restore an archived league</li>
+                    <li>After 14 days, an archived league can be permanently deleted</li>
+                    <li>View final leaderboards using the Snapshot button</li>
+                </ul>
+            </div>
+        </div>
+    {% endif %}
+</div>
+
+<!-- Restore Confirmation Modal -->
+<div class="modal fade" id="restoreModal" tabindex="-1" role="dialog" aria-labelledby="restoreModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header bg-info text-white">
+                <h5 class="modal-title" id="restoreModalLabel">Restore League?</h5>
+                <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to restore <strong id="restoreLeagueName"></strong>?</p>
+                <p class="text-muted">The league will be restored to your active leagues and members will be notified.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                <form id="restoreForm" method="POST" style="display: inline;">
+                    <button type="submit" class="btn btn-success">
+                        <i class="fas fa-undo"></i> Restore League
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Archive Snapshot Modal -->
+<div class="modal fade" id="snapshotModal" tabindex="-1" role="dialog" aria-labelledby="snapshotModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="snapshotModalLabel">Final Leaderboard Snapshot</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body" id="snapshotContent">
+                <div class="text-center">
+                    <div class="spinner-border" role="status">
+                        <span class="sr-only">Loading...</span>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" id="exportSnapshotBtn">
+                    <i class="fas fa-download"></i> Export CSV
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .archive-card {
+        border-left: 4px solid #6c757d;
+        transition: all 0.3s ease;
+    }
+
+    .archive-card:hover {
+        box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+        border-left-color: #007bff;
+    }
+
+    .archive-stats {
+        font-size: 0.95rem;
+    }
+
+    .stat-row {
+        display: flex;
+        justify-content: space-between;
+        padding: 0.25rem 0;
+    }
+
+    .stat-label {
+        font-weight: 500;
+        color: #495057;
+    }
+
+    .stat-value {
+        color: #212529;
+        font-weight: 600;
+    }
+
+    .restoration-window {
+        border-radius: 0.25rem;
+    }
+
+    .countdown-timer {
+        font-size: 0.9rem;
+    }
+
+    .countdown-text {
+        font-size: 1.1rem;
+        color: #ff6b6b;
+        font-weight: 600;
+    }
+
+    .expiration-date {
+        color: #fd7e14;
+        font-weight: 600;
+    }
+
+    .card-footer .btn-group .btn {
+        flex: 1;
+        font-size: 0.85rem;
+    }
+
+    .card-footer .btn-group .btn i {
+        margin-right: 0.25rem;
+    }
+
+    .card-footer .btn:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+
+    /* Snapshot Table Styling */
+    .snapshot-table {
+        font-size: 0.9rem;
+    }
+
+    .snapshot-table thead {
+        background-color: #f8f9fa;
+    }
+
+    .snapshot-table th {
+        font-weight: 600;
+        border-top: none;
+    }
+
+    .snapshot-table tbody tr:hover {
+        background-color: #f8f9fa;
+    }
+
+    /* Responsive Design */
+    @media (max-width: 768px) {
+        .archive-card {
+            margin-bottom: 1rem;
+        }
+
+        .card-footer .btn-group {
+            flex-direction: column;
+        }
+
+        .card-footer .btn-group .btn {
+            border-radius: 0.25rem !important;
+            margin-bottom: 0.5rem;
+        }
+    }
+</style>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Update countdown timers every minute
+        function updateCountdowns() {
+            document.querySelectorAll('.countdown-timer').forEach(timer => {
+                const expiresAt = new Date(timer.dataset.expiresAt);
+                const now = new Date();
+                const daysLeft = Math.ceil((expiresAt - now) / (1000 * 60 * 60 * 24));
+                
+                const daysLeftSpan = timer.querySelector('.days-left');
+                if (daysLeftSpan) {
+                    daysLeftSpan.textContent = Math.max(0, daysLeft);
+                }
+            });
+        }
+
+        // Update on load and every minute
+        updateCountdowns();
+        setInterval(updateCountdowns, 60000);
+
+        // Restore button handler
+        document.querySelectorAll('.restore-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const leagueId = this.dataset.leagueId;
+                const leagueName = this.dataset.leagueName;
+
+                document.getElementById('restoreLeagueName').textContent = leagueName;
+                document.getElementById('restoreForm').action = `/leagues/${leagueId}/restore`;
+
+                // Check if league is still restorable
+                const timer = document.querySelector(`[data-league-id="${leagueId}"]`);
+                if (timer) {
+                    const expiresAt = new Date(timer.dataset.expiresAt);
+                    if (expiresAt < new Date()) {
+                        alert('This league can no longer be restored. The 14-day window has expired.');
+                        return;
+                    }
+                }
+
+                $('#restoreModal').modal('show');
+            });
+        });
+
+        // Snapshot button handler
+        document.querySelectorAll('.snapshot-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const leagueId = this.dataset.leagueId;
+                const leagueName = this.dataset.leagueName;
+
+                document.getElementById('snapshotModalLabel').textContent = `Final Leaderboard: ${leagueName}`;
+                
+                // Fetch snapshot data
+                fetch(`/league/${leagueId}/archive-snapshot`)
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error('Failed to load snapshot');
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        if (data.success) {
+                            renderSnapshot(data.snapshot);
+                        } else {
+                            document.getElementById('snapshotContent').innerHTML = 
+                                '<div class="alert alert-danger">Failed to load snapshot data</div>';
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error loading snapshot:', error);
+                        document.getElementById('snapshotContent').innerHTML = 
+                            '<div class="alert alert-danger">Error loading snapshot: ' + error.message + '</div>';
+                    });
+
+                $('#snapshotModal').modal('show');
+
+                // Store league ID for export
+                document.getElementById('exportSnapshotBtn').dataset.leagueId = leagueId;
+            });
+        });
+
+        // Render snapshot leaderboard
+        function renderSnapshot(snapshot) {
+            if (!snapshot || !snapshot.leaderboard || snapshot.leaderboard.length === 0) {
+                document.getElementById('snapshotContent').innerHTML = 
+                    '<div class="alert alert-info">No leaderboard data available</div>';
+                return;
+            }
+
+            let html = '<table class="table table-striped table-sm snapshot-table"><thead><tr>';
+            html += '<th>Rank</th>';
+            html += '<th>Username</th>';
+            html += '<th>Portfolio Value</th>';
+            html += '<th>Return %</th>';
+            html += '</tr></thead><tbody>';
+
+            snapshot.leaderboard.forEach((entry, index) => {
+                html += '<tr>';
+                html += `<td>${index + 1}</td>`;
+                html += `<td>${entry.username || 'Unknown'}</td>`;
+                html += `<td>$${parseFloat(entry.portfolio_value || 0).toLocaleString('en-US', {minimumFractionDigits: 2})}</td>`;
+                html += `<td>${parseFloat(entry.return_percentage || 0).toFixed(2)}%</td>`;
+                html += '</tr>';
+            });
+
+            html += '</tbody></table>';
+            document.getElementById('snapshotContent').innerHTML = html;
+        }
+
+        // Export snapshot as CSV
+        document.getElementById('exportSnapshotBtn').addEventListener('click', function() {
+            const leagueId = this.dataset.leagueId;
+            window.location.href = `/league/${leagueId}/archive-snapshot?format=csv`;
+        });
+    });
+</script>
+{% endblock %}

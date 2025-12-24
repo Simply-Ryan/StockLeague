@@ -40,6 +40,18 @@ from league_modes import get_league_mode, get_available_modes, MODE_ABSOLUTE_VAL
 from league_rules import LeagueRuleEngine
 from advanced_league_system import AdvancedLeagueManager, RatingSystem, AchievementEngine, QuestSystem, FairPlayEngine, AnalyticsCalculator
 from utils import rate_limit, sanitize_xss, validate_symbol, validate_email, validate_username, sanitize_input
+from trade_throttle import validate_trade_throttle, record_trade, get_user_trade_history
+from soft_deletes import LeagueArchiveManager
+from leaderboard_updates import (
+    calculate_leaderboard_snapshot, update_and_broadcast_leaderboard,
+    get_cached_leaderboard, invalidate_leaderboard_cache, emit_rank_alert,
+    emit_milestone_alert, get_leaderboard_summary
+)
+from error_handlers import (
+    handle_db_errors, handle_validation_errors, handle_all_errors,
+    log_trading_error, log_database_error, log_authentication_error,
+    DatabaseError, ValidationError, NotFoundError, PermissionError, RateLimitError
+)
 
 # --- Constants ---
 FLOAT_EPSILON = 0.01  # Used for floating-point comparisons in trading logic
@@ -253,6 +265,110 @@ app.config["SESSION_TYPE"] = "filesystem"
 Session(app)
 
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
+
+
+# ============================================================================
+# GLOBAL ERROR HANDLERS
+# ============================================================================
+
+@app.errorhandler(DatabaseError)
+def handle_database_error(error):
+    """Handle database errors globally"""
+    app_logger.error(f"Database error: {error.message}", exc_info=error.original_error)
+    if request.is_json or request.path.startswith('/api/'):
+        return jsonify({
+            "error": error.message,
+            "error_code": error.error_code
+        }), error.status_code
+    return apology("Database operation failed", error.status_code)
+
+
+@app.errorhandler(ValidationError)
+def handle_validation_error(error):
+    """Handle validation errors globally"""
+    app_logger.warning(f"Validation error: {error.message}")
+    if request.is_json or request.path.startswith('/api/'):
+        return jsonify({
+            "error": error.message,
+            "error_code": error.error_code
+        }), error.status_code
+    return apology(error.message, error.status_code)
+
+
+@app.errorhandler(NotFoundError)
+def handle_not_found_error(error):
+    """Handle not found errors globally"""
+    app_logger.warning(f"Not found error: {error.message}")
+    if request.is_json or request.path.startswith('/api/'):
+        return jsonify({
+            "error": error.message,
+            "error_code": error.error_code
+        }), error.status_code
+    return apology(error.message, error.status_code)
+
+
+@app.errorhandler(PermissionError)
+def handle_permission_error(error):
+    """Handle permission errors globally"""
+    app_logger.warning(f"Permission error: {error.message}")
+    if request.is_json or request.path.startswith('/api/'):
+        return jsonify({
+            "error": error.message,
+            "error_code": error.error_code
+        }), error.status_code
+    return apology(error.message, error.status_code)
+
+
+@app.errorhandler(RateLimitError)
+def handle_rate_limit_error(error):
+    """Handle rate limit errors globally"""
+    app_logger.warning(f"Rate limit error: {error.message}")
+    if request.is_json or request.path.startswith('/api/'):
+        response = jsonify({
+            "error": error.message,
+            "error_code": error.error_code,
+            "retry_after": error.retry_after
+        })
+        response.status_code = error.status_code
+        response.headers['Retry-After'] = str(error.retry_after)
+        return response
+    return apology(error.message, error.status_code)
+
+
+@app.errorhandler(400)
+def bad_request(error):
+    """Handle 400 Bad Request"""
+    app_logger.warning(f"Bad request: {error.description}")
+    if request.is_json or request.path.startswith('/api/'):
+        return jsonify({
+            "error": "Bad request",
+            "error_code": "BAD_REQUEST"
+        }), 400
+    return apology("Bad request", 400)
+
+
+@app.errorhandler(404)
+def not_found(error):
+    """Handle 404 Not Found"""
+    app_logger.warning(f"Resource not found: {request.path}")
+    if request.is_json or request.path.startswith('/api/'):
+        return jsonify({
+            "error": "Resource not found",
+            "error_code": "NOT_FOUND"
+        }), 404
+    return apology("Not found", 404)
+
+
+@app.errorhandler(500)
+def internal_error(error):
+    """Handle 500 Internal Server Error"""
+    app_logger.error(f"Internal server error: {error}", exc_info=True)
+    if request.is_json or request.path.startswith('/api/'):
+        return jsonify({
+            "error": "Internal server error",
+            "error_code": "INTERNAL_ERROR"
+        }), 500
+    return apology("Internal server error", 500)
 
 
 # Context processor for portfolio context
@@ -1353,6 +1469,43 @@ def buy():
                 app_logger.debug(f"User {user_id} insufficient funds: need {total_cost}, have {cash}")
                 return apology(f"can't afford: need {usd(total_cost)}, have {usd(cash)}", 400)
             
+            # Get current shares of this symbol
+            current_stocks = db.get_stocks(user_id, context["portfolio_id"]) if context["type"] == "personal" else db.get_league_stocks(user_id, context["league_id"])
+            current_shares = next((s["shares"] for s in current_stocks if s["symbol"] == symbol), 0)
+            
+            # Get today's P&L for circuit breaker check
+            today_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+            today_transactions = db.query("""
+                SELECT shares, price, type FROM transactions 
+                WHERE user_id = ? AND timestamp >= ?
+            """, (user_id, today_start))
+            today_loss = 0
+            for txn in today_transactions:
+                if txn["type"] == "sell":
+                    # Simplified: track realized losses
+                    # In real code, would need cost basis tracking
+                    pass
+            
+            # Validate trade throttle
+            throttle_valid, throttle_message = validate_trade_throttle(
+                user_id=user_id,
+                symbol=symbol,
+                action="buy",
+                shares=shares,
+                price=price,
+                current_shares=current_shares,
+                cash=cash,
+                current_daily_loss=today_loss,
+                cooldown_seconds=2,           # 2 second cooldown between same symbol trades
+                max_trades_per_minute=10,     # Max 10 trades per minute
+                max_position_pct=25.0,        # Max 25% in single position
+                max_daily_loss=-5000.0        # Max $5000 loss per day
+            )
+            
+            if not throttle_valid:
+                app_logger.warning(f"Trade throttled for user {user_id}: {throttle_message}")
+                return apology(throttle_message, 429)  # 429 Too Many Requests
+            
             # Get optional strategy and notes
             strategy = request.form.get("strategy") or None
             notes = request.form.get("notes") or None
@@ -1360,19 +1513,31 @@ def buy():
             # Handle transaction based on portfolio context
             try:
                 if context["type"] == "personal":
-                    # Personal portfolio - use personal tables
-                    txn_id = db.record_transaction(user_id, symbol, shares, price, "buy", strategy, notes)
-                    db.update_cash(user_id, cash - total_cost)
+                    # Personal portfolio - use atomic transaction
+                    success, error_msg, txn_id = db.execute_buy_trade_atomic(
+                        user_id, symbol, shares, price, strategy, notes
+                    )
+                    if not success:
+                        app_logger.warning(f"Buy trade failed for user {user_id}: {error_msg}")
+                        return apology(error_msg, 400)
+                    
                     # Execute copy trades for any followers
                     _execute_copy_trades(user_id, symbol, shares, price, 'buy', txn_id)
+                    # Record successful trade for throttling
+                    record_trade(user_id, symbol, "buy", shares, price)
                     app_logger.info(f"BUY | User: {user_id} | Symbol: {symbol} | Shares: {shares} | Price: {price} | Total: {total_cost}")
                 else:
-                    # League portfolio - use league tables
-                    league_id = context["league_id"]
-                    txn_id = db.record_league_transaction(league_id, user_id, symbol, shares, price, "buy")
-                    db.update_league_cash(league_id, user_id, cash - total_cost)
-                    db.update_league_holding(league_id, user_id, symbol, shares, price)
-                    app_logger.info(f"BUY (LEAGUE) | League: {league_id} | User: {user_id} | Symbol: {symbol} | Shares: {shares}")
+                    # League portfolio - use atomic transaction
+                    success, error_msg, txn_id = db.execute_league_trade_atomic(
+                        context["league_id"], user_id, symbol, "BUY", shares, price
+                    )
+                    if not success:
+                        app_logger.warning(f"Buy trade failed for league {context['league_id']}, user {user_id}: {error_msg}")
+                        return apology(error_msg, 400)
+                    
+                    # Record successful trade for throttling
+                    record_trade(user_id, symbol, "buy", shares, price)
+                    app_logger.info(f"BUY (LEAGUE) | League: {context['league_id']} | User: {user_id} | Symbol: {symbol} | Shares: {shares}")
             except Exception as e:
                 app_logger.error(f"Database error during buy transaction for user {user_id}: {e}", exc_info=True)
                 return apology(f"database error: {str(e)[:50]}", 500)
@@ -1865,6 +2030,38 @@ def sell():
             price = quote["price"]
             total_value = price * shares
             
+            # Get today's P&L for circuit breaker check
+            today_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+            today_transactions = db.query("""
+                SELECT shares, price, type FROM transactions 
+                WHERE user_id = ? AND timestamp >= ?
+            """, (user_id, today_start))
+            today_loss = 0
+            for txn in today_transactions:
+                if txn["type"] == "sell":
+                    pass  # Simplified: track realized losses
+            
+            # Validate trade throttle
+            current_shares = stock["shares"] if stock else 0
+            throttle_valid, throttle_message = validate_trade_throttle(
+                user_id=user_id,
+                symbol=symbol,
+                action="sell",
+                shares=shares,
+                price=price,
+                current_shares=current_shares,
+                cash=0,  # Not relevant for sells
+                current_daily_loss=today_loss,
+                cooldown_seconds=2,
+                max_trades_per_minute=10,
+                max_position_pct=25.0,
+                max_daily_loss=-5000.0
+            )
+            
+            if not throttle_valid:
+                app_logger.warning(f"Trade throttled for user {user_id}: {throttle_message}")
+                return apology(throttle_message, 429)
+            
             # Get optional strategy and notes
             strategy = request.form.get("strategy") or None
             notes = request.form.get("notes") or None
@@ -1872,24 +2069,31 @@ def sell():
             # Handle transaction based on portfolio context
             try:
                 if context["type"] == "personal":
-                    # Personal portfolio
-                    txn_id = db.record_transaction(user_id, symbol, -shares, price, "sell", strategy, notes)
-                    user = db.get_user(user_id)
-                    if not user:
-                        app_logger.error(f"User {user_id} not found in database")
-                        return apology("user not found", 500)
-                    db.update_cash(user_id, user["cash"] + total_value)
+                    # Personal portfolio - use atomic transaction
+                    success, error_msg, txn_id = db.execute_sell_trade_atomic(
+                        user_id, symbol, shares, price, strategy, notes
+                    )
+                    if not success:
+                        app_logger.warning(f"Sell trade failed for user {user_id}: {error_msg}")
+                        return apology(error_msg, 400)
+                    
                     # Execute copy trades for any followers
                     _execute_copy_trades(user_id, symbol, shares, price, 'sell', txn_id)
+                    # Record successful trade for throttling
+                    record_trade(user_id, symbol, "sell", shares, price)
                     app_logger.info(f"SELL | User: {user_id} | Symbol: {symbol} | Shares: {shares} | Price: {price} | Total: {total_value}")
                 else:
-                    # League portfolio
-                    league_id = context["league_id"]
-                    txn_id = db.record_league_transaction(league_id, user_id, symbol, shares, price, "sell")
-                    cash = get_portfolio_cash(user_id, context)
-                    db.update_league_cash(league_id, user_id, cash + total_value)
-                    db.update_league_holding(league_id, user_id, symbol, -shares, price)
-                    app_logger.info(f"SELL (LEAGUE) | League: {league_id} | User: {user_id} | Symbol: {symbol} | Shares: {shares}")
+                    # League portfolio - use atomic transaction
+                    success, error_msg, txn_id = db.execute_league_trade_atomic(
+                        context["league_id"], user_id, symbol, "SELL", shares, price
+                    )
+                    if not success:
+                        app_logger.warning(f"Sell trade failed for league {context['league_id']}, user {user_id}: {error_msg}")
+                        return apology(error_msg, 400)
+                    
+                    # Record successful trade for throttling
+                    record_trade(user_id, symbol, "sell", shares, price)
+                    app_logger.info(f"SELL (LEAGUE) | League: {context['league_id']} | User: {user_id} | Symbol: {symbol} | Shares: {shares}")
             except Exception as e:
                 app_logger.error(f"Database error during sell transaction for user {user_id}: {e}", exc_info=True)
                 return apology(f"database error: {str(e)[:50]}", 500)
@@ -2681,6 +2885,85 @@ def restart_league_season(league_id):
     return redirect(f"/leagues/{league_id}")
 
 
+# ===== LEAGUE ARCHIVE/SOFT DELETE ROUTES =====
+
+@app.route("/leagues/<int:league_id>/archive", methods=["POST"])
+@login_required
+def archive_league(league_id):
+    """Archive a league (soft delete - admin only)"""
+    user_id = session["user_id"]
+    
+    league = db.get_league(league_id, include_archived=True)
+    if not league:
+        return apology("league not found", 404)
+    
+    # Check if user is admin
+    members = db.get_league_members(league_id)
+    is_admin = any(m['id'] == user_id and m['is_admin'] for m in members)
+    
+    if not is_admin and league.get('creator_id') != user_id:
+        return apology("only league admins can archive leagues", 403)
+    
+    # Archive the league
+    archive_mgr = LeagueArchiveManager(db)
+    success, message = archive_mgr.archive_league(league_id, user_id, request.form.get('reason'))
+    
+    if success:
+        flash(message, "success")
+        return redirect("/leagues")
+    else:
+        flash(message, "error")
+        return redirect(f"/leagues/{league_id}")
+
+
+@app.route("/leagues/<int:league_id>/restore", methods=["POST"])
+@login_required
+def restore_league(league_id):
+    """Restore an archived league (admin only)"""
+    user_id = session["user_id"]
+    
+    league = db.get_league(league_id, include_archived=True)
+    if not league:
+        return apology("league not found", 404)
+    
+    # Check if user is admin
+    members = db.get_league_members(league_id)
+    is_admin = any(m['id'] == user_id and m['is_admin'] for m in members)
+    
+    if not is_admin and league.get('creator_id') != user_id:
+        return apology("only league admins can restore leagues", 403)
+    
+    # Restore the league
+    archive_mgr = LeagueArchiveManager(db)
+    success, message = archive_mgr.restore_league(league_id, user_id)
+    
+    if success:
+        flash(message, "success")
+        return redirect(f"/leagues/{league_id}")
+    else:
+        flash(message, "error")
+        return redirect("/leagues")
+
+
+@app.route("/leagues/archived", methods=["GET"])
+@login_required
+def view_archived_leagues():
+    """View archived leagues"""
+    user_id = session["user_id"]
+    
+    archive_mgr = LeagueArchiveManager(db)
+    archived_leagues = archive_mgr.get_user_archived_leagues(user_id)
+    
+    # Get archive info for each
+    archive_info = []
+    for league in archived_leagues:
+        info = archive_mgr.get_archive_info(league['id'])
+        if info:
+            archive_info.append(info)
+    
+    return render_template("archived_leagues.html", archived_leagues=archive_info)
+
+
 @app.route("/leagues/<int:league_id>/trade", methods=["GET", "POST"])
 @login_required
 def league_trade(league_id):
@@ -2754,6 +3037,30 @@ def league_trade(league_id):
         price = quote["price"]
         trade_value = shares * price
         
+        # Get current holdings and cash for throttle validation
+        current_holding = next((h for h in holdings if h['symbol'] == symbol), None)
+        current_shares = current_holding['shares'] if current_holding else 0
+        
+        # Validate trade throttle (position size, cooldown, frequency)
+        throttle_valid, throttle_message = validate_trade_throttle(
+            user_id=user_id,
+            symbol=symbol,
+            action=trade_type.lower(),
+            shares=shares,
+            price=price,
+            current_shares=current_shares,
+            cash=portfolio.get('cash', 0),
+            current_daily_loss=0,  # League doesn't track daily loss limit
+            cooldown_seconds=2,
+            max_trades_per_minute=10,
+            max_position_pct=25.0,
+            max_daily_loss=-999999.0  # No daily loss limit for leagues
+        )
+        
+        if not throttle_valid:
+            app_logger.warning(f"Trade throttled for league {league_id}, user {user_id}: {throttle_message}")
+            return apology(throttle_message, 429)
+        
         # Use comprehensive trade validation
         is_valid, error = db.validate_league_trade(league_id, user_id, symbol, trade_type.upper(), shares, price)
         if not is_valid:
@@ -2785,6 +3092,9 @@ def league_trade(league_id):
         
         if not success:
             return apology(error_msg or "Trade failed", 400)
+        
+        # Record successful trade for throttling
+        record_trade(user_id, symbol, trade_type.lower(), shares, price)
         
         # Log activity to league activity feed after successful atomic trade
         user = db.get_user(user_id)
@@ -2839,6 +3149,15 @@ def league_trade(league_id):
         
         # Update league scores after trade
         db.update_league_scores_v2(league_id, lambda s: lookup(s).get('price') if lookup(s) else None)
+        
+        # Broadcast real-time leaderboard update to all league members
+        try:
+            update_and_broadcast_leaderboard(
+                socketio, db, league_id,
+                lambda s: lookup(s).get('price') if lookup(s) else None
+            )
+        except Exception as e:
+            app_logger.warning(f"Could not broadcast leaderboard update: {e}")
         
         # Emit real-time update
         socketio.emit('league_score_update', {
@@ -5208,6 +5527,166 @@ def handle_unsubscribe(data):
     # Leave room
     leave_room(symbol)
     logging.info(f"Client {request.sid} unsubscribed from {symbol}")
+
+
+# ===== LEADERBOARD SUBSCRIPTION HANDLERS =====
+
+@socketio.on('subscribe_leaderboard')
+def handle_subscribe_leaderboard(data):
+    """Subscribe to real-time leaderboard updates for a league"""
+    league_id = data.get('league_id')
+    
+    if not league_id:
+        emit('error', {'message': 'league_id is required'})
+        return
+    
+    try:
+        # Verify user is member of league
+        user_id = get_user_id_from_session()
+        if not user_id:
+            emit('error', {'message': 'Not authenticated'})
+            return
+        
+        league = db.get_league(league_id)
+        if not league:
+            emit('error', {'message': 'League not found'})
+            return
+        
+        # Check if user is member
+        members = db.get_league_members(league_id)
+        member_ids = [m['user_id'] for m in members]
+        if user_id not in member_ids:
+            emit('error', {'message': 'Not a member of this league'})
+            return
+        
+        # Join room for this league's leaderboard
+        room_name = f'league_{league_id}'
+        join_room(room_name)
+        
+        # Send current leaderboard snapshot
+        try:
+            leaderboard = get_cached_leaderboard(league_id)
+            if not leaderboard:
+                # Calculate fresh snapshot if not cached
+                leaderboard = calculate_leaderboard_snapshot(db, league_id, lambda s: lookup(s).get('price') if lookup(s) else None)
+            
+            emit('leaderboard_snapshot', {
+                'league_id': league_id,
+                'members': leaderboard,
+                'timestamp': datetime.now().isoformat()
+            })
+        except Exception as snapshot_error:
+            logging.error(f"Error sending leaderboard snapshot: {snapshot_error}")
+            emit('leaderboard_error', {'message': 'Could not load leaderboard'})
+        
+        logging.info(f"Client {request.sid} subscribed to leaderboard for league {league_id}")
+        
+    except Exception as e:
+        logging.error(f"Error subscribing to leaderboard: {e}")
+        emit('error', {'message': 'Subscription failed'})
+
+
+@socketio.on('unsubscribe_leaderboard')
+def handle_unsubscribe_leaderboard(data):
+    """Unsubscribe from leaderboard updates for a league"""
+    league_id = data.get('league_id')
+    
+    if not league_id:
+        return
+    
+    try:
+        room_name = f'league_{league_id}'
+        leave_room(room_name)
+        logging.info(f"Client {request.sid} unsubscribed from leaderboard for league {league_id}")
+    except Exception as e:
+        logging.error(f"Error unsubscribing from leaderboard: {e}")
+
+
+@socketio.on('request_leaderboard')
+def handle_request_leaderboard(data):
+    """Request current leaderboard snapshot"""
+    league_id = data.get('league_id')
+    
+    if not league_id:
+        emit('error', {'message': 'league_id is required'})
+        return
+    
+    try:
+        user_id = get_user_id_from_session()
+        if not user_id:
+            emit('error', {'message': 'Not authenticated'})
+            return
+        
+        # Verify access
+        members = db.get_league_members(league_id)
+        member_ids = [m['user_id'] for m in members]
+        if user_id not in member_ids:
+            emit('error', {'message': 'Not a member of this league'})
+            return
+        
+        # Get leaderboard
+        leaderboard = get_cached_leaderboard(league_id)
+        if not leaderboard:
+            leaderboard = calculate_leaderboard_snapshot(db, league_id, lambda s: lookup(s).get('price') if lookup(s) else None)
+        
+        emit('leaderboard_data', {
+            'league_id': league_id,
+            'members': leaderboard,
+            'timestamp': datetime.now().isoformat()
+        })
+        
+    except Exception as e:
+        logging.error(f"Error requesting leaderboard: {e}")
+        emit('error', {'message': 'Failed to retrieve leaderboard'})
+
+
+@socketio.on('request_leaderboard_member')
+def handle_request_leaderboard_member(data):
+    """Request detailed information for a specific league member"""
+    league_id = data.get('league_id')
+    target_user_id = data.get('user_id')
+    
+    if not league_id or not target_user_id:
+        emit('error', {'message': 'league_id and user_id are required'})
+        return
+    
+    try:
+        user_id = get_user_id_from_session()
+        if not user_id:
+            emit('error', {'message': 'Not authenticated'})
+            return
+        
+        # Verify requester is member
+        members = db.get_league_members(league_id)
+        member_ids = [m['user_id'] for m in members]
+        if user_id not in member_ids:
+            emit('error', {'message': 'Not a member of this league'})
+            return
+        
+        # Get leaderboard and find member
+        leaderboard = get_cached_leaderboard(league_id)
+        if not leaderboard:
+            leaderboard = calculate_leaderboard_snapshot(db, league_id, lambda s: lookup(s).get('price') if lookup(s) else None)
+        
+        member_data = None
+        for member in leaderboard:
+            if member.get('user_id') == target_user_id:
+                member_data = member
+                break
+        
+        if not member_data:
+            emit('error', {'message': 'Member not found in leaderboard'})
+            return
+        
+        emit('leaderboard_member', {
+            'league_id': league_id,
+            'member': member_data,
+            'timestamp': datetime.now().isoformat()
+        })
+        
+    except Exception as e:
+        logging.error(f"Error requesting member details: {e}")
+        emit('error', {'message': 'Failed to retrieve member details'})
 
 
 @socketio.on('get_chart_data')

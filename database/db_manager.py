@@ -27,6 +27,7 @@ class DatabaseManager:
         self.init_db()
         self.migrate_add_theme_column()  # Add theme column if missing
         self.migrate_add_privacy_columns()  # Add privacy columns if missing
+        self.migrate_add_soft_delete_column()  # Add soft_deleted_at for league archives
         self.init_chat_table()
         self.init_activity_reactions_table()
         # Ensure moderation table exists
@@ -653,6 +654,26 @@ class DatabaseManager:
             conn.close()
         except Exception as e:
             logging.warning(f"Privacy columns migration failed or columns already exist: {e}")
+
+    def migrate_add_soft_delete_column(self):
+        """Add soft_deleted_at column to leagues table for soft delete support."""
+        try:
+            conn = self.get_connection()
+            cursor = conn.cursor()
+            
+            # Check if the column already exists
+            cursor.execute("PRAGMA table_info(leagues)")
+            columns = {row[1] for row in cursor.fetchall()}
+            
+            if 'soft_deleted_at' not in columns:
+                logging.info("Adding soft_deleted_at column to leagues table...")
+                cursor.execute("ALTER TABLE leagues ADD COLUMN soft_deleted_at TIMESTAMP DEFAULT NULL")
+                conn.commit()
+                logging.info("soft_deleted_at column added successfully!")
+            
+            conn.close()
+        except Exception as e:
+            logging.warning(f"Soft delete migration failed or column already exists: {e}")
 
     def get_user_badges(self, user_id):
         """Get all badges for a user."""
@@ -1489,26 +1510,50 @@ class DatabaseManager:
         finally:
             conn.close()
     
-    def get_user_leagues(self, user_id):
-        """Get all leagues a user is a member of."""
+    def get_user_leagues(self, user_id, include_archived=False):
+        """Get all leagues a user is a member of.
+        
+        Args:
+            user_id: User ID to fetch leagues for
+            include_archived: If True, include archived leagues; otherwise filter them out
+            
+        Returns:
+            List of league dictionaries
+        """
         conn = self.get_connection()
         cursor = conn.cursor()
         
-        cursor.execute("""
+        # Base query
+        query = """
             SELECT l.*, lm.current_rank, lm.score, lm.is_admin
             FROM leagues l
             JOIN league_members lm ON l.id = lm.league_id
             WHERE lm.user_id = ? AND l.is_active = 1
-            ORDER BY lm.joined_at DESC
-        """, (user_id,))
+        """
+        
+        # Add archive filter if not including archived
+        if not include_archived:
+            query += " AND (l.soft_deleted_at IS NULL)"
+        
+        query += " ORDER BY lm.joined_at DESC"
+        
+        cursor.execute(query, (user_id,))
         
         leagues = cursor.fetchall()
         conn.close()
         
         return [dict(row) for row in leagues]
     
-    def get_league(self, league_id):
-        """Get league details."""
+    def get_league(self, league_id, include_archived=False):
+        """Get league details.
+        
+        Args:
+            league_id: ID of league to fetch
+            include_archived: If True, return league even if archived; otherwise return None if archived
+            
+        Returns:
+            League dictionary or None if not found
+        """
         conn = self.get_connection()
         cursor = conn.cursor()
         
@@ -1516,7 +1561,16 @@ class DatabaseManager:
         league = cursor.fetchone()
         conn.close()
         
-        return dict(league) if league else None
+        if not league:
+            return None
+        
+        league_dict = dict(league)
+        
+        # Check if archived and include_archived is False
+        if league_dict.get('soft_deleted_at') is not None and not include_archived:
+            return None
+        
+        return league_dict
     
     def get_league_by_invite_code(self, invite_code, check_expiration=True):
         """Get league by invite code with optional expiration validation.
@@ -2447,6 +2501,185 @@ class DatabaseManager:
         
         return [dict(row) for row in members]
     
+    # ============ LEAGUE ARCHIVE/SOFT DELETE ============
+    
+    def archive_league(self, league_id, admin_id=None):
+        """Archive a league (soft delete).
+        
+        Args:
+            league_id: ID of league to archive
+            admin_id: ID of admin performing the archive (optional, for logging)
+            
+        Returns:
+            True if archived successfully, False otherwise
+        """
+        try:
+            conn = self.get_connection()
+            cursor = conn.cursor()
+            
+            # Verify league exists
+            cursor.execute("SELECT id FROM leagues WHERE id = ?", (league_id,))
+            if not cursor.fetchone():
+                logging.warning(f"Cannot archive league {league_id}: not found")
+                conn.close()
+                return False
+            
+            # Update soft_deleted_at timestamp
+            cursor.execute("""
+                UPDATE leagues
+                SET soft_deleted_at = ?
+                WHERE id = ?
+            """, (datetime.now(), league_id))
+            
+            conn.commit()
+            conn.close()
+            
+            logging.info(f"League {league_id} archived by admin {admin_id}")
+            return True
+        
+        except Exception as e:
+            logging.error(f"Error archiving league {league_id}: {e}")
+            return False
+    
+    def restore_league(self, league_id, admin_id=None):
+        """Restore an archived league.
+        
+        Args:
+            league_id: ID of league to restore
+            admin_id: ID of admin performing the restore (optional, for logging)
+            
+        Returns:
+            True if restored successfully, False otherwise
+        """
+        try:
+            conn = self.get_connection()
+            cursor = conn.cursor()
+            
+            # Verify league exists and is archived
+            cursor.execute("SELECT soft_deleted_at FROM leagues WHERE id = ?", (league_id,))
+            row = cursor.fetchone()
+            if not row:
+                logging.warning(f"Cannot restore league {league_id}: not found")
+                conn.close()
+                return False
+            
+            if row[0] is None:
+                logging.warning(f"Cannot restore league {league_id}: not archived")
+                conn.close()
+                return False
+            
+            # Clear soft_deleted_at timestamp
+            cursor.execute("""
+                UPDATE leagues
+                SET soft_deleted_at = NULL
+                WHERE id = ?
+            """, (league_id,))
+            
+            conn.commit()
+            conn.close()
+            
+            logging.info(f"League {league_id} restored by admin {admin_id}")
+            return True
+        
+        except Exception as e:
+            logging.error(f"Error restoring league {league_id}: {e}")
+            return False
+    
+    def get_archived_leagues(self, user_id, admin_only=False):
+        """Get archived leagues.
+        
+        Args:
+            user_id: User ID to filter by (must be admin or member)
+            admin_only: If True, only return leagues where user is admin
+            
+        Returns:
+            List of archived league dictionaries
+        """
+        try:
+            conn = self.get_connection()
+            cursor = conn.cursor()
+            
+            if admin_only:
+                query = """
+                    SELECT l.*
+                    FROM leagues l
+                    JOIN league_members lm ON l.id = lm.league_id
+                    WHERE l.soft_deleted_at IS NOT NULL
+                    AND lm.user_id = ?
+                    AND lm.is_admin = 1
+                    ORDER BY l.soft_deleted_at DESC
+                """
+            else:
+                query = """
+                    SELECT l.*
+                    FROM leagues l
+                    JOIN league_members lm ON l.id = lm.league_id
+                    WHERE l.soft_deleted_at IS NOT NULL
+                    AND lm.user_id = ?
+                    ORDER BY l.soft_deleted_at DESC
+                """
+            
+            cursor.execute(query, (user_id,))
+            leagues = cursor.fetchall()
+            conn.close()
+            
+            return [dict(row) for row in leagues]
+        
+        except Exception as e:
+            logging.error(f"Error fetching archived leagues: {e}")
+            return []
+    
+    def get_all_archived_leagues(self):
+        """Get all archived leagues (admin only).
+        
+        Returns:
+            List of all archived league dictionaries
+        """
+        try:
+            conn = self.get_connection()
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                SELECT * FROM leagues
+                WHERE soft_deleted_at IS NOT NULL
+                ORDER BY soft_deleted_at DESC
+            """)
+            
+            leagues = cursor.fetchall()
+            conn.close()
+            
+            return [dict(row) for row in leagues]
+        
+        except Exception as e:
+            logging.error(f"Error fetching all archived leagues: {e}")
+            return []
+    
+    def is_league_archived(self, league_id):
+        """Check if a league is archived.
+        
+        Args:
+            league_id: ID of league to check
+            
+        Returns:
+            True if archived, False otherwise
+        """
+        try:
+            conn = self.get_connection()
+            cursor = conn.cursor()
+            
+            cursor.execute("SELECT soft_deleted_at FROM leagues WHERE id = ?", (league_id,))
+            row = cursor.fetchone()
+            conn.close()
+            
+            if not row:
+                return False
+            
+            return row[0] is not None
+        
+        except Exception as e:
+            logging.error(f"Error checking if league is archived: {e}")
+            return False
+
     # ============ TRADE RATE LIMITING ============
     
     def check_trade_rate_limit(self, league_id, user_id, max_trades_per_hour=100):
@@ -4648,3 +4881,180 @@ class DatabaseManager:
         conn.close()
         
         return count
+
+    # ============================================================================
+    # ATOMIC PERSONAL TRADE TRANSACTIONS
+    # ============================================================================
+
+    def execute_buy_trade_atomic(self, user_id, symbol, shares, price, strategy=None, notes=None):
+        """Execute a buy trade with atomic transaction to prevent race conditions.
+        
+        This uses database-level exclusive locking to ensure atomicity and prevent
+        concurrent trade bugs where cash or shares could become corrupted.
+        
+        Args:
+            user_id: User ID
+            symbol: Stock symbol
+            shares: Number of shares to buy
+            price: Price per share
+            strategy: Optional trading strategy
+            notes: Optional notes
+        
+        Returns:
+            (success: bool, error_message: Optional[str], txn_id: Optional[int])
+        """
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        try:
+            # Begin exclusive transaction to prevent concurrent modifications
+            cursor.execute("BEGIN EXCLUSIVE")
+            
+            # Lock the user row to prevent concurrent cash modifications
+            cursor.execute("SELECT cash FROM users WHERE id = ?", (user_id,))
+            user_row = cursor.fetchone()
+            
+            if not user_row:
+                conn.rollback()
+                return False, "User not found", None
+            
+            current_cash = user_row[0]
+            trade_cost = shares * price
+            
+            # Check sufficient funds
+            if current_cash < trade_cost:
+                conn.rollback()
+                return False, f"Insufficient funds. Have ${current_cash:.2f}, need ${trade_cost:.2f}", None
+            
+            # Update user cash atomically
+            cursor.execute(
+                "UPDATE users SET cash = cash - ? WHERE id = ?",
+                (trade_cost, user_id)
+            )
+            
+            # Update or insert user stock holding
+            cursor.execute(
+                "SELECT shares, avg_cost FROM user_stocks WHERE user_id = ? AND symbol = ?",
+                (user_id, symbol)
+            )
+            
+            stock_row = cursor.fetchone()
+            if stock_row:
+                # Update existing holding with new average cost
+                old_shares, old_avg_cost = stock_row[0], stock_row[1]
+                new_shares = old_shares + shares
+                new_avg_cost = ((old_shares * old_avg_cost) + (shares * price)) / new_shares
+                
+                cursor.execute("""
+                    UPDATE user_stocks
+                    SET shares = ?, avg_cost = ?
+                    WHERE user_id = ? AND symbol = ?
+                """, (new_shares, new_avg_cost, user_id, symbol))
+            else:
+                # Insert new holding
+                cursor.execute("""
+                    INSERT INTO user_stocks (user_id, symbol, shares, avg_cost)
+                    VALUES (?, ?, ?, ?)
+                """, (user_id, symbol, shares, price))
+            
+            # Record transaction
+            cursor.execute(
+                "INSERT INTO transactions (user_id, symbol, shares, price, type, strategy, notes) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (user_id, symbol, shares, price, "buy", strategy, notes)
+            )
+            
+            txn_id = cursor.lastrowid
+            conn.commit()
+            
+            logging.info(f"Executed atomic buy: {shares} {symbol} @ ${price:.2f} for user {user_id} (txn_id={txn_id})")
+            return True, None, txn_id
+            
+        except sqlite3.Error as e:
+            logging.error(f"Error executing atomic buy trade: {e}")
+            conn.rollback()
+            return False, f"Database error: {str(e)}", None
+        finally:
+            conn.close()
+
+    def execute_sell_trade_atomic(self, user_id, symbol, shares, price, strategy=None, notes=None):
+        """Execute a sell trade with atomic transaction to prevent race conditions.
+        
+        This uses database-level exclusive locking to ensure atomicity and prevent
+        concurrent trade bugs where cash or shares could become corrupted.
+        
+        Args:
+            user_id: User ID
+            symbol: Stock symbol
+            shares: Number of shares to sell
+            price: Price per share
+            strategy: Optional trading strategy
+            notes: Optional notes
+        
+        Returns:
+            (success: bool, error_message: Optional[str], txn_id: Optional[int])
+        """
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        try:
+            # Begin exclusive transaction to prevent concurrent modifications
+            cursor.execute("BEGIN EXCLUSIVE")
+            
+            # Lock the user row
+            cursor.execute("SELECT id FROM users WHERE id = ?", (user_id,))
+            if not cursor.fetchone():
+                conn.rollback()
+                return False, "User not found", None
+            
+            # Check if user has sufficient shares
+            cursor.execute(
+                "SELECT shares FROM user_stocks WHERE user_id = ? AND symbol = ?",
+                (user_id, symbol)
+            )
+            
+            stock_row = cursor.fetchone()
+            if not stock_row or stock_row[0] < shares:
+                conn.rollback()
+                available = stock_row[0] if stock_row else 0
+                return False, f"Insufficient shares. Have {available}, trying to sell {shares}", None
+            
+            # Update cash atomically
+            trade_proceeds = shares * price
+            cursor.execute(
+                "UPDATE users SET cash = cash + ? WHERE id = ?",
+                (trade_proceeds, user_id)
+            )
+            
+            # Update stock holding
+            new_shares = stock_row[0] - shares
+            if new_shares <= 0:
+                # Delete the holding if no shares remain
+                cursor.execute(
+                    "DELETE FROM user_stocks WHERE user_id = ? AND symbol = ?",
+                    (user_id, symbol)
+                )
+            else:
+                # Update the holding
+                cursor.execute(
+                    "UPDATE user_stocks SET shares = ? WHERE user_id = ? AND symbol = ?",
+                    (new_shares, user_id, symbol)
+                )
+            
+            # Record transaction (negative shares for sell)
+            cursor.execute(
+                "INSERT INTO transactions (user_id, symbol, shares, price, type, strategy, notes) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (user_id, symbol, -shares, price, "sell", strategy, notes)
+            )
+            
+            txn_id = cursor.lastrowid
+            conn.commit()
+            
+            logging.info(f"Executed atomic sell: {shares} {symbol} @ ${price:.2f} for user {user_id} (txn_id={txn_id})")
+            return True, None, txn_id
+            
+        except sqlite3.Error as e:
+            logging.error(f"Error executing atomic sell trade: {e}")
+            conn.rollback()
+            return False, f"Database error: {str(e)}", None
+        finally:
+            conn.close()
