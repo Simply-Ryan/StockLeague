@@ -599,6 +599,54 @@ class DatabaseManager:
             ON trade_rate_limits(league_id, user_id)
         """)
 
+        # News articles table for caching news with sentiment analysis
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS news_articles (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                symbol TEXT,
+                headline TEXT NOT NULL,
+                summary TEXT,
+                source TEXT,
+                url TEXT UNIQUE,
+                image_url TEXT,
+                published_at TIMESTAMP,
+                sentiment_score NUMERIC DEFAULT 0,
+                sentiment_label TEXT DEFAULT 'neutral',
+                category TEXT,
+                cached_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+        # Create indexes for news articles
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_news_symbol 
+            ON news_articles(symbol, cached_at)
+        """)
+
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_news_cached_at 
+            ON news_articles(cached_at)
+        """)
+
+        # News preferences table for user-tracked symbols
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS news_preferences (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                symbol TEXT NOT NULL,
+                enabled INTEGER DEFAULT 1,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id),
+                UNIQUE(user_id, symbol)
+            )
+        """)
+
+        # Create index for news preferences
+        cursor.execute("""
+            CREATE INDEX IF NOT EXISTS idx_news_preferences_user 
+            ON news_preferences(user_id, enabled)
+        """)
+
         conn.commit()
         conn.close()
 
