@@ -42,6 +42,13 @@ from advanced_league_system import AdvancedLeagueManager, RatingSystem, Achievem
 from utils import rate_limit, sanitize_xss, validate_symbol, validate_email, validate_username, sanitize_input
 from trade_throttle import validate_trade_throttle, record_trade, get_user_trade_history
 from soft_deletes import LeagueArchiveManager
+from audit_logger import AuditLogger
+from members_limit_manager import MembersLimitManager
+from invite_manager import InviteCodeManager
+from options_trading import OptionsPortfolioManager
+from redis_cache_manager import CacheManager, CacheKey, CacheInvalidator
+from admin_monitoring import SystemMetrics, UserActivityMonitor, AlertManager, HealthChecker
+from portfolio_analytics import ComprehensiveAnalytics
 from leaderboard_updates import (
     calculate_leaderboard_snapshot, update_and_broadcast_leaderboard,
     get_cached_leaderboard, invalidate_leaderboard_cache, emit_rank_alert,
@@ -989,6 +996,36 @@ def handle_disconnect():
 
 # Initialize database manager
 db = DatabaseManager()
+audit_logger = AuditLogger(db)
+members_limit_manager = MembersLimitManager(db)
+invite_code_manager = InviteCodeManager(db)
+options_manager = OptionsPortfolioManager(db)
+archive_manager = LeagueArchiveManager(db)
+
+# Initialize caching layer (optional - only if Redis is available)
+try:
+    import redis
+    redis_client = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True)
+    redis_client.ping()
+    cache_manager = CacheManager(redis_client)
+    cache_invalidator = CacheInvalidator(cache_manager)
+    logger = logging.getLogger(__name__)
+    logger.info("Redis cache layer initialized successfully")
+except Exception as e:
+    cache_manager = None
+    cache_invalidator = None
+    logger = logging.getLogger(__name__)
+    logger.warning(f"Redis cache not available: {e}. Continuing without caching.")
+
+# Initialize admin monitoring
+system_metrics = SystemMetrics(db)
+user_activity_monitor = UserActivityMonitor(db, audit_logger)
+alert_manager = AlertManager(db)
+health_checker = HealthChecker(db, cache_manager)
+
+# Initialize portfolio analytics
+portfolio_analytics = ComprehensiveAnalytics(db)
+
 advanced_league_db = AdvancedLeagueDB(db)
 
 # Initialize advanced league system schema (run migrations if needed)
@@ -1054,10 +1091,23 @@ try:
     from blueprints.api_bp import api_bp
     from blueprints.auth_bp import auth_bp
     from blueprints.portfolio_bp import portfolio_bp
+    from audit_routes import create_audit_blueprint
+    from admin_monitoring_routes import create_admin_monitoring_blueprint
+    
     app.register_blueprint(explore_bp)
     app.register_blueprint(api_bp)
     app.register_blueprint(auth_bp)
     app.register_blueprint(portfolio_bp)
+    
+    # Register audit blueprint
+    audit_bp = create_audit_blueprint(db, audit_logger)
+    app.register_blueprint(audit_bp)
+    
+    # Register admin monitoring blueprint
+    monitoring_bp = create_admin_monitoring_blueprint(
+        db, system_metrics, user_activity_monitor, alert_manager, health_checker
+    )
+    app.register_blueprint(monitoring_bp)
 except Exception:
     # If blueprints cannot be imported for any reason, fall back to
     # the original in-file route implementations (they remain present
@@ -5345,26 +5395,64 @@ def buy_option():
     """Buy options contracts"""
     user_id = session["user_id"]
     
-    contract_id = request.form.get("contract_id")
-    contracts = request.form.get("contracts")
-    premium = request.form.get("premium")
+    symbol = request.form.get("symbol")
+    strike_price = request.form.get("strike_price")
+    expiration_date = request.form.get("expiration_date")
+    option_type = request.form.get("option_type")
+    quantity = request.form.get("quantity")
+    league_id = request.form.get("league_id")
     
     # Validate inputs
-    if not contract_id or not contracts or not premium:
+    if not all([symbol, strike_price, expiration_date, option_type, quantity, league_id]):
         return apology("Missing required fields", 400)
     
     try:
-        contract_id = int(contract_id)
-        contracts = int(contracts)
-        premium = float(premium)
+        strike_price = float(strike_price)
+        quantity = int(quantity)
+        league_id = int(league_id)
+        option_type = option_type.lower()
     except ValueError:
         return apology("Invalid input", 400)
     
-    if contracts <= 0:
-        return apology("Must buy at least 1 contract", 400)
+    if option_type not in ['call', 'put']:
+        return apology("Invalid option type", 400)
+    
+    # Get current stock price
+    quote = lookup(symbol)
+    if not quote:
+        return apology(f"Symbol {symbol} not found", 400)
+    
+    current_price = quote['price']
+    
+    # Log audit action
+    try:
+        audit_logger.log_action(
+            action='TRADE_EXECUTE',
+            resource_type='OPTION_POSITION',
+            resource_id=0,
+            user_id=user_id,
+            details={
+                'symbol': symbol,
+                'option_type': option_type,
+                'strike_price': strike_price,
+                'quantity': quantity
+            },
+            ip_address=request.remote_addr
+        )
+    except:
+        pass
     
     # Execute buy
-    success, message = db.buy_option(user_id, contract_id, contracts, premium)
+    success, message, position_id = options_manager.buy_option(
+        user_id=user_id,
+        league_id=league_id,
+        symbol=symbol,
+        strike_price=strike_price,
+        expiration_date=expiration_date,
+        option_type=option_type,
+        quantity=quantity,
+        current_price=current_price
+    )
     
     if not success:
         return apology(message, 400)
@@ -5380,19 +5468,57 @@ def sell_option():
     user_id = session["user_id"]
     
     position_id = request.form.get("position_id")
-    contracts = request.form.get("contracts")
-    premium = request.form.get("premium")
+    league_id = request.form.get("league_id")
     
     # Validate inputs
-    if not position_id or not contracts or not premium:
+    if not position_id or not league_id:
         return apology("Missing required fields", 400)
     
     try:
         position_id = int(position_id)
-        contracts = int(contracts)
-        premium = float(premium)
+        league_id = int(league_id)
     except ValueError:
         return apology("Invalid input", 400)
+    
+    # Get current stock price for the position
+    positions = options_manager.get_user_positions(user_id, league_id, status='open')
+    position = next((p for p in positions if p['id'] == position_id), None)
+    
+    if not position:
+        return apology("Position not found", 400)
+    
+    quote = lookup(position['symbol'])
+    if not quote:
+        return apology(f"Cannot get current price for {position['symbol']}", 400)
+    
+    current_price = quote['price']
+    
+    # Log audit action
+    try:
+        audit_logger.log_action(
+            action='TRADE_CANCEL',
+            resource_type='OPTION_POSITION',
+            resource_id=position_id,
+            user_id=user_id,
+            details={'symbol': position['symbol']},
+            ip_address=request.remote_addr
+        )
+    except:
+        pass
+    
+    # Execute sell
+    success, message, profit_loss = options_manager.sell_option(
+        user_id=user_id,
+        league_id=league_id,
+        position_id=position_id,
+        current_price=current_price
+    )
+    
+    if not success:
+        return apology(message, 400)
+    
+    flash(message, "success")
+    return redirect("/options")
     
     if contracts <= 0:
         return apology("Must sell at least 1 contract", 400)
