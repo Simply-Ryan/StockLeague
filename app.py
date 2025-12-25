@@ -59,6 +59,8 @@ from error_handlers import (
     log_trading_error, log_database_error, log_authentication_error,
     DatabaseError, ValidationError, NotFoundError, PermissionError, RateLimitError
 )
+from business_logic_integration import log_trade, store_metrics
+from frontend_integration import get_activity_feed_widget
 
 # --- Constants ---
 FLOAT_EPSILON = 0.01  # Used for floating-point comparisons in trading logic
@@ -1093,6 +1095,7 @@ try:
     from blueprints.portfolio_bp import portfolio_bp
     from audit_routes import create_audit_blueprint
     from admin_monitoring_routes import create_admin_monitoring_blueprint
+    from engagement_routes import register_engagement_routes
     
     app.register_blueprint(explore_bp)
     app.register_blueprint(api_bp)
@@ -1108,6 +1111,9 @@ try:
         db, system_metrics, user_activity_monitor, alert_manager, health_checker
     )
     app.register_blueprint(monitoring_bp)
+    
+    # Register engagement routes (Phase 3)
+    register_engagement_routes(app)
 except Exception:
     # If blueprints cannot be imported for any reason, fall back to
     # the original in-file route implementations (they remain present
@@ -1588,6 +1594,24 @@ def buy():
                     # Record successful trade for throttling
                     record_trade(user_id, symbol, "buy", shares, price)
                     app_logger.info(f"BUY (LEAGUE) | League: {context['league_id']} | User: {user_id} | Symbol: {symbol} | Shares: {shares}")
+                    
+                    # Log activity to engagement feed
+                    try:
+                        league = db.get_league(context["league_id"])
+                        user = db.get_user(user_id)
+                        log_trade(
+                            league_id=context["league_id"],
+                            user_id=user_id,
+                            username=user["username"],
+                            trade_type="BUY",
+                            symbol=symbol,
+                            shares=shares,
+                            price=price
+                        )
+                        store_metrics(context["league_id"], user_id)
+                    except Exception as e:
+                        app_logger.warning(f"Could not log trade to engagement feed: {e}")
+                        # Don't fail the trade if engagement logging fails
             except Exception as e:
                 app_logger.error(f"Database error during buy transaction for user {user_id}: {e}", exc_info=True)
                 return apology(f"database error: {str(e)[:50]}", 500)
@@ -2144,6 +2168,24 @@ def sell():
                     # Record successful trade for throttling
                     record_trade(user_id, symbol, "sell", shares, price)
                     app_logger.info(f"SELL (LEAGUE) | League: {context['league_id']} | User: {user_id} | Symbol: {symbol} | Shares: {shares}")
+                    
+                    # Log activity to engagement feed
+                    try:
+                        league = db.get_league(context["league_id"])
+                        user = db.get_user(user_id)
+                        log_trade(
+                            league_id=context["league_id"],
+                            user_id=user_id,
+                            username=user["username"],
+                            trade_type="SELL",
+                            symbol=symbol,
+                            shares=shares,
+                            price=price
+                        )
+                        store_metrics(context["league_id"], user_id)
+                    except Exception as e:
+                        app_logger.warning(f"Could not log trade to engagement feed: {e}")
+                        # Don't fail the trade if engagement logging fails
             except Exception as e:
                 app_logger.error(f"Database error during sell transaction for user {user_id}: {e}", exc_info=True)
                 return apology(f"database error: {str(e)[:50]}", 500)
@@ -2729,12 +2771,20 @@ def league_detail(league_id):
         lambda symbol: lookup(symbol).get('price') if lookup(symbol) else None
     )
     
+    # Get engagement widget for league
+    engagement_widget_html = ""
+    try:
+        engagement_widget_html = get_activity_feed_widget(league_id=league_id, user_id=user_id)
+    except Exception as e:
+        app_logger.warning(f"Could not load engagement widget for league {league_id}: {e}")
+    
     return render_template("league_detail.html",
                          league=league,
                          members=members,
                          leaderboard=leaderboard,
                          is_member=is_member,
-                         is_admin=is_admin)
+                         is_admin=is_admin,
+                         engagement_widget_html=engagement_widget_html)
 
 
 @app.route("/leagues/<int:league_id>/preview")
