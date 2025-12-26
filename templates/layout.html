@@ -24,6 +24,18 @@
       rel="stylesheet"
     />
 
+    <!-- Mobile Responsive CSS -->
+    <link
+      href="{{ url_for('static', filename='css/mobile-responsive.css') }}?v=1"
+      rel="stylesheet"
+    />
+
+    <!-- Enhanced Navbar & Footer CSS -->
+    <link
+      href="{{ url_for('static', filename='css/navbar-footer-enhanced.css') }}?v=1"
+      rel="stylesheet"
+    />
+
     {% block head %}{% endblock %}
   </head>
   <body>
@@ -42,16 +54,15 @@
         <button
           class="navbar-toggler"
           type="button"
-          data-bs-toggle="collapse"
-          data-bs-target="#navbarNav"
           aria-controls="navbarNav"
           aria-expanded="false"
           aria-label="Toggle navigation"
+          id="navbarToggler"
         >
           <span class="navbar-toggler-icon"></span>
         </button>
         
-        <div class="collapse navbar-collapse" id="navbarNav">
+        <div class="navbar-collapse" id="navbarNav">
           {% if session["user_id"] %}
           <!-- Primary Navigation (Left Side) -->
           <ul class="navbar-nav me-auto">
@@ -556,48 +567,29 @@
     <main class="container mt-4">{% block main %}{% endblock %}</main>
 
     <!-- Footer -->
-    <footer class="footer mt-4 py-2 py-md-3 bg-dark text-white">
+    <footer class="footer mt-auto">
       <div class="container">
-        <div class="row align-items-center g-2">
-          <div class="col-12 col-md-4 text-center text-md-start">
+        <div class="row align-items-center justify-content-between">
+          <!-- Brand Section -->
+          <div class="col-12 col-lg-auto footer-section text-center text-lg-start">
             <small class="text-muted d-block">
               <i class="fas fa-chart-line"></i> StockLeague &copy; 2025
             </small>
           </div>
-          <div class="col-12 col-md-4 text-center">
-            <small class="d-flex flex-column flex-md-row gap-2 justify-content-md-center">
-              {% if session["user_id"] %}
-              <a
-                href="/leaderboard"
-                class="text-muted text-decoration-none"
-                ><i class="fas fa-trophy"></i> <span class="d-inline d-md-inline">Leaderboard</span></a
-              >
-              <span class="d-none d-md-inline text-muted">•</span>
-              <a href="/chat" class="text-muted text-decoration-none"
-                ><i class="fas fa-comments"></i> <span class="d-inline d-md-inline">Chat</span></a
-              >
-              <span class="d-none d-md-inline text-muted">•</span>
-              <a href="/analytics" class="text-muted text-decoration-none"
-                ><i class="fas fa-chart-bar"></i> <span class="d-inline d-md-inline">Analytics</span></a
-              >
-              {% else %}
-              <a href="/register" class="text-muted text-decoration-none"
-                >Register</a
-              >
-              <span class="d-inline text-muted">•</span>
-              <a href="/login" class="text-muted text-decoration-none">Login</a>
-              {% endif %}
-            </small>
-          </div>
-          <div class="col-12 col-md-4 text-center text-md-end">
+          
+          <!-- Data Source Section -->
+          <div class="col-12 col-lg-auto footer-section text-center text-lg-end">
             <small class="text-muted">
-              <i class="fas fa-database"></i> Data by
+              <i class="fas fa-database"></i> 
+              Data by
               <a
                 href="https://finance.yahoo.com/"
                 target="_blank"
-                class="text-info text-decoration-none"
-                >Yahoo Finance</a
+                rel="noopener noreferrer"
+                aria-label="Yahoo Finance (opens in new window)"
               >
+                Yahoo Finance
+              </a>
             </small>
           </div>
         </div>
@@ -1053,5 +1045,11 @@
                 .catch(error => console.error('Error checking market status:', error));
         }
     </script>
+
+    <!-- Mobile Optimization Script -->
+    <script src="{{ url_for('static', filename='js/mobile-optimizations.js') }}"></script>
+
+    <!-- Enhanced Navbar & Footer Mobile Script -->
+    <script src="{{ url_for('static', filename='js/navbar-footer-mobile.js') }}"></script>
   </body>
 </html>

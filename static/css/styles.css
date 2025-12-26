@@ -1587,8 +1587,16 @@ small,
     }
     
     .navbar-collapse {
+        display: none !important;
         margin-top: 0.5rem;
         border-top: 1px solid var(--border-color);
+        max-height: 0;
+        transition: max-height 0.3s ease;
+    }
+    
+    .navbar-collapse.show {
+        display: flex !important;
+        max-height: calc(100vh - 100px);
     }
     
     /* Navigation items */
