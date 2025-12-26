@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mobile Navbar Test</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: #0f172a;
+            color: white;
+        }
+
+        /* Navbar */
+        .navbar {
+            position: sticky;
+            top: 0;
+            background: linear-gradient(135deg, rgba(30, 41, 59, 0.98), rgba(15, 23, 42, 0.98));
+            padding: 0.5rem 0;
+            z-index: 1030;
+            border-bottom: 1px solid rgba(99, 102, 241, 0.2);
+        }
+
+        .navbar-container {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 1rem;
+        }
+
+        .navbar-brand {
+            font-size: 1.25rem;
+            font-weight: 800;
+            color: white;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .navbar-brand i {
+            color: #6366f1;
+            font-size: 1.3rem;
+        }
+
+        .navbar-toggler {
+            background: none;
+            border: none;
+            width: 44px;
+            height: 44px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            color: white;
+            font-size: 24px;
+            transition: all 0.2s ease;
+        }
+
+        .navbar-toggler:hover {
+            color: #6366f1;
+        }
+
+        /* Mobile Menu */
+        .navbar-menu {
+            position: fixed;
+            top: 60px;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: #0f172a;
+            transform: translateX(-100%);
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            overflow-y: auto;
+            z-index: 999;
+            visibility: hidden;
+        }
+
+        .navbar-menu.show {
+            transform: translateX(0);
+            visibility: visible;
+        }
+
+        .navbar-menu::before {
+            content: '';
+            position: fixed;
+            top: 60px;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s ease;
+            z-index: -1;
+            pointer-events: none;
+        }
+
+        .navbar-menu.show::before {
+            opacity: 1;
+            visibility: visible;
+            pointer-events: auto;
+        }
+
+        .navbar-nav {
+            list-style: none;
+            padding: 1rem 0;
+        }
+
+        .nav-item {
+            border-bottom: 1px solid rgba(99, 102, 241, 0.2);
+        }
+
+        .nav-link {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 1rem;
+            color: white;
+            text-decoration: none;
+            transition: all 0.2s ease;
+            min-height: 48px;
+        }
+
+        .nav-link:hover {
+            background: rgba(99, 102, 241, 0.1);
+            color: #6366f1;
+            padding-left: 1.25rem;
+        }
+
+        .nav-link i {
+            color: #6366f1;
+            width: 1.5rem;
+            text-align: center;
+        }
+
+        /* Content */
+        .content {
+            padding: 2rem;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .content h1 {
+            margin-bottom: 1rem;
+            color: #e0e7ff;
+        }
+
+        .content p {
+            margin-bottom: 1rem;
+            color: #a5b4fc;
+            line-height: 1.6;
+        }
+
+        .status {
+            background: rgba(99, 102, 241, 0.1);
+            border: 1px solid #6366f1;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-top: 2rem;
+            font-family: monospace;
+            font-size: 0.9rem;
+        }
+
+        .status strong {
+            color: #6366f1;
+        }
+
+        @media (max-width: 768px) {
+            body {
+                font-size: 14px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Navbar -->
+    <nav class="navbar">
+        <div class="navbar-container">
+            <a class="navbar-brand" href="#">
+                <i class="fas fa-chart-line"></i>
+                <span>StockLeague</span>
+            </a>
+            <button class="navbar-toggler" id="mobileToggler" type="button" aria-label="Toggle navigation">
+                <i class="fas fa-bars"></i>
+            </button>
+        </div>
+
+        <!-- Mobile Menu -->
+        <div class="navbar-menu" id="navbarNav">
+            <ul class="navbar-nav">
+                <li class="nav-item">
+                    <a class="nav-link" href="#">
+                        <i class="fas fa-chart-pie"></i>
+                        <span>Dashboard</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="#">
+                        <i class="fas fa-exchange-alt"></i>
+                        <span>Trade</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="#">
+                        <i class="fas fa-chart-bar"></i>
+                        <span>Analytics</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="#">
+                        <i class="fas fa-users"></i>
+                        <span>Community</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="#">
+                        <i class="fas fa-newspaper"></i>
+                        <span>News</span>
+                    </a>
+                </li>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- Content -->
+    <div class="content">
+        <h1>Mobile Navbar Test</h1>
+        <p>
+            This is a standalone test page for the mobile navbar. Resize your browser window to 
+            <strong>≤ 768px width</strong> and click the hamburger menu icon (☰) in the top right.
+        </p>
+        
+        <h2 style="color: #c7d2fe; margin-top: 2rem; margin-bottom: 1rem; font-size: 1.1rem;">Test Instructions:</h2>
+        <ul style="color: #a5b4fc; margin-left: 1.5rem;">
+            <li>Resize browser to mobile size (≤768px width)</li>
+            <li>Open DevTools Console (F12)</li>
+            <li>Click the hamburger icon (☰)</li>
+            <li>Menu should slide in from left</li>
+            <li>Click again to close</li>
+            <li>Check console for messages</li>
+        </ul>
+
+        <div class="status">
+            <strong>Current Status:</strong><br>
+            Viewport Width: <span id="viewportWidth">—</span>px<br>
+            Menu Open: <span id="menuOpen">—</span><br>
+            Show Class Present: <span id="showClass">—</span><br>
+            <br>
+            <strong>Test Button:</strong><br>
+            <button onclick="window.testToggle()" style="
+                background: #6366f1;
+                color: white;
+                border: none;
+                padding: 0.5rem 1rem;
+                border-radius: 4px;
+                cursor: pointer;
+                margin-top: 0.5rem;
+            ">
+                Click to Test Toggle
+            </button>
+        </div>
+    </div>
+
+    <script>
+        const toggler = document.getElementById('mobileToggler');
+        const menu = document.getElementById('navbarNav');
+
+        console.log('%c🧪 Mobile Navbar Test Page Loaded', 'color: blue; font-weight: bold');
+        console.log('Elements found:', { toggler: !!toggler, menu: !!menu });
+
+        // Toggle function
+        window.testToggle = () => {
+            const isOpen = menu.classList.contains('show');
+            if (isOpen) {
+                menu.classList.remove('show');
+                toggler.style.color = 'white';
+                console.log('✅ Menu CLOSED');
+            } else {
+                menu.classList.add('show');
+                toggler.style.color = '#6366f1';
+                console.log('✅ Menu OPENED');
+            }
+            updateStatus();
+        };
+
+        // Attach click listener
+        toggler.addEventListener('click', window.testToggle);
+        console.log('✅ Click listener attached');
+
+        // Update status
+        const updateStatus = () => {
+            document.getElementById('viewportWidth').textContent = window.innerWidth;
+            document.getElementById('menuOpen').textContent = menu.classList.contains('show') ? '✅ YES' : '❌ NO';
+            document.getElementById('showClass').textContent = menu.classList.contains('show') ? '✅ YES' : '❌ NO';
+        };
+
+        // Initial status
+        updateStatus();
+        window.addEventListener('resize', updateStatus);
+
+        console.log('%c✅ Navbar test ready! Click hamburger icon or call window.testToggle()', 'color: green; font-weight: bold');
+    </script>
+</body>
+</html>
