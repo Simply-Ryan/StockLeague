@@ -501,7 +501,19 @@ const indexSymbols = {{ index_symbols | tojson | safe }} || [];
 const gainers = {{ market_movers.gainers|map(attribute='symbol')|list|tojson|safe }} || [];
 const losers = {{ market_movers.losers|map(attribute='symbol')|list|tojson|safe }} || [];
 
-function renderSparkline(canvasId, prices, allCandles){
+// Create maps of symbol -> change_percent for consistent coloring
+const symbolChangePercent = {
+    // Market indices
+    {% for idx in market_indices %}'{{ idx.symbol }}': {{ idx.change_percent }},{% endfor %}
+    // Gainers
+    {% for s in market_movers.gainers %}'{{ s.symbol }}': {{ s.change_percent }},{% endfor %}
+    // Losers
+    {% for s in market_movers.losers %}'{{ s.symbol }}': {{ s.change_percent }},{% endfor %}
+    // Popular stocks
+    {% for stock in popular_stocks %}'{{ stock.symbol }}': {{ stock.change_percent }}{% if not loop.last %},{% endif %}{% endfor %}
+};
+
+function renderSparkline(canvasId, prices, allCandles, symbol){
     const el = document.getElementById(canvasId);
     const spinner = document.getElementById('spinner_' + canvasId);
     
@@ -532,20 +544,12 @@ function renderSparkline(canvasId, prices, allCandles){
         el.style.display = 'block';
         el.style.visibility = 'visible';
         
-        // Calculate daily change from all available candles
-        // Use opening price of first candle and closing price of last candle
-        let dailyChangePercent = 0;
-        if(allCandles && allCandles.length > 0) {
-            // If we have candle data with open/close, calculate from that
-            const firstCandle = allCandles[0];
-            const lastCandle = allCandles[allCandles.length - 1];
-            if(firstCandle.open && lastCandle.close) {
-                dailyChangePercent = ((lastCandle.close - firstCandle.open) / firstCandle.open) * 100;
-            }
-        }
+        // Use the actual change_percent from quote data for consistent coloring
+        // Look up the actual change percent from the data passed to the page
+        const actualChangePercent = symbolChangePercent[symbol] !== undefined ? symbolChangePercent[symbol] : 0;
         
-        // Determine color based on daily change
-        const lineColor = dailyChangePercent >= 0 ? '#198754' : '#dc3545';
+        // Determine color based on actual daily change from quote data
+        const lineColor = actualChangePercent >= 0 ? '#198754' : '#dc3545';
         
         // Create chart
         new Chart(el.getContext('2d'), {
@@ -610,7 +614,8 @@ function fetchAndRender(symbol, prefix, retries = 0){
         const canvasId = `${prefix}${symbol}`;
         // Extract closing prices from candles and pass full candles array
         const prices = (j.candles || []).map(c => c.close || c.price || 0);
-        renderSparkline(canvasId, prices, j.candles);
+        // Pass the symbol to renderSparkline so it can look up the actual change_percent
+        renderSparkline(canvasId, prices, j.candles, symbol);
     })
     .catch(e=>{
         clearTimeout(timeoutId);
