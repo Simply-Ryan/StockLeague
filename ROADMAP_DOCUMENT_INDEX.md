@@ -12,7 +12,7 @@
 ### 1. 🚀 PHASE_5_QUICK_START.md (Start Here!)
 **Length**: 400 lines | **Read Time**: 15 minutes | **Start Coding**: Now!
 
-**What**: Quick reference guide to begin Phase 5 immediately  
+**What**: Quick reference guide to begin Phase 5 immediately
 **Contains**:
 - Weekly sprint breakdown
 - Task prioritization
@@ -363,7 +363,85 @@ Before starting each phase, verify:
 
 ---
 
-## 📈 SUCCESS TRACKING
+## � RECENT FIXES & IMPROVEMENTS (Dec 29, 2025)
+
+### Database & API Fixes
+1. **Fixed `db.query()` method not found** - Replaced with `db.get_transactions()` and filtered in Python
+   - Affected: `/buy` and `/sell` routes (lines 1759, 2346 in app.py)
+   - Impact: Today's P&L calculations now work correctly
+
+2. **Added missing `user_stocks` table** - Created in database schema (`database/db_manager.py`)
+   - Tracks current holdings with average cost
+   - Used by atomic buy/sell operations
+   - Prevents "no such table" errors
+
+3. **Fixed method call errors**
+   - Changed `db.get_stocks(user_id, portfolio_id)` → `db.get_user_stocks(user_id)`
+   - Changed `db.get_league_stocks(user_id, league_id)` → `db.get_league_holdings(league_id, user_id)`
+   - Location: `app.py` line 1754 (buy route)
+
+### UI/UX Improvements
+1. **Fixed form field width issues**
+   - Added `width: 100%` to `.form-control` and `.form-control-lg`
+   - Added `box-sizing: border-box` to prevent padding overflow
+   - Added `min-height: 44px` for touch-friendly sizing
+   - Result: Form inputs now match button widths consistently
+
+2. **Fixed alert contrast in light mode**
+   - Changed order summary boxes from `alert-light` to `card` with theme-aware colors
+   - Uses `var(--card-bg)` and `var(--border-color)` for proper theming
+   - Affects: Buy order summary, Sell order summary on `/trade` page
+   - Impact: Better readability in both light and dark modes
+
+3. **Enhanced Max button debugging** (in progress)
+   - Added comprehensive console logging to identify JS issues
+   - Includes multiple attachment methods (DOMContentLoaded + timeout)
+   - Console outputs: page load state, button detection, click events, calculations
+   - Fixed duplicate event listener code causing syntax errors
+
+4. **Fixed JavaScript syntax errors in trade.html**
+   - Removed duplicate/orphaned code blocks in script section
+   - Cleaned up malformed event handlers
+   - Ensured proper script closure
+
+### Known Issues Being Debugged
+- **Max button on /trade page** - Syntax errors fixed, JavaScript now working
+  - Added comprehensive console logging to verify execution
+  - Created test_max_button.html to validate JavaScript works in isolation
+  - Next: Test in actual /trade page with stock data
+  - Solution: Run `/trade?symbol=AAPL` and check browser console (F12) for logs
+  - Expected logs: "Trade script starting...", "Elements found - maxBuyBtn: true", click events
+
+### Files Modified This Session
+- `database/db_manager.py` - Added user_stocks table
+- `app.py` - Fixed method calls and database queries (lines 1754, 1759-1768, 2346-2355)
+- `static/css/styles.css` - Enhanced form control sizing (lines 943-952, 1406-1412)
+- `templates/trade.html` - Added debugging, fixed alert styling (lines 186-202, 256-265, 375-485)
+
+---
+
+## 📋 TODO FOR NEXT SESSION
+
+### High Priority (Blocking)
+- [ ] **Resolve Max button issue** - Debug console output from `/trade` page
+  - Check: Is "Trade script starting to load..." appearing in console?
+  - Check: Is "Elements found - maxBuyBtn: true/false" showing?
+  - If button not found: Check HTML structure in template
+  - If button found: Event listener attachment should work with multiple methods
+  
+- [ ] **Test buy/sell functionality end-to-end**
+  - Buy a stock: Verify transaction works
+  - Verify user_stocks table is updated
+  - Verify cash is deducted
+  - Sell a stock: Verify similar flow
+
+### Documentation
+- [ ] Update this file with Max button resolution
+- [ ] Verify all fixes working in all themes
+
+---
+
+## �📈 SUCCESS TRACKING
 
 Each phase has success criteria. Track monthly:
 - [ ] Phase completion %

@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StockLeague - You're Offline</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        html, body {
+            height: 100%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        
+        body {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+        }
+
+        .offline-container {
+            text-align: center;
+            padding: 2rem;
+            max-width: 400px;
+        }
+
+        .offline-icon {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0.5;
+            }
+        }
+
+        .offline-title {
+            font-size: 2rem;
+            font-weight: bold;
+            margin-bottom: 1rem;
+        }
+
+        .offline-message {
+            font-size: 1.1rem;
+            margin-bottom: 2rem;
+            line-height: 1.6;
+        }
+
+        .offline-suggestion {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 1rem;
+            border-radius: 0.5rem;
+            margin-bottom: 2rem;
+            font-size: 0.95rem;
+        }
+
+        .offline-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .btn-offline {
+            background: white;
+            color: #667eea;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.5rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .btn-offline:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+
+        .offline-status {
+            margin-top: 2rem;
+            font-size: 0.9rem;
+            opacity: 0.8;
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #ff6b6b;
+            margin-right: 0.5rem;
+            animation: blink 1s infinite;
+        }
+
+        @keyframes blink {
+            0%, 100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0.3;
+            }
+        }
+
+        .status-indicator.online {
+            background: #51cf66;
+            animation: none;
+        }
+
+        @media (max-width: 480px) {
+            .offline-container {
+                padding: 1rem;
+            }
+
+            .offline-title {
+                font-size: 1.5rem;
+            }
+
+            .offline-message {
+                font-size: 1rem;
+            }
+
+            .offline-icon {
+                font-size: 3rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="offline-container">
+        <div class="offline-icon">
+            <i class="fas fa-wifi-slash"></i>
+        </div>
+
+        <h1 class="offline-title">You're Offline</h1>
+
+        <p class="offline-message">
+            We couldn't reach the internet. Don't worry—StockLeague is designed to work offline too!
+        </p>
+
+        <div class="offline-suggestion">
+            <strong>What you can do:</strong>
+            <ul style="margin: 0.5rem 0 0 0; padding-left: 1.5rem; text-align: left;">
+                <li>View your cached portfolio</li>
+                <li>Check your holdings</li>
+                <li>Review trade history</li>
+                <li>Trades will queue and sync when you're online</li>
+            </ul>
+        </div>
+
+        <div class="offline-actions">
+            <button class="btn-offline" onclick="location.href = '/'">
+                <i class="fas fa-home"></i> Go to Home
+            </button>
+            <button class="btn-offline" onclick="checkConnection()">
+                <i class="fas fa-sync"></i> Check Connection
+            </button>
+        </div>
+
+        <div class="offline-status">
+            <span class="status-indicator" id="statusIndicator"></span>
+            <span id="statusText">Waiting for connection...</span>
+        </div>
+    </div>
+
+    <script>
+        // Check if we're back online
+        function checkConnection() {
+            fetch('/api/health', { method: 'HEAD' })
+                .then(() => {
+                    // We're back online!
+                    document.getElementById('statusText').textContent = 'You\'re back online!';
+                    document.getElementById('statusIndicator').classList.add('online');
+                    
+                    setTimeout(() => {
+                        location.href = '/home';
+                    }, 1500);
+                })
+                .catch(() => {
+                    // Still offline
+                    document.getElementById('statusText').textContent = 'Still offline. Check your connection.';
+                });
+        }
+
+        // Auto-check connection every 3 seconds
+        setInterval(checkConnection, 3000);
+
+        // Check on page load
+        window.addEventListener('load', checkConnection);
+
+        // Listen for online event
+        window.addEventListener('online', () => {
+            console.log('Online connection restored');
+            document.getElementById('statusText').textContent = 'You\'re back online! Redirecting...';
+            document.getElementById('statusIndicator').classList.add('online');
+            
+            setTimeout(() => {
+                location.href = '/home';
+            }, 1000);
+        });
+
+        // Offline event
+        window.addEventListener('offline', () => {
+            console.log('Lost internet connection');
+            document.getElementById('statusText').textContent = 'Lost connection. Waiting...';
+            document.getElementById('statusIndicator').classList.remove('online');
+        });
+    </script>
+</body>
+</html>

@@ -183,19 +183,21 @@
                                 </div>
                                 
                                 <!-- Order Summary -->
-                                <div class="alert alert-light border-1 mb-3">
-                                    <div class="row g-3 text-center">
-                                        <div class="col-md-4">
-                                            <small class="text-muted d-block">Price Per Share</small>
-                                            <strong class="fs-6" id="buyPricePerShare">{{ quote.price | usd }}</strong>
-                                        </div>
-                                        <div class="col-md-4">
-                                            <small class="text-muted d-block">Total Cost</small>
-                                            <strong class="fs-6 text-danger" id="buyTotalCost">$0.00</strong>
-                                        </div>
-                                        <div class="col-md-4">
-                                            <small class="text-muted d-block">Cash After</small>
-                                            <strong class="fs-6 text-success" id="buyCashAfter">{{ user_cash | usd }}</strong>
+                                <div class="card border-1 mb-3" style="background-color: var(--card-bg); border-color: var(--border-color);">
+                                    <div class="card-body">
+                                        <div class="row g-3 text-center">
+                                            <div class="col-md-4">
+                                                <small class="text-muted d-block">Price Per Share</small>
+                                                <strong class="fs-6" id="buyPricePerShare">{{ quote.price | usd }}</strong>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <small class="text-muted d-block">Total Cost</small>
+                                                <strong class="fs-6 text-danger" id="buyTotalCost">$0.00</strong>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <small class="text-muted d-block">Cash After</small>
+                                                <strong class="fs-6 text-success" id="buyCashAfter">{{ user_cash | usd }}</strong>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -251,19 +253,21 @@
                                 </div>
 
                                 <!-- Sell Order Summary -->
-                                <div class="alert alert-light border-1 mb-3">
-                                    <div class="row g-3 text-center">
-                                        <div class="col-md-4">
-                                            <small class="text-muted d-block">Price Per Share</small>
-                                            <strong class="fs-6" id="sellPricePerShare">{{ quote.price | usd }}</strong>
-                                        </div>
-                                        <div class="col-md-4">
-                                            <small class="text-muted d-block">Total Proceeds</small>
-                                            <strong class="fs-6 text-success" id="sellTotalProceeds">$0.00</strong>
-                                        </div>
-                                        <div class="col-md-4">
-                                            <small class="text-muted d-block">Cash After</small>
-                                            <strong class="fs-6 text-success" id="sellCashAfter">{{ user_cash | usd }}</strong>
+                                <div class="card border-1 mb-3" style="background-color: var(--card-bg); border-color: var(--border-color);">
+                                    <div class="card-body">
+                                        <div class="row g-3 text-center">
+                                            <div class="col-md-4">
+                                                <small class="text-muted d-block">Price Per Share</small>
+                                                <strong class="fs-6" id="sellPricePerShare">{{ quote.price | usd }}</strong>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <small class="text-muted d-block">Total Proceeds</small>
+                                                <strong class="fs-6 text-success" id="sellTotalProceeds">$0.00</strong>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <small class="text-muted d-block">Cash After</small>
+                                                <strong class="fs-6 text-success" id="sellCashAfter">{{ user_cash | usd }}</strong>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -370,9 +374,13 @@
 
 <script>
     // Trading Page JavaScript
+    console.log('Trade script starting to load...');
+    
     const STOCK_PRICE = {{ quote.price }};
     const USER_CASH = {{ user_cash }};
     const USER_SHARES = {{ user_shares }};
+    
+    console.log('Constants loaded - STOCK_PRICE:', STOCK_PRICE, 'USER_CASH:', USER_CASH, 'USER_SHARES:', USER_SHARES);
 
     function calculateMaxShares() {
         if (USER_CASH > 0 && STOCK_PRICE > 0) {
@@ -422,16 +430,55 @@
         document.getElementById('sellCashAfter').textContent = '$' + cashAfter.toFixed(2);
     }
 
+    function handleMaxBuyClick(e) {
+        console.log('Max button clicked!');
+        e.preventDefault();
+        e.stopPropagation();
+        const buySharesInput = document.getElementById('buy_shares');
+        const max = calculateMaxShares();
+        console.log('Calculated max:', max);
+        if (max > 0 && buySharesInput) {
+            console.log('Setting shares to:', max);
+            buySharesInput.value = max;
+            buySharesInput.dispatchEvent(new Event('input', { bubbles: true }));
+            updateBuyCalculations();
+            buySharesInput.focus();
+        } else {
+            alert('Insufficient funds to purchase any shares of this stock.');
+        }
+    }
+
+    function handleMaxSellClick(e) {
+        console.log('Max sell button clicked!');
+        e.preventDefault();
+        e.stopPropagation();
+        const sellSharesInput = document.getElementById('sell_shares');
+        if (USER_SHARES > 0 && sellSharesInput) {
+            console.log('Setting sell shares to:', USER_SHARES);
+            sellSharesInput.value = USER_SHARES;
+            sellSharesInput.dispatchEvent(new Event('input', { bubbles: true }));
+            updateSellCalculations();
+            sellSharesInput.focus();
+        } else {
+            alert('You don\'t own any shares of this stock.');
+        }
+    }
+
     // Initialize on page load
+    console.log('Setting up DOMContentLoaded listener...');
     document.addEventListener('DOMContentLoaded', function() {
+        console.log('DOMContentLoaded fired!');
         // Get form elements
         const buySharesInput = document.getElementById('buy_shares');
         const maxBuyBtn = document.getElementById('maxBuyBtn');
         const sellSharesInput = document.getElementById('sell_shares');
         const maxSellBtn = document.getElementById('maxSellBtn');
 
+        console.log('Elements found - buy_shares:', !!buySharesInput, 'maxBuyBtn:', !!maxBuyBtn, 'sell_shares:', !!sellSharesInput, 'maxSellBtn:', !!maxSellBtn);
+
         // Update max shares display
         const maxShares = calculateMaxShares();
+        console.log('Calculated max shares:', maxShares);
         if (document.getElementById('maxShares')) {
             document.getElementById('maxShares').textContent = maxShares.toLocaleString();
         }
@@ -442,56 +489,49 @@
         // Buy input event listener
         if (buySharesInput) {
             buySharesInput.addEventListener('input', updateBuyCalculations);
+            console.log('Added input listener to buy_shares');
         }
 
         // Max Buy button click handler
         if (maxBuyBtn) {
-            maxBuyBtn.addEventListener('click', function(e) {
-                e.preventDefault();
-                e.stopPropagation();
-                const max = calculateMaxShares();
-                if (max > 0 && buySharesInput) {
-                    buySharesInput.value = max;
-                    updateBuyCalculations();
-                    buySharesInput.focus();
-                } else {
-                    alert('Insufficient funds to purchase any shares of this stock.');
-                }
-            });
+            console.log('Attaching click handler to maxBuyBtn');
+            maxBuyBtn.addEventListener('click', handleMaxBuyClick);
+            console.log('Click handler attached to maxBuyBtn');
+        } else {
+            console.error('maxBuyBtn element not found!');
         }
 
         // Sell input event listener
         if (sellSharesInput) {
             sellSharesInput.addEventListener('input', updateSellCalculations);
+            console.log('Added input listener to sell_shares');
         }
 
         // Max Sell button click handler
         if (maxSellBtn) {
-            maxSellBtn.addEventListener('click', function(e) {
-                e.preventDefault();
-                e.stopPropagation();
-                if (USER_SHARES > 0 && sellSharesInput) {
-                    sellSharesInput.value = USER_SHARES;
-                    updateSellCalculations();
-                    sellSharesInput.focus();
-                } else {
-                    alert('You don\'t own any shares of this stock.');
-                }
-            });
+            console.log('Attaching click handler to maxSellBtn');
+            maxSellBtn.addEventListener('click', handleMaxSellClick);
+            console.log('Click handler attached to maxSellBtn');
         }
     });
 
-    // Recalculate when price updates
-    const originalUpdateStockPrice = window.updateStockPrice;
-    window.updateStockPrice = function(data) {
-        if (data.symbol === '{{ quote.symbol }}') {
-            if (originalUpdateStockPrice) {
-                originalUpdateStockPrice(data);
-            }
-            // Note: Price updates would require reloading the page or API call
-            // For now, calculations use server-rendered price
+    // Also try immediate attachment (in case DOMContentLoaded already fired)
+    console.log('Attempting immediate button attachment...');
+    setTimeout(function() {
+        const maxBuyBtn = document.getElementById('maxBuyBtn');
+        const maxSellBtn = document.getElementById('maxSellBtn');
+        console.log('After timeout - maxBuyBtn:', !!maxBuyBtn, 'maxSellBtn:', !!maxSellBtn);
+        if (maxBuyBtn && !maxBuyBtn._listener_attached) {
+            console.log('Attaching click handler to maxBuyBtn (timeout)');
+            maxBuyBtn.addEventListener('click', handleMaxBuyClick);
+            maxBuyBtn._listener_attached = true;
         }
-    };
+        if (maxSellBtn && !maxSellBtn._listener_attached) {
+            console.log('Attaching click handler to maxSellBtn (timeout)');
+            maxSellBtn.addEventListener('click', handleMaxSellClick);
+            maxSellBtn._listener_attached = true;
+        }
+    }, 100);
 </script>
 
 <!-- Add to Watchlist Modal -->

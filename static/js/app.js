@@ -1,5 +1,74 @@
 // StockLeague JavaScript Functions
 
+/**
+ * Service Worker Registration - Phase 5 Task 5.2.1
+ * Registers service worker for offline functionality and PWA support
+ */
+function registerServiceWorker() {
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('/static/js/service-worker.js')
+                .then(registration => {
+                    console.log('[App] Service Worker registered successfully:', registration);
+                    
+                    // Check for updates periodically
+                    setInterval(() => {
+                        registration.update();
+                    }, 60000); // Check every minute
+
+                    // Handle updates
+                    registration.addEventListener('updatefound', () => {
+                        const newWorker = registration.installing;
+                        newWorker.addEventListener('statechange', () => {
+                            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                // New service worker is ready
+                                console.log('[App] New service worker available');
+                                showServiceWorkerUpdatePrompt(registration);
+                            }
+                        });
+                    });
+                })
+                .catch(error => {
+                    console.warn('[App] Service Worker registration failed:', error);
+                });
+        });
+
+        // Listen for messages from service worker
+        navigator.serviceWorker.addEventListener('message', event => {
+            if (event.data && event.data.type === 'SW_UPDATED') {
+                console.log('[App] Service Worker has been updated');
+            }
+        });
+    } else {
+        console.warn('[App] Service Workers not supported in this browser');
+    }
+}
+
+/**
+ * Show prompt for service worker update
+ */
+function showServiceWorkerUpdatePrompt(registration) {
+    const updatePrompt = document.createElement('div');
+    updatePrompt.className = 'alert alert-info alert-dismissible fade show position-fixed bottom-0 start-0 m-3';
+    updatePrompt.style.zIndex = '9999';
+    updatePrompt.style.maxWidth = '400px';
+    updatePrompt.innerHTML = `
+        <strong>Update Available!</strong> A new version of StockLeague is available.
+        <button type="button" class="btn btn-sm btn-primary ms-2" onclick="location.reload()">Update Now</button>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    document.body.appendChild(updatePrompt);
+
+    // Auto-dismiss after 10 seconds
+    setTimeout(() => {
+        const alert = new bootstrap.Alert(updatePrompt);
+        alert.close();
+    }, 10000);
+}
+
+// Register service worker on load
+registerServiceWorker();
+
 document.addEventListener('DOMContentLoaded', function () {
     // Auto-dismiss alerts after 5 seconds with smooth fade
     const alerts = document.querySelectorAll('.alert:not(.alert-permanent)');
@@ -581,11 +650,259 @@ function initMobileFormEnhancements() {
     });
 }
 
+/**
+ * Touch Gesture Handler - Phase 5 Task 3
+ * Handles swipe, long-press, and pinch gestures on MOBILE DEVICES ONLY
+ * This function is only called on devices with max-width: 768px
+ */
+function initTouchGestures() {
+    // Guard: Only run on actual mobile/touch devices
+    const isMobileDevice = () => {
+        return (
+            (typeof window.orientation !== "undefined") ||
+            (navigator.userAgent.indexOf('IEMobile') !== -1) ||
+            (window.innerWidth <= 768 && 'ontouchstart' in window)
+        );
+    };
+
+    if (!isMobileDevice()) {
+        console.log('[TouchGestures] Desktop device detected. Touch gestures disabled.');
+        return;
+    }
+
+    console.log('[TouchGestures] Mobile device detected. Initializing touch gestures...');
+
+    // Track long-press
+    let longPressTimer = null;
+    let longPressTarget = null;
+
+    // Detect long-press (hold for 500ms)
+    document.addEventListener('touchstart', function(e) {
+        const target = e.target.closest('[data-long-press-enabled], .card, .list-group-item');
+        if (!target) return;
+
+        longPressTarget = target;
+        longPressTimer = setTimeout(() => {
+            if (longPressTarget) {
+                const event = new CustomEvent('longpress', {
+                    detail: { target: longPressTarget },
+                    bubbles: true
+                });
+                longPressTarget.dispatchEvent(event);
+                
+                // Show context menu if handler exists
+                if (longPressTarget.onlongpress) {
+                    longPressTarget.onlongpress(e);
+                }
+            }
+        }, 500);
+    }, { passive: true });
+
+    document.addEventListener('touchend', function(e) {
+        if (longPressTimer) {
+            clearTimeout(longPressTimer);
+            longPressTimer = null;
+        }
+        longPressTarget = null;
+    }, { passive: true });
+
+    document.addEventListener('touchmove', function(e) {
+        if (longPressTimer) {
+            clearTimeout(longPressTimer);
+            longPressTimer = null;
+        }
+    }, { passive: true });
+
+    // Detect swipe gestures
+    let touchStartX = 0;
+    let touchStartY = 0;
+    let touchStartTime = 0;
+
+    document.addEventListener('touchstart', function(e) {
+        const target = e.target.closest('[data-swipe-enabled]');
+        if (!target) return;
+
+        touchStartX = e.touches[0].clientX;
+        touchStartY = e.touches[0].clientY;
+        touchStartTime = Date.now();
+    }, { passive: true });
+
+    document.addEventListener('touchend', function(e) {
+        const target = e.target.closest('[data-swipe-enabled]');
+        if (!target || touchStartX === 0) return;
+
+        const touchEndX = e.changedTouches[0].clientX;
+        const touchEndY = e.changedTouches[0].clientY;
+        const touchDuration = Date.now() - touchStartTime;
+
+        const deltaX = touchEndX - touchStartX;
+        const deltaY = touchEndY - touchStartY;
+
+        // Swipe threshold: 50px minimum, 500ms maximum
+        if (Math.abs(deltaX) > 50 && Math.abs(deltaY) < 50 && touchDuration < 500) {
+            const direction = deltaX > 0 ? 'right' : 'left';
+            const event = new CustomEvent('swipe', {
+                detail: {
+                    direction: direction,
+                    distance: Math.abs(deltaX),
+                    target: target
+                },
+                bubbles: true
+            });
+            target.dispatchEvent(event);
+
+            // Handle swipe-to-dismiss for cards with data-swipe-dismiss
+            if (target.dataset.swipeDismiss && direction === 'left') {
+                target.classList.add('swipe-dismiss-active');
+                setTimeout(() => target.remove(), 300);
+            }
+        }
+
+        touchStartX = 0;
+        touchStartY = 0;
+        touchStartTime = 0;
+    }, { passive: true });
+
+    // Context Menu Handler
+    document.addEventListener('longpress', function(e) {
+        const target = e.detail.target;
+        if (!target.dataset.contextMenu) return;
+
+        const menuId = target.dataset.contextMenu;
+        const menu = document.getElementById(menuId) || createDefaultContextMenu(target);
+        
+        if (menu) {
+            menu.classList.add('visible');
+            menu.style.left = e.touches?.[0]?.clientX + 'px' || window.innerWidth / 2 + 'px';
+            menu.style.top = e.touches?.[0]?.clientY + 'px' || window.innerHeight / 2 + 'px';
+
+            // Close menu on outside click
+            setTimeout(() => {
+                document.addEventListener('click', closeContextMenu);
+            }, 100);
+        }
+    });
+
+    function closeContextMenu() {
+        document.querySelectorAll('.context-menu.visible').forEach(menu => {
+            menu.classList.remove('visible');
+        });
+        document.removeEventListener('click', closeContextMenu);
+    }
+
+    // Create default context menu for cards
+    function createDefaultContextMenu(target) {
+        const menu = document.createElement('div');
+        menu.className = 'context-menu';
+        
+        const actions = [];
+        
+        // Add actions based on card type
+        if (target.classList.contains('stock-card')) {
+            actions.push(
+                { label: 'Buy', action: 'buy' },
+                { label: 'Sell', action: 'sell' },
+                { label: 'Add to Watchlist', action: 'watch' }
+            );
+        } else if (target.classList.contains('league-card')) {
+            actions.push(
+                { label: 'View Details', action: 'view' },
+                { label: 'Leave League', action: 'leave', danger: true }
+            );
+        }
+
+        actions.forEach(action => {
+            const item = document.createElement('div');
+            item.className = 'context-menu-item' + (action.danger ? ' danger' : '');
+            item.textContent = action.label;
+            item.onclick = (e) => {
+                e.stopPropagation();
+                target.dispatchEvent(new CustomEvent('contextmenu-' + action.action, { bubbles: true }));
+                closeContextMenu();
+            };
+            menu.appendChild(item);
+        });
+
+        document.body.appendChild(menu);
+        return menu;
+    }
+
+    // Haptic Feedback
+    document.addEventListener('click', function(e) {
+        const target = e.target.closest('.haptic-feedback, button, .btn');
+        if (target && navigator.vibrate) {
+            navigator.vibrate(10); // 10ms vibration
+        }
+    });
+
+    // Handle notification swipe-to-dismiss
+    document.querySelectorAll('.alert[data-swipe-dismiss]').forEach(alert => {
+        alert.dataset.swipeEnabled = true;
+        
+        alert.addEventListener('swipe', function(e) {
+            if (e.detail.direction === 'left') {
+                this.classList.add('swipe-dismissing');
+                setTimeout(() => this.remove(), 300);
+            }
+        });
+    });
+
+    // Chart pinch-zoom support (if Chart.js is present)
+    if (typeof Chart !== 'undefined') {
+        document.querySelectorAll('canvas[data-pinch-enabled]').forEach(canvas => {
+            const ctx = canvas.getContext('2d');
+            let lastDistance = 0;
+
+            canvas.addEventListener('touchmove', function(e) {
+                if (e.touches.length === 2) {
+                    e.preventDefault();
+                    
+                    const touch1 = e.touches[0];
+                    const touch2 = e.touches[1];
+                    
+                    const distance = Math.hypot(
+                        touch2.clientX - touch1.clientX,
+                        touch2.clientY - touch1.clientY
+                    );
+
+                    if (lastDistance && distance > lastDistance) {
+                        // Zoom in
+                        const event = new CustomEvent('chart-zoom', {
+                            detail: { direction: 'in', distance: distance }
+                        });
+                        canvas.dispatchEvent(event);
+                    } else if (lastDistance && distance < lastDistance) {
+                        // Zoom out
+                        const event = new CustomEvent('chart-zoom', {
+                            detail: { direction: 'out', distance: distance }
+                        });
+                        canvas.dispatchEvent(event);
+                    }
+
+                    lastDistance = distance;
+                }
+            }, { passive: false });
+
+            canvas.addEventListener('touchend', function() {
+                lastDistance = 0;
+            });
+        });
+    }
+}
+
 // Initialize when DOM is ready
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initMobileFormEnhancements);
+    // MOBILE-ONLY: Only initialize touch gestures on mobile devices (max-width: 768px)
+    if (window.innerWidth <= 768 || ('ontouchstart' in window && window.innerWidth <= 1024)) {
+        document.addEventListener('DOMContentLoaded', initTouchGestures);
+    }
 } else {
     initMobileFormEnhancements();
+    // MOBILE-ONLY: Only initialize touch gestures on mobile devices
+    if (window.innerWidth <= 768 || ('ontouchstart' in window && window.innerWidth <= 1024)) {
+        initTouchGestures();
+    }
 }
 
 // Initialize when DOM is ready
@@ -606,5 +923,6 @@ window.StockLeague = {
     copyInviteCode,
     initSymbolAutocomplete,
     initMobileNavbar,
-    initMobileFormEnhancements
+    initMobileFormEnhancements,
+    initTouchGestures
 };

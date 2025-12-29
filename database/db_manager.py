@@ -290,6 +290,19 @@ class DatabaseManager:
             )
         """)
 
+        # User stocks table (tracks current holdings with average cost)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS user_stocks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                symbol TEXT NOT NULL,
+                shares INTEGER NOT NULL DEFAULT 0,
+                avg_cost NUMERIC NOT NULL DEFAULT 0,
+                FOREIGN KEY (user_id) REFERENCES users(id),
+                UNIQUE(user_id, symbol)
+            )
+        """)
+
         # Notifications table (minimal)
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS notifications (

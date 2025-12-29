@@ -1,0 +1,408 @@
+/* Touch-Optimized Components - Phase 5 Task 3 */
+/* MOBILE-ONLY CSS - Desktop uses original styles.css */
+/* All styles wrapped in mobile media query to ensure desktop UI is unaffected */
+
+/* IMPORTANT: All mobile-specific styles are wrapped in @media (max-width: 768px) */
+/* This ensures 100% separation from desktop UI which uses original styles.css */
+
+@media (max-width: 768px) {
+    /* =================================================================
+       TOUCH TARGET SIZING
+       All interactive elements must be minimum 44x44px for easy tapping
+       ================================================================= */
+
+    /* Button Touch Targets */
+    button,
+    input[type="button"],
+    input[type="submit"],
+    input[type="reset"],
+    input[type="checkbox"],
+    input[type="radio"],
+    .btn {
+        min-width: 44px;
+        min-height: 44px;
+        padding: 0.75rem 1rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    /* Icon Buttons */
+    .btn-icon,
+    .icon-btn,
+    [role="button"].icon {
+        min-width: 44px;
+        min-height: 44px;
+        width: 44px;
+        height: 44px;
+        padding: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    /* Link Touch Targets */
+    a[role="button"],
+    .link-button,
+    a.btn {
+        min-height: 44px;
+        padding: 0.75rem 1rem;
+        display: inline-flex;
+        align-items: center;
+        text-decoration: none;
+    }
+
+    /* Form Input Touch Targets */
+    input[type="text"],
+    input[type="email"],
+    input[type="password"],
+    input[type="number"],
+    input[type="date"],
+    input[type="time"],
+    input[type="search"],
+    textarea,
+    select {
+        min-height: 44px;
+        font-size: 16px; /* Prevents iOS auto-zoom */
+        padding: 0.75rem;
+    }
+
+    /* Checkbox & Radio Touch Areas */
+    input[type="checkbox"],
+    input[type="radio"] {
+        width: 20px;
+        height: 20px;
+        margin: 0 0.5rem;
+        cursor: pointer;
+    }
+
+    /* Label Touch Area for Checkboxes/Radios */
+    label {
+        min-height: 44px;
+        display: flex;
+        align-items: center;
+        cursor: pointer;
+        user-select: none;
+    }
+
+    label input[type="checkbox"],
+    label input[type="radio"] {
+        margin-right: 0.75rem;
+    }
+
+    /* =================================================================
+       TOUCH-FRIENDLY SPACING
+       Minimum 8px spacing between interactive elements
+       ================================================================= */
+
+    .btn + .btn,
+    .btn + button,
+    button + .btn,
+    button + button {
+        margin-left: 8px;
+    }
+
+    /* Vertical spacing for stacked buttons */
+    .button-group {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .button-group.horizontal {
+        flex-direction: row;
+    }
+
+    /* Form field spacing */
+    .form-group {
+        margin-bottom: 1.5rem;
+    }
+
+    .form-check {
+        margin-bottom: 1rem;
+    }
+
+    /* Card spacing */
+    .card {
+        margin-bottom: 1rem;
+    }
+
+    /* List item spacing for touch */
+    .list-group-item {
+        min-height: 44px;
+        padding: 1rem;
+        display: flex;
+        align-items: center;
+    }
+
+    /* =================================================================
+       GESTURE SUPPORT - SWIPE DETECTION
+       Uses native touch events for swipe, pinch, long-press gestures
+       ================================================================= */
+
+    /* Mark elements that support gestures */
+    [data-swipe-enabled] {
+        touch-action: pan-y; /* Allow vertical scrolling but capture swipes */
+        cursor: grab;
+    }
+
+    [data-swipe-enabled]:active {
+        cursor: grabbing;
+    }
+
+    /* Card swipe styling */
+    .card[data-swipe-enabled],
+    .stock-card[data-swipe-enabled],
+    .league-card[data-swipe-enabled] {
+        position: relative;
+        overflow: hidden;
+    }
+
+    /* Swipe hint */
+    .swipe-hint {
+        position: absolute;
+        right: 0;
+        top: 0;
+        bottom: 0;
+        background: rgba(255, 0, 0, 0.1);
+        width: 0;
+        transition: width 0.3s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #ff0000;
+        font-weight: bold;
+        z-index: -1;
+    }
+
+    .card[data-swipe-enabled].swipe-left .swipe-hint {
+        width: 80%;
+    }
+
+    /* Swipe-to-dismiss animation */
+    .card.swipe-dismiss-active {
+        opacity: 0.3;
+        transform: translateX(100%);
+        transition: all 0.3s ease;
+    }
+
+    /* =================================================================
+       LONG-PRESS CONTEXT MENUS
+       Right-click menu equivalent for touch devices
+       ================================================================= */
+
+    .context-menu {
+        position: fixed;
+        background: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 0.5rem;
+        min-width: 160px;
+        z-index: 1000;
+        box-shadow: 0 4px 12px var(--shadow);
+        display: none;
+    }
+
+    .context-menu.visible {
+        display: block;
+    }
+
+    .context-menu-item {
+        min-height: 44px;
+        padding: 0.75rem 1rem;
+        display: flex;
+        align-items: center;
+        cursor: pointer;
+        transition: background-color 0.2s ease;
+        user-select: none;
+    }
+
+    .context-menu-item:hover,
+    .context-menu-item:active {
+        background-color: var(--bg-tertiary);
+    }
+
+    .context-menu-item.danger {
+        color: var(--danger-color);
+    }
+
+    .context-menu-divider {
+        height: 1px;
+        background-color: var(--border-color);
+        margin: 0.5rem 0;
+    }
+
+    /* Long-press indicator */
+    [data-long-press-enabled] {
+        position: relative;
+    }
+
+    .long-press-indicator {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        height: 3px;
+        background: var(--primary-color);
+        animation: longPressProgress 0.5s ease forwards;
+    }
+
+    @keyframes longPressProgress {
+        0% {
+            width: 0;
+        }
+        100% {
+            width: 100%;
+        }
+    }
+
+    /* =================================================================
+       PINCH-TO-ZOOM SUPPORT
+       For charts and images
+       ================================================================= */
+
+    /* Enable pinch zoom on specific elements */
+    .chart-container[data-pinch-enabled],
+    img[data-pinch-enabled] {
+        touch-action: pinch-zoom;
+    }
+
+    /* Zoom indicator */
+    .zoom-controls {
+        position: absolute;
+        bottom: 1rem;
+        right: 1rem;
+        display: flex;
+        gap: 0.5rem;
+        z-index: 10;
+    }
+
+    .zoom-control-btn {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        background: rgba(0, 0, 0, 0.5);
+        color: white;
+        border: none;
+        font-size: 1.25rem;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: background-color 0.2s ease;
+    }
+
+    .zoom-control-btn:active {
+        background: rgba(0, 0, 0, 0.8);
+    }
+
+    /* =================================================================
+       NOTIFICATION SWIPE DISMISS
+       Swipe notifications away
+       ================================================================= */
+
+    .alert[data-swipe-dismiss] {
+        position: relative;
+        overflow: hidden;
+    }
+
+    .alert.swipe-dismissing {
+        transform: translateX(100%);
+        opacity: 0;
+        transition: all 0.3s ease;
+    }
+
+    /* Dismiss progress indicator */
+    .dismiss-progress {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        height: 2px;
+        background: rgba(255, 255, 255, 0.5);
+    }
+
+    /* =================================================================
+       MOBILE-OPTIMIZED DROPDOWNS
+       Touch-friendly dropdown menus
+       ================================================================= */
+
+    .dropdown-menu {
+        min-width: 200px;
+        padding: 0.5rem 0;
+    }
+
+    .dropdown-item {
+        min-height: 44px;
+        padding: 0.75rem 1rem;
+        display: flex;
+        align-items: center;
+        cursor: pointer;
+        transition: background-color 0.2s ease;
+    }
+
+    .dropdown-item:hover,
+    .dropdown-item:active {
+        background-color: var(--bg-tertiary);
+    }
+
+    .dropdown-divider {
+        height: 1px;
+        background-color: var(--border-color);
+        margin: 0.5rem 0;
+    }
+
+    /* =================================================================
+       TOUCH FEEDBACK STATES
+       Visual feedback for touch interactions
+       ================================================================= */
+
+    /* Active/pressed state */
+    button:active,
+    a[role="button"]:active,
+    .btn:active,
+    .card[data-swipe-enabled]:active {
+        opacity: 0.85;
+        transform: scale(0.98);
+    }
+
+    /* Focus state (keyboard + touch) */
+    button:focus,
+    a[role="button"]:focus,
+    input:focus,
+    select:focus,
+    textarea:focus {
+        outline: 2px solid var(--primary-color);
+        outline-offset: 2px;
+    }
+
+    /* =================================================================
+       MOBILE PAGINATION & CONTROLS
+       Touch-friendly navigation controls
+       ================================================================= */
+
+    .pagination .page-link {
+        min-width: 44px;
+        min-height: 44px;
+        padding: 0.5rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .pagination .page-item + .page-item {
+        margin-left: 4px;
+    }
+
+    /* =================================================================
+       DEBUG CLASSES (remove in production)
+       ================================================================= */
+
+    /* Visualize touch targets during development */
+    .debug-touch-targets button,
+    .debug-touch-targets .btn,
+    .debug-touch-targets a[role="button"],
+    .debug-touch-targets input[type="button"],
+    .debug-touch-targets input[type="submit"],
+    .debug-touch-targets .icon-btn {
+        outline: 2px dashed rgba(255, 0, 0, 0.5);
+        outline-offset: -2px;
+    }
+}

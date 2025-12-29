@@ -945,6 +945,11 @@ label, .form-label {
     border-color: var(--border-color);
     color: var(--text-primary);
     transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+    width: 100%;
+    padding: 0.75rem;
+    min-height: 44px;
+    font-size: 1rem;
+    box-sizing: border-box;
 }
 
 .form-control:focus, .form-select:focus {
@@ -1403,6 +1408,9 @@ small.text-muted {
     padding: 0.75rem 1rem;
     border-radius: 8px;
     transition: all 0.3s ease;
+    width: 100%;
+    min-height: 44px;
+    box-sizing: border-box;
 }
 
 .form-control-lg:focus {
@@ -1903,6 +1911,7 @@ small,
     
     /* ============================================
        MOBILE FORM OPTIMIZATION (Phase 5 Task 2)
+       ONLY applies to very small phones (≤480px)
        ============================================ */
     
     /* Full-width form layouts */
@@ -1996,8 +2005,6 @@ small,
         margin-top: 0.5rem;
     }
     
-    /* Input groups will be fixed in medium devices section */
-
     /* Form text */
     .form-text {
         display: block;
@@ -2127,91 +2134,7 @@ small,
         background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath fill='%23333' d='M6 9L0 3h12z'/%3E%3C/svg%3E");
     }
     
-    /* Forms */
-
-    .form-control, .form-select {
-        padding: 0.5rem 0.75rem;
-        font-size: 1rem; /* Prevent zoom on iOS */
-        border-radius: 0.5rem;
-    }
-    
-    .form-label {
-        margin-bottom: 0.3rem;
-        font-size: 0.9rem;
-    }
-    
-    .input-group > .form-control,
-    .input-group > .form-select {
-        min-height: 2.5rem; /* Touch target size */
-    }
-    
-    /* Grid layouts */
-    .dashboard-grid,
-    .row {
-        gap: 0.75rem;
-    }
-    
-    .col-md-6, .col-lg-8, .col-lg-4 {
-        margin-bottom: 0.75rem;
-    }
-    
-    /* Badge sizing */
-    .badge {
-        padding: 0.35rem 0.65rem;
-        font-size: 0.75rem;
-    }
-    
-    /* Alert spacing */
-    .alert {
-        padding: 0.75rem;
-        margin-bottom: 1rem;
-        border-radius: 0.5rem;
-    }
-    
-    /* Modal adjustments */
-    .modal {
-        --bs-modal-margin-y: 3rem;
-    }
-    
-    .modal-dialog {
-        margin: 3rem auto;
-    }
-    
-    .modal-body {
-        padding: 1rem;
-    }
-    
-    /* Text utilities */
-    .d-none.d-md-inline {
-        display: none !important;
-    }
-    
-    .d-none.d-lg-inline {
-        display: none !important;
-    }
-    
-    /* Icon spacing */
-    .fa {
-        margin-right: 0.3rem;
-    }
-    
-    /* List improvements */
-    .list-group-item {
-        padding: 0.75rem;
-        border-radius: 0.5rem;
-    }
-    
-    /* Pagination */
-    .pagination {
-        gap: 0.25rem;
-    }
-    
-    .page-link {
-        padding: 0.4rem 0.5rem;
-        font-size: 0.85rem;
-        min-width: 2rem;
-        text-align: center;
-    }
+    /* End of MOBILE-ONLY form optimization */
 }
 
 /* Medium devices (481px - 768px) */

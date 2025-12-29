@@ -1,0 +1,122 @@
+{
+  "name": "StockLeague - Competition-Based Stock Trading Game",
+  "short_name": "StockLeague",
+  "description": "Compete with friends in an engaging, realistic stock trading competition. Build your portfolio, join leagues, and climb the leaderboard!",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "dir": "ltr",
+  "lang": "en-US",
+  "background_color": "#ffffff",
+  "theme_color": "#6366f1",
+  "categories": ["finance", "productivity", "games"],
+  "screenshots": [
+    {
+      "src": "/static/icons/screenshot-1.png",
+      "sizes": "540x720",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/static/icons/screenshot-2.png",
+      "sizes": "540x720",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/static/icons/screenshot-wide.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ],
+  "icons": [
+    {
+      "src": "/static/icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/static/icons/icon-192x192-maskable.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/static/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/static/icons/icon-512x512-maskable.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "View Portfolio",
+      "short_name": "Portfolio",
+      "description": "View your trading portfolio",
+      "url": "/portfolio",
+      "icons": [
+        {
+          "src": "/static/icons/portfolio-icon-96.png",
+          "sizes": "96x96"
+        }
+      ]
+    },
+    {
+      "name": "Trade Stocks",
+      "short_name": "Trade",
+      "description": "Buy or sell stocks",
+      "url": "/trade",
+      "icons": [
+        {
+          "src": "/static/icons/trade-icon-96.png",
+          "sizes": "96x96"
+        }
+      ]
+    },
+    {
+      "name": "View Leagues",
+      "short_name": "Leagues",
+      "description": "Join or view leagues",
+      "url": "/leagues",
+      "icons": [
+        {
+          "src": "/static/icons/leagues-icon-96.png",
+          "sizes": "96x96"
+        }
+      ]
+    },
+    {
+      "name": "Leaderboard",
+      "short_name": "Leaderboard",
+      "description": "Check the leaderboard",
+      "url": "/leaderboard",
+      "icons": [
+        {
+          "src": "/static/icons/leaderboard-icon-96.png",
+          "sizes": "96x96"
+        }
+      ]
+    }
+  ],
+  "share_target": {
+    "action": "/share",
+    "method": "POST",
+    "enctype": "multipart/form-data",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url"
+    }
+  },
+  "prefer_related_applications": false,
+  "related_applications": []
+}

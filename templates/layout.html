@@ -6,6 +6,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>{% block title %}StockLeague{% endblock %}</title>
 
+    <!-- PWA & App Manifest (Phase 5) -->
+    <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}" />
+    <meta name="theme-color" content="#6366f1" />
+    <meta name="description" content="Competition-based stock trading game. Compete with friends, build portfolios, and climb the leaderboard!" />
+    
+    <!-- iOS Web App Support -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="StockLeague" />
+    <link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/icon-192x192.png') }}" />
+
     <!-- Bootstrap CSS -->
     <link
       href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
@@ -21,6 +32,14 @@
     <!-- Custom CSS -->
     <link
       href="{{ url_for('static', filename='css/styles.css') }}?v=11"
+      rel="stylesheet"
+    />
+
+    <!-- Touch-Optimized Components CSS (Phase 5) - Mobile Only -->
+    <!-- All styles in touch.css are wrapped in @media (max-width: 768px) -->
+    <!-- Desktop users (769px+) use original styles.css only -->
+    <link
+      href="{{ url_for('static', filename='css/touch.css') }}"
       rel="stylesheet"
     />
 
@@ -587,6 +606,12 @@
 
     <!-- Custom JS -->
     <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+
+    <!-- Performance Optimization (Phase 5) -->
+    <script src="{{ url_for('static', filename='js/performance.js') }}"></script>
+
+    <!-- Offline Manager (Phase 5) -->
+    <script src="{{ url_for('static', filename='js/offline-manager.js') }}"></script>
 
     {% if session.get("user_id") %}
     <!-- Real-time Trading Features -->

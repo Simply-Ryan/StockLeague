@@ -268,6 +268,20 @@ def jinja_format_timestamp(dt, include_time=False):
 
 app.jinja_env.filters["format_timestamp"] = jinja_format_timestamp
 
+# Add lazy loading filter for images (Phase 5 - Performance Optimization)
+def lazy_load_image(src, alt="Image", width=None, height=None, css_class=""):
+    """Jinja2 filter for creating lazy-loaded image tags"""
+    if not src:
+        return ""
+    
+    width_attr = f' width="{width}"' if width else ''
+    height_attr = f' height="{height}"' if height else ''
+    class_attr = f' class="{css_class}"' if css_class else ''
+    
+    return f'<img src="{src}" alt="{alt}"{width_attr}{height_attr}{class_attr} loading="lazy">'
+
+app.jinja_env.filters["lazy_image"] = lazy_load_image
+
 # Add built-in functions to Jinja2 globals
 app.jinja_env.globals.update(abs=abs, min=min, max=max)
 
@@ -1737,15 +1751,13 @@ def buy():
                 return apology(f"can't afford: need {usd(total_cost)}, have {usd(cash)}", 400)
             
             # Get current shares of this symbol
-            current_stocks = db.get_stocks(user_id, context["portfolio_id"]) if context["type"] == "personal" else db.get_league_stocks(user_id, context["league_id"])
+            current_stocks = db.get_user_stocks(user_id) if context["type"] == "personal" else db.get_league_holdings(context["league_id"], user_id)
             current_shares = next((s["shares"] for s in current_stocks if s["symbol"] == symbol), 0)
             
             # Get today's P&L for circuit breaker check
             today_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-            today_transactions = db.query("""
-                SELECT shares, price, type FROM transactions 
-                WHERE user_id = ? AND timestamp >= ?
-            """, (user_id, today_start))
+            all_transactions = db.get_transactions(user_id)
+            today_transactions = [t for t in all_transactions if datetime.fromisoformat(t["timestamp"]) >= today_start]
             today_loss = 0
             for txn in today_transactions:
                 if txn["type"] == "sell":
@@ -2329,10 +2341,8 @@ def sell():
             
             # Get today's P&L for circuit breaker check
             today_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-            today_transactions = db.query("""
-                SELECT shares, price, type FROM transactions 
-                WHERE user_id = ? AND timestamp >= ?
-            """, (user_id, today_start))
+            all_transactions = db.get_transactions(user_id)
+            today_transactions = [t for t in all_transactions if datetime.fromisoformat(t["timestamp"]) >= today_start]
             today_loss = 0
             for txn in today_transactions:
                 if txn["type"] == "sell":
