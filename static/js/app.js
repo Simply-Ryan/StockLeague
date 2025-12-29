@@ -435,6 +435,166 @@ function initSymbolAutocomplete(inputElement, symbols = []) {
     });
 }
 
+// ============================================
+// MOBILE NAVBAR OPTIMIZATION (Phase 5)
+// ============================================
+
+// Initialize mobile navbar scroll behavior
+function initMobileNavbar() {
+    const navbar = document.getElementById('mainNavbar');
+    if (!navbar) return;
+    
+    let lastScrollTop = 0;
+    let scrollTimeout;
+    
+    window.addEventListener('scroll', () => {
+        clearTimeout(scrollTimeout);
+        
+        const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+        
+        if (scrollTop > lastScrollTop) {
+            // Scrolling DOWN - hide navbar
+            navbar.classList.remove('scrolled-up');
+            navbar.classList.add('scrolled-down');
+        } else {
+            // Scrolling UP - show navbar
+            navbar.classList.remove('scrolled-down');
+            navbar.classList.add('scrolled-up');
+        }
+        
+        lastScrollTop = scrollTop <= 0 ? 0 : scrollTop;
+    }, { passive: true });
+    
+    // Close mobile menu when a link is clicked (ONLY on mobile)
+    const navLinks = navbar.querySelectorAll('.nav-link, .dropdown-item');
+    navLinks.forEach(link => {
+        link.addEventListener('click', () => {
+            const toggler = navbar.querySelector('.navbar-toggler');
+            // Only close menu if toggler is visible (mobile only)
+            if (toggler && 
+                window.getComputedStyle(toggler).display !== 'none' && 
+                !toggler.classList.contains('collapsed')) {
+                toggler.click();
+            }
+        });
+    });
+    
+    // Add touch feedback to nav items
+    const navItems = navbar.querySelectorAll('.nav-link, .dropdown-item, .navbar-toggler');
+    navItems.forEach(item => {
+        item.addEventListener('touchstart', function() {
+            this.style.opacity = '0.7';
+        });
+        item.addEventListener('touchend', function() {
+            this.style.opacity = '1';
+        });
+    });
+}
+
+// ============================================
+// MOBILE FORM ENHANCEMENT (Phase 5 Task 2)
+// ============================================
+
+function initMobileFormEnhancements() {
+    // Improve form input focus and interaction
+    const formInputs = document.querySelectorAll(
+        'input[type="text"], ' +
+        'input[type="email"], ' +
+        'input[type="password"], ' +
+        'input[type="number"], ' +
+        'textarea, ' +
+        'select, ' +
+        '.form-control'
+    );
+    
+    formInputs.forEach(input => {
+        // Add focus class for better visibility
+        input.addEventListener('focus', function() {
+            this.classList.add('is-focused');
+            // Ensure label is visible when input is focused
+            const label = document.querySelector(`label[for="${this.id}"]`);
+            if (label) {
+                label.style.opacity = '1';
+            }
+        });
+        
+        input.addEventListener('blur', function() {
+            this.classList.remove('is-focused');
+        });
+        
+        // Auto-expand textarea on input
+        if (input.tagName === 'TEXTAREA') {
+            input.addEventListener('input', function() {
+                this.style.height = 'auto';
+                this.style.height = Math.min(this.scrollHeight, 300) + 'px';
+            });
+        }
+        
+        // Better number input handling on mobile
+        if (input.type === 'number') {
+            input.addEventListener('wheel', function(e) {
+                e.preventDefault();
+            });
+        }
+    });
+    
+    // Enhance form submission feedback
+    const forms = document.querySelectorAll('form');
+    forms.forEach(form => {
+        form.addEventListener('submit', function(e) {
+            const submitBtn = form.querySelector('[type="submit"]');
+            if (submitBtn && form.checkValidity()) {
+                // Add loading state visual
+                submitBtn.disabled = true;
+                submitBtn.classList.add('is-loading');
+            }
+        });
+        
+        // Clear form focus when submit completes (simulated by form validation)
+        form.addEventListener('invalid', function(e) {
+            // Scroll to first invalid field on mobile
+            if (window.innerWidth < 768) {
+                const firstInvalid = form.querySelector(':invalid');
+                if (firstInvalid) {
+                    setTimeout(() => {
+                        firstInvalid.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        firstInvalid.focus();
+                    }, 100);
+                }
+            }
+        }, true);
+    });
+    
+    // Improve input group button/input alignment
+    const inputGroups = document.querySelectorAll('.input-group');
+    inputGroups.forEach(group => {
+        const inputs = group.querySelectorAll('input, select');
+        const buttons = group.querySelectorAll('button');
+        
+        inputs.forEach(input => {
+            input.style.minHeight = '44px';
+        });
+        
+        buttons.forEach(button => {
+            button.style.minHeight = '44px';
+        });
+    });
+}
+
+// Initialize when DOM is ready
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initMobileFormEnhancements);
+} else {
+    initMobileFormEnhancements();
+}
+
+// Initialize when DOM is ready
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initMobileNavbar);
+} else {
+    initMobileNavbar();
+}
+
 // Export functions for use in other scripts
 window.StockLeague = {
     formatCurrency,
@@ -444,5 +604,7 @@ window.StockLeague = {
     copyToClipboard,
     showToast,
     copyInviteCode,
-    initSymbolAutocomplete
+    initSymbolAutocomplete,
+    initMobileNavbar,
+    initMobileFormEnhancements
 };

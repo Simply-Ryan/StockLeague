@@ -1555,6 +1555,171 @@ small,
     }
 }
 
+/* ============================================
+   ENHANCED MOBILE NAVBAR OPTIMIZATION (Phase 5)
+   ============================================ */
+
+@media (max-width: 768px) {
+    /* Sticky Header with smooth behavior */
+    .navbar {
+        position: sticky;
+        top: 0;
+        z-index: 1030;
+        transition: all 0.3s ease;
+    }
+    
+    /* Hide navbar when scrolling down, show when scrolling up */
+    .navbar.scrolled-down {
+        transform: translateY(-100%);
+    }
+    
+    .navbar.scrolled-up {
+        transform: translateY(0);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    }
+    
+    /* Hamburger menu improvements */
+    .navbar-toggler {
+        min-width: 48px;
+        min-height: 48px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0.5rem;
+        border-radius: 0.375rem;
+        transition: all 0.2s ease;
+    }
+    
+    .navbar-toggler:focus {
+        box-shadow: 0 0 0 0.25rem rgba(99, 102, 241, 0.25);
+    }
+    
+    .navbar-toggler-icon {
+        width: 24px;
+        height: 24px;
+        transition: transform 0.3s ease;
+    }
+    
+    .navbar-toggler:not(.collapsed) .navbar-toggler-icon {
+        transform: rotate(90deg);
+    }
+    
+    /* Brand styling */
+    .navbar-brand {
+        font-size: 1.25rem;
+        min-height: 48px;
+        display: flex;
+        align-items: center;
+        transition: opacity 0.2s ease;
+    }
+    
+    .navbar-brand:hover {
+        opacity: 0.8;
+    }
+    
+    /* Improved menu collapse */
+    .navbar-collapse {
+        animation: slideDown 0.3s ease-out;
+        border-radius: 0 0 0.5rem 0.5rem;
+        background-color: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        margin-top: 0.5rem;
+    }
+    
+    @keyframes slideDown {
+        from {
+            opacity: 0;
+            transform: translateY(-10px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+    
+    /* Navigation links */
+    .navbar-nav {
+        gap: 0;
+    }
+    
+    .nav-link {
+        min-height: 48px;
+        display: flex;
+        align-items: center;
+        padding: 0.75rem 1rem !important;
+        transition: all 0.2s ease;
+        border-radius: 0.375rem;
+        margin: 0.25rem 0;
+    }
+    
+    .nav-link:active {
+        background-color: var(--bg-tertiary);
+    }
+    
+    .nav-link i {
+        min-width: 20px;
+        text-align: center;
+        margin-right: 0.75rem;
+    }
+    
+    /* Dropdown menus */
+    .dropdown-menu {
+        min-width: 100% !important;
+        border-radius: 0.375rem;
+        border: 1px solid var(--border-color);
+        animation: fadeIn 0.2s ease-out;
+    }
+    
+    @keyframes fadeIn {
+        from {
+            opacity: 0;
+        }
+        to {
+            opacity: 1;
+        }
+    }
+    
+    .dropdown-item {
+        padding: 0.75rem 1rem;
+        min-height: 44px;
+        display: flex;
+        align-items: center;
+        transition: all 0.15s ease;
+        border-radius: 0.25rem;
+        margin: 0.25rem 0.5rem;
+    }
+    
+    .dropdown-item:active,
+    .dropdown-item:hover {
+        background-color: var(--bg-tertiary);
+    }
+    
+    .dropdown-item i {
+        min-width: 18px;
+        text-align: center;
+        margin-right: 0.5rem;
+    }
+    
+    /* Portfolio switcher */
+    .portfolio-switcher {
+        min-height: 48px;
+        padding: 0.5rem 0.75rem !important;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        border-radius: 0.375rem;
+        transition: all 0.2s ease;
+    }
+    
+    .portfolio-switcher:hover {
+        background-color: var(--bg-tertiary);
+    }
+    
+    .portfolio-switcher::after {
+        margin-left: auto;
+    }
+}
+
 /* Small devices (320px - 480px) */
 @media (max-width: 480px) {
     /* Global */
@@ -1575,6 +1740,9 @@ small,
     .navbar-brand {
         font-size: 1.2rem;
         margin-right: 0 !important;
+        min-height: 44px;
+        display: flex;
+        align-items: center;
     }
     
     .navbar-brand i {
@@ -1582,13 +1750,38 @@ small,
     }
     
     .navbar-toggler {
-        padding: 0.25rem 0.5rem;
+        padding: 0.35rem 0.5rem;
         margin-right: 0.5rem;
+        min-width: 44px;
+        min-height: 44px;
+        border-radius: 0.375rem;
+    }
+    
+    .navbar-toggler:focus {
+        box-shadow: 0 0 0 0.25rem rgba(99, 102, 241, 0.25);
+    }
+    
+    .navbar-toggler-icon {
+        width: 22px;
+        height: 22px;
     }
     
     .navbar-collapse {
         margin-top: 0.5rem;
         border-top: 1px solid var(--border-color);
+        border-radius: 0 0 0.375rem 0.375rem;
+        animation: slideDown 0.25s ease-out;
+    }
+    
+    @keyframes slideDown {
+        from {
+            opacity: 0;
+            transform: translateY(-10px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
     }
     
     /* Navigation items */
@@ -1597,8 +1790,24 @@ small,
     }
     
     .nav-link {
-        padding: 0.75rem 0.5rem !important;
+        padding: 0.75rem 0.75rem !important;
         font-size: 0.95rem;
+        min-height: 44px;
+        display: flex;
+        align-items: center;
+        transition: all 0.15s ease;
+        border-radius: 0.25rem;
+        margin: 0.1rem 0.25rem;
+    }
+    
+    .nav-link:active {
+        background-color: var(--bg-tertiary);
+    }
+    
+    .nav-link i {
+        min-width: 18px;
+        text-align: center;
+        margin-right: 0.5rem;
     }
     
     .nav-item:not(.dropdown) .nav-link {
@@ -1607,15 +1816,34 @@ small,
     
     .dropdown-menu {
         min-width: 100vw !important;
-        border-radius: 0;
-        border: none;
+        border-radius: 0.375rem;
+        border: 1px solid var(--border-color);
         box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        margin-top: 0.25rem;
     }
     
     .dropdown-item {
         padding: 0.75rem 1rem;
         font-size: 0.95rem;
+        min-height: 44px;
+        display: flex;
+        align-items: center;
+        transition: all 0.15s ease;
+        border-radius: 0.25rem;
+        margin: 0.2rem 0.5rem;
     }
+    
+    .dropdown-item:active,
+    .dropdown-item:hover {
+        background-color: var(--bg-tertiary);
+    }
+    
+    .dropdown-item i {
+        min-width: 18px;
+        text-align: center;
+        margin-right: 0.5rem;
+    }
+
     
     /* Container spacing */
     .container, .container-fluid {
@@ -1673,7 +1901,234 @@ small,
         -webkit-overflow-scrolling: touch;
     }
     
+    /* ============================================
+       MOBILE FORM OPTIMIZATION (Phase 5 Task 2)
+       ============================================ */
+    
+    /* Full-width form layouts */
+    form {
+        width: 100%;
+    }
+    
+    .form-group {
+        margin-bottom: 1rem;
+        width: 100%;
+    }
+    
+    .row.g-3 > [class*='col'] {
+        flex: 0 0 100%;
+        max-width: 100%;
+    }
+    
+    /* Form labels */
+    .form-label {
+        margin-bottom: 0.5rem;
+        font-size: 0.95rem;
+        font-weight: 500;
+        display: block;
+    }
+    
+    /* Form inputs and selects */
+    .form-control, 
+    .form-select,
+    .form-check-input {
+        font-size: 16px !important; /* Prevent iOS auto-zoom */
+        border-radius: 0.375rem;
+        transition: all 0.2s ease;
+        width: 100%;
+    }
+    
+    .form-control {
+        padding: 0.75rem;
+        min-height: 44px;
+        line-height: 1.5;
+    }
+    
+    .form-select {
+        padding: 0.75rem 2.25rem 0.75rem 0.75rem;
+        min-height: 44px;
+        background-size: 16px 12px;
+    }
+    
+    .form-control:focus,
+    .form-select:focus {
+        border-color: var(--primary-color);
+        box-shadow: 0 0 0 0.25rem rgba(99, 102, 241, 0.25);
+    }
+    
+    .form-control.is-invalid,
+    .form-select.is-invalid {
+        border-color: var(--danger-color);
+    }
+    
+    .form-control.is-invalid:focus,
+    .form-select.is-invalid:focus {
+        box-shadow: 0 0 0 0.25rem rgba(239, 68, 68, 0.25);
+    }
+    
+    .form-control.is-valid,
+    .form-select.is-valid {
+        border-color: var(--success-color);
+    }
+    
+    .form-control.is-valid:focus,
+    .form-select.is-valid:focus {
+        box-shadow: 0 0 0 0.25rem rgba(16, 185, 129, 0.25);
+    }
+    
+    /* Input groups */
+    .input-group {
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .input-group > .form-control,
+    .input-group > .form-select {
+        min-height: 44px;
+        flex: 1;
+    }
+    
+    .input-group > .btn {
+        min-height: 44px;
+        align-self: stretch;
+        width: 100%;
+        margin-top: 0.5rem;
+    }
+    
+    /* Input groups will be fixed in medium devices section */
+
+    /* Form text */
+    .form-text {
+        display: block;
+        margin-top: 0.25rem;
+        font-size: 0.85rem;
+        color: var(--text-muted);
+    }
+    
+    .invalid-feedback {
+        display: block;
+        color: var(--danger-color);
+        margin-top: 0.25rem;
+        font-size: 0.85rem;
+    }
+    
+    .valid-feedback {
+        display: block;
+        color: var(--success-color);
+        margin-top: 0.25rem;
+        font-size: 0.85rem;
+    }
+    
+    /* Checkboxes and radios */
+    .form-check {
+        padding-left: 0;
+        margin-bottom: 0.75rem;
+    }
+    
+    .form-check-input {
+        width: 20px;
+        height: 20px;
+        min-height: 20px;
+        margin-right: 0.75rem;
+        margin-top: 0.3rem;
+        cursor: pointer;
+    }
+    
+    .form-check-label {
+        cursor: pointer;
+        margin-bottom: 0;
+        font-size: 0.95rem;
+    }
+    
+    /* Textarea improvements */
+    textarea.form-control {
+        resize: vertical;
+        min-height: 100px;
+    }
+    
+    textarea.form-control:focus {
+        resize: none;
+    }
+    
+    /* Submit buttons */
+    .btn[type="submit"] {
+        min-height: 44px;
+        font-size: 1rem;
+        width: 100%;
+        margin-top: 1rem;
+        padding: 0.75rem;
+        font-weight: 500;
+    }
+    
+    .btn[type="submit"]:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+    
+    /* Form errors and alerts */
+    .alert-danger {
+        margin-bottom: 1rem;
+    }
+    
+    .was-validated .form-control:invalid {
+        border-color: var(--danger-color);
+    }
+    
+    .was-validated .form-control:valid {
+        border-color: var(--success-color);
+    }
+    
+    /* Form interaction states */
+    .form-control.is-focused,
+    .form-select.is-focused {
+        border-color: var(--primary-color);
+        background-color: var(--card-hover);
+    }
+    
+    /* Loading state for submit buttons */
+    .btn.is-loading {
+        opacity: 0.8;
+    }
+    
+    .btn.is-loading::after {
+        content: '';
+        display: inline-block;
+        width: 16px;
+        height: 16px;
+        margin-left: 0.5rem;
+        border: 2px solid rgba(255, 255, 255, 0.3);
+        border-radius: 50%;
+        border-top-color: white;
+        animation: spin 0.8s linear infinite;
+    }
+    
+    @keyframes spin {
+        to {
+            transform: rotate(360deg);
+        }
+    }
+    
+    /* Select dropdown */
+    select.form-control,
+    select.form-select {
+        appearance: none;
+        -webkit-appearance: none;
+        -moz-appearance: none;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath fill='%23333' d='M6 9L0 3h12z'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 0.75rem center;
+        background-size: 12px 12px;
+        padding-right: 2.25rem;
+    }
+    
+    [data-theme="light"] select.form-control,
+    [data-theme="light"] select.form-select {
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath fill='%23333' d='M6 9L0 3h12z'/%3E%3C/svg%3E");
+    }
+    
     /* Forms */
+
     .form-control, .form-select {
         padding: 0.5rem 0.75rem;
         font-size: 1rem; /* Prevent zoom on iOS */
@@ -1811,9 +2266,26 @@ small,
         font-size: 1rem;
     }
     
+    /* Input group responsive layout */
+    .input-group {
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .input-group > .form-control,
+    .input-group > .form-select {
+        min-height: 44px;
+    }
+    
+    .input-group > .btn {
+        min-height: 44px;
+        margin-top: 0.5rem;
+    }
+    
     .form-check {
         padding-left: 2rem;
     }
+
     
     .form-check-input {
         width: 1.25rem;
@@ -1900,6 +2372,68 @@ small,
    ============================================ */
 
 /* Ensure touch-friendly elements */
+/* ============================================
+   DESKTOP-SPECIFIC OVERRIDES (1025px+)
+   ============================================ */
+
+@media (min-width: 1025px) {
+    /* Reset mobile form constraints on desktop */
+    .form-control, .form-select {
+        font-size: 1rem !important;
+        min-height: auto;
+        width: auto;
+    }
+    
+    .form-control {
+        padding: 0.5rem 0.75rem;
+    }
+    
+    .form-select {
+        padding: 0.375rem 2.25rem 0.375rem 0.75rem;
+    }
+    
+    .btn[type="submit"] {
+        width: auto;
+        min-height: auto;
+        margin-top: 0;
+    }
+    
+    /* Input groups display horizontally */
+    .input-group {
+        flex-direction: row;
+    }
+    
+    .input-group > .form-control,
+    .input-group > .form-select {
+        min-height: auto;
+        flex: 1;
+    }
+    
+    .input-group > .btn {
+        min-height: auto;
+        width: auto;
+        margin-top: 0;
+    }
+    
+    /* Form layout */
+    form {
+        width: auto;
+    }
+    
+    .form-group {
+        width: auto;
+    }
+    
+    .row.g-3 > [class*='col'] {
+        flex: 0 0 auto;
+        max-width: none;
+    }
+}
+
+/* ============================================
+   TOUCH DEVICE SPECIFIC STYLES
+   ============================================ */
+
 @media (hover: none) and (pointer: coarse) {
     /* Mobile device styles */
     

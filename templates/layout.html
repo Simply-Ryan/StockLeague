@@ -564,31 +564,6 @@
               <i class="fas fa-chart-line"></i> StockLeague &copy; 2025
             </small>
           </div>
-          <div class="col-12 col-md-4 text-center">
-            <small class="d-flex flex-column flex-md-row gap-2 justify-content-md-center">
-              {% if session["user_id"] %}
-              <a
-                href="/leaderboard"
-                class="text-muted text-decoration-none"
-                ><i class="fas fa-trophy"></i> <span class="d-inline d-md-inline">Leaderboard</span></a
-              >
-              <span class="d-none d-md-inline text-muted">•</span>
-              <a href="/chat" class="text-muted text-decoration-none"
-                ><i class="fas fa-comments"></i> <span class="d-inline d-md-inline">Chat</span></a
-              >
-              <span class="d-none d-md-inline text-muted">•</span>
-              <a href="/analytics" class="text-muted text-decoration-none"
-                ><i class="fas fa-chart-bar"></i> <span class="d-inline d-md-inline">Analytics</span></a
-              >
-              {% else %}
-              <a href="/register" class="text-muted text-decoration-none"
-                >Register</a
-              >
-              <span class="d-inline text-muted">•</span>
-              <a href="/login" class="text-muted text-decoration-none">Login</a>
-              {% endif %}
-            </small>
-          </div>
           <div class="col-12 col-md-4 text-center text-md-end">
             <small class="text-muted">
               <i class="fas fa-database"></i> Data by
