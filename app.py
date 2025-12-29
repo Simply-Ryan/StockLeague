@@ -36,6 +36,8 @@ from helpers import apology, lookup, usd, get_chart_data, get_popular_stocks, ge
 from database.db_manager import DatabaseManager
 from database.league_schema_upgrade import upgrade_leagues_table, create_league_seasons_table, create_league_member_stats_table, create_league_divisions_table, create_tournament_tables, create_team_tables, create_achievement_tables, create_quest_tables, create_analytics_tables, create_fairplay_tables, create_league_activity_feed_table
 from database.advanced_league_features import AdvancedLeagueDB
+from database_optimization import DatabaseOptimizationManager, optimize_database_on_startup
+from performance_monitoring import PerformanceMonitor, monitor_endpoint
 from league_modes import get_league_mode, get_available_modes, MODE_ABSOLUTE_VALUE
 from league_rules import LeagueRuleEngine
 from advanced_league_system import AdvancedLeagueManager, RatingSystem, AchievementEngine, QuestSystem, FairPlayEngine, AnalyticsCalculator
@@ -61,6 +63,7 @@ from error_handlers import (
 )
 from business_logic_integration import log_trade, store_metrics
 from frontend_integration import get_activity_feed_widget
+from realtime_updates import RealtimeUpdatesManager, SocketIOEventHandlers
 
 # --- Constants ---
 FLOAT_EPSILON = 0.01  # Used for floating-point comparisons in trading logic
@@ -274,6 +277,10 @@ app.config["SESSION_TYPE"] = "filesystem"
 Session(app)
 
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
+
+# Initialize Socket.IO event handlers (creates realtime_manager internally)
+socketio_handlers = SocketIOEventHandlers(socketio)
+realtime_manager = socketio_handlers.manager
 
 
 # ============================================================================
@@ -521,6 +528,191 @@ def admin_api_chat_rooms():
 def admin_api_chat_reports():
     # Placeholder: return empty for now
     return jsonify({"reports": []})
+
+
+# ============================================================================
+# ADMIN DATABASE OPTIMIZATION ENDPOINTS
+# ============================================================================
+
+@app.route("/admin/database/status", methods=["GET"])
+@login_required
+@admin_required
+def admin_database_status():
+    """Get database optimization status and statistics."""
+    try:
+        analysis = db_optimizer.analyze_query_performance()
+        
+        # Count tables and indexes
+        total_tables = len(analysis['tables'])
+        total_rows = sum(t['rows'] for t in analysis['tables'])
+        total_indexes = sum(t['indexes'] for t in analysis['tables'])
+        
+        return jsonify({
+            'status': 'ok',
+            'database_path': db.db_path,
+            'tables': {
+                'count': total_tables,
+                'total_rows': total_rows,
+                'total_indexes': total_indexes
+            },
+            'cache': {
+                'entries': len(db_optimizer.cache),
+                'ttl_count': len(db_optimizer.cache_ttl)
+            },
+            'slow_queries': len(db_optimizer.slow_queries),
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        app_logger.error(f"Error getting database status: {e}", exc_info=True)
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route("/admin/database/optimize", methods=["POST"])
+@login_required
+@admin_required
+def admin_database_optimize():
+    """Trigger full database optimization."""
+    try:
+        app_logger.info("Admin triggered database optimization")
+        result = db_optimizer.optimize_all()
+        
+        return jsonify({
+            'status': 'success',
+            'message': 'Database optimization completed',
+            'indexes_created': result['indexes_created'],
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        app_logger.error(f"Error during database optimization: {e}", exc_info=True)
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route("/admin/database/report", methods=["GET"])
+@login_required
+@admin_required
+def admin_database_report():
+    """Get comprehensive database optimization report."""
+    try:
+        report = db_optimizer.get_optimization_report()
+        
+        # Split report into lines for better display
+        lines = report.split('\n')
+        
+        return jsonify({
+            'status': 'ok',
+            'report': lines,
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        app_logger.error(f"Error generating database report: {e}", exc_info=True)
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route("/admin/database/cache/clear", methods=["POST"])
+@login_required
+@admin_required
+def admin_database_cache_clear():
+    """Clear database optimization cache."""
+    try:
+        key = request.json.get('key') if request.is_json else None
+        db_optimizer.clear_cache(key)
+        
+        return jsonify({
+            'status': 'success',
+            'message': f"Cache cleared{'for key: ' + key if key else ''}",
+            'remaining_entries': len(db_optimizer.cache),
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        app_logger.error(f"Error clearing cache: {e}", exc_info=True)
+        return jsonify({'error': str(e)}), 500
+
+
+# ============================================================================
+# ADMIN PERFORMANCE MONITORING ENDPOINTS
+# ============================================================================
+
+@app.route("/admin/performance", methods=["GET"])
+@login_required
+@admin_required
+def admin_performance_dashboard():
+    """Get performance monitoring dashboard data."""
+    try:
+        dashboard_data = performance_monitor.get_dashboard_data()
+        
+        return jsonify({
+            'status': 'ok',
+            'data': dashboard_data,
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        app_logger.error(f"Error getting performance data: {e}", exc_info=True)
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route("/admin/performance/metrics/<metric_name>", methods=["GET"])
+@login_required
+@admin_required
+def admin_performance_metric_history(metric_name):
+    """Get historical data for a specific performance metric."""
+    try:
+        limit = request.args.get('limit', 100, type=int)
+        history = performance_monitor.get_metrics_history(metric_name, limit)
+        
+        return jsonify({
+            'status': 'ok',
+            'metric': metric_name,
+            'history': history,
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        app_logger.error(f"Error getting metric history: {e}", exc_info=True)
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route("/admin/performance/threshold/<metric>", methods=["POST"])
+@login_required
+@admin_required
+def admin_performance_set_threshold(metric):
+    """Set alert threshold for a metric."""
+    try:
+        data = request.get_json() or {}
+        threshold = data.get('threshold')
+        
+        if threshold is None:
+            return jsonify({'error': 'threshold value required'}), 400
+        
+        performance_monitor.set_threshold(metric, float(threshold))
+        
+        return jsonify({
+            'status': 'success',
+            'metric': metric,
+            'threshold': threshold,
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        app_logger.error(f"Error setting threshold: {e}", exc_info=True)
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route("/admin/performance/alerts", methods=["GET"])
+@login_required
+@admin_required
+def admin_performance_alerts():
+    """Get recent performance alerts."""
+    try:
+        limit = request.args.get('limit', 50, type=int)
+        alerts = list(performance_monitor.alerts)[-limit:]
+        
+        return jsonify({
+            'status': 'ok',
+            'alerts': alerts,
+            'alert_count': len(alerts),
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        app_logger.error(f"Error getting alerts: {e}", exc_info=True)
+        return jsonify({'error': str(e)}), 500
 
 
 # --- League admin actions: kick/mute/set-admin ---
@@ -998,11 +1190,30 @@ def handle_disconnect():
 
 # Initialize database manager
 db = DatabaseManager()
+
+# Initialize database optimization (on first startup)
+try:
+    app_logger.info("Initializing database optimizations...")
+    db_optimizer, optimization_result = optimize_database_on_startup(db)
+    app_logger.info(f"Database optimization completed: {optimization_result['indexes_created']} indexes created")
+except Exception as e:
+    app_logger.warning(f"Database optimization skipped: {e}")
+    db_optimizer = DatabaseOptimizationManager(db)
+
 audit_logger = AuditLogger(db)
 members_limit_manager = MembersLimitManager(db)
 invite_code_manager = InviteCodeManager(db)
 options_manager = OptionsPortfolioManager(db)
 archive_manager = LeagueArchiveManager(db)
+
+# Initialize performance monitoring
+try:
+    performance_monitor = PerformanceMonitor(update_interval=5.0)
+    performance_monitor.start_monitoring()
+    app_logger.info("Performance monitoring started")
+except Exception as e:
+    app_logger.warning(f"Performance monitoring initialization failed: {e}")
+    performance_monitor = PerformanceMonitor()
 
 # Initialize caching layer (optional - only if Redis is available)
 try:
@@ -1665,6 +1876,18 @@ def buy():
             except Exception as e:
                 app_logger.warning(f"Could not emit portfolio update for user {user_id}: {e}")
             
+            # Update and broadcast leaderboard if in league
+            if context["type"] == "league":
+                try:
+                    league_id = context["league_id"]
+                    # Trigger leaderboard update and broadcast to all league members
+                    update_and_broadcast_leaderboard(socketio, db, league_id, lookup)
+                    # Invalidate leaderboard cache to ensure fresh data
+                    invalidate_leaderboard_cache(league_id)
+                    app_logger.debug(f"Leaderboard updated for league {league_id} after trade by user {user_id}")
+                except Exception as e:
+                    app_logger.warning(f"Could not update leaderboard for league {context.get('league_id')}: {e}")
+            
             # Emit order execution notification
             try:
                 socketio.emit('order_executed', {
@@ -2237,6 +2460,18 @@ def sell():
                     }, room=f'user_{user_id}')
             except Exception as e:
                 app_logger.warning(f"Could not emit portfolio update for user {user_id}: {e}")
+            
+            # Update and broadcast leaderboard if in league
+            if context["type"] == "league":
+                try:
+                    league_id = context["league_id"]
+                    # Trigger leaderboard update and broadcast to all league members
+                    update_and_broadcast_leaderboard(socketio, db, league_id, lookup)
+                    # Invalidate leaderboard cache to ensure fresh data
+                    invalidate_leaderboard_cache(league_id)
+                    app_logger.debug(f"Leaderboard updated for league {league_id} after trade by user {user_id}")
+                except Exception as e:
+                    app_logger.warning(f"Could not update leaderboard for league {context.get('league_id')}: {e}")
             
             # Emit order execution notification (non-critical)
             try:
@@ -4771,7 +5006,7 @@ def api_market_status():
     """Get current market status"""
     try:
         from utils import is_market_hours, format_timestamp, get_user_timezone_offset, convert_time_to_user_tz
-        from datetime import datetime, timedelta
+        from datetime import datetime, timedelta, timezone
         
         # Get user timezone if authenticated
         timezone_offset = None
@@ -4781,7 +5016,9 @@ def api_market_status():
             timezone_offset = get_user_timezone_offset()  # Default to -5 EST
         
         is_open = is_market_hours()
-        current_time = datetime.now()
+        # Use EST for consistency with is_market_hours()
+        est = timezone(timedelta(hours=-5))
+        current_time = datetime.now(est)
         next_open = None
         
         if not is_open:
@@ -6489,18 +6726,71 @@ def league_h2h_matchups(league_id):
         return apology(f"Error: {str(e)}", 500)
 
 
+# ============================================================================
+# REAL-TIME UPDATES BACKGROUND JOBS
+# ============================================================================
+
+def broadcast_stock_prices():
+    """
+    Broadcast live stock prices to all connected clients watching specific stocks.
+    Runs every 5 seconds during market hours.
+    """
+    import warnings
+    try:
+        # Get all active watchers and their watched stocks from redis
+        # For now, we'll broadcast top 10 most active stocks
+        # Note: Use correct symbols - TSLA not TESLA, removed duplicates
+        top_stocks = [
+            'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA',
+            'TSLA', 'META', 'BRK.B', 'JPM', 'V'
+        ]
+        
+        prices = {}
+        for symbol in top_stocks:
+            try:
+                # Suppress yfinance warnings/errors about delisted stocks, etc.
+                with warnings.catch_warnings():
+                    warnings.filterwarnings('ignore')
+                    quote = lookup(symbol)
+                    if quote:
+                        prices[symbol] = {
+                            'price': quote.get('price'),
+                            'change': quote.get('change', 0),
+                            'change_pct': quote.get('change_pct', 0),
+                            'timestamp': datetime.now().isoformat()
+                        }
+            except Exception as e:
+                # Silently skip symbols that fail - don't spam logs
+                # This is normal when data is being updated
+                continue
+        
+        # Broadcast to all connected clients
+        if prices:
+            socketio.emit(
+                'stock_prices_update',
+                {'prices': prices},
+                room=realtime_manager.BROADCAST_STOCK_PRICES,
+                namespace='/'
+            )
+            app_logger.debug(f"Broadcast stock prices for {len(prices)} symbols")
+    except Exception as e:
+        app_logger.error(f"Error in broadcast_stock_prices: {e}", exc_info=True)
+
+
 if __name__ == "__main__":
-    # Start APScheduler jobs for leaderboards (manageable, configurable)
+    # Start APScheduler jobs for leaderboards and real-time updates
     try:
         scheduler = BackgroundScheduler()
         # Global leaderboard every 5 minutes
         scheduler.add_job(compute_and_cache_global_leaderboard, 'interval', minutes=5, id='global_leaderboard')
         # Per-league snapshots every 5 minutes (stagger if desired)
         scheduler.add_job(compute_and_cache_league_leaderboards, 'interval', minutes=5, id='league_leaderboards')
+        # Broadcast stock prices every 5 seconds (market data updates)
+        scheduler.add_job(broadcast_stock_prices, 'interval', seconds=5, id='broadcast_stock_prices')
         scheduler.start()
-        print("Leaderboard scheduler started (global & leagues every 5 minutes)")
+        print("Scheduler started: Global leaderboard (5min), League leaderboards (5min), Stock prices (5sec)")
     except Exception as e:
-        print("Failed to start leaderboard scheduler:", e)
+        print("Failed to start scheduler:", e)
 
     try:
         socketio.run(app, debug=True, host='0.0.0.0', port=5000)

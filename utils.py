@@ -192,8 +192,13 @@ def is_market_hours() -> bool:
     Returns:
         True if market is open
     """
-    now = datetime.now()
-    # Simple check - doesn't account for holidays or timezones perfectly
+    from datetime import timezone, timedelta
+    # Use EST timezone (UTC-5) for consistent market hours check
+    # This ensures market status is accurate regardless of server timezone
+    est = timezone(timedelta(hours=-5))
+    now = datetime.now(est)
+    
+    # Simple check - doesn't account for holidays
     if now.weekday() >= 5:  # Saturday or Sunday
         return False
     

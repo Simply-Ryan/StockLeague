@@ -775,6 +775,10 @@ def get_technical_indicators(symbol, timeframe='D', days=90):
     close_prices = [c['close'] for c in candles]
     timestamps = [c['time'] for c in candles]
     
+    # Get current quote to get actual change_percent
+    quote = lookup(symbol)
+    change_percent = quote['change_percent'] if quote else 0
+    
     # Calculate all indicators
     sma_20 = calculate_sma(close_prices, 20)
     sma_50 = calculate_sma(close_prices, 50)
@@ -786,6 +790,7 @@ def get_technical_indicators(symbol, timeframe='D', days=90):
     # Format indicators with timestamps
     indicators = {
         'candles': candles,
+        'change_percent': change_percent,  # Include actual percentage change for consistent coloring
         'sma_20': [{'time': timestamps[i], 'value': sma_20[i]} for i in range(len(sma_20)) if sma_20[i] is not None],
         'sma_50': [{'time': timestamps[i], 'value': sma_50[i]} for i in range(len(sma_50)) if sma_50[i] is not None],
         'ema_20': [{'time': timestamps[i], 'value': ema_20[i]} for i in range(len(ema_20)) if ema_20[i] is not None],

@@ -501,7 +501,7 @@ const indexSymbols = {{ index_symbols | tojson | safe }} || [];
 const gainers = {{ market_movers.gainers|map(attribute='symbol')|list|tojson|safe }} || [];
 const losers = {{ market_movers.losers|map(attribute='symbol')|list|tojson|safe }} || [];
 
-function renderSparkline(canvasId, prices, allCandles){
+function renderSparkline(canvasId, prices, allCandles, changePercent){
     const el = document.getElementById(canvasId);
     const spinner = document.getElementById('spinner_' + canvasId);
     
@@ -532,17 +532,9 @@ function renderSparkline(canvasId, prices, allCandles){
         el.style.display = 'block';
         el.style.visibility = 'visible';
         
-        // Calculate daily change from all available candles
-        // Use opening price of first candle and closing price of last candle
-        let dailyChangePercent = 0;
-        if(allCandles && allCandles.length > 0) {
-            // If we have candle data with open/close, calculate from that
-            const firstCandle = allCandles[0];
-            const lastCandle = allCandles[allCandles.length - 1];
-            if(firstCandle.open && lastCandle.close) {
-                dailyChangePercent = ((lastCandle.close - firstCandle.open) / firstCandle.open) * 100;
-            }
-        }
+        // Use the actual change_percent from backend for color consistency
+        // This ensures chart color matches the displayed percentage
+        const dailyChangePercent = changePercent || 0;
         
         // Determine color based on daily change
         const lineColor = dailyChangePercent >= 0 ? '#198754' : '#dc3545';
@@ -610,7 +602,9 @@ function fetchAndRender(symbol, prefix, retries = 0){
         const canvasId = `${prefix}${symbol}`;
         // Extract closing prices from candles and pass full candles array
         const prices = (j.candles || []).map(c => c.close || c.price || 0);
-        renderSparkline(canvasId, prices, j.candles);
+        // Use the actual change_percent from API response for color consistency
+        const changePercent = j.change_percent || (j.candles && j.candles.length > 0 ? 0 : 0);
+        renderSparkline(canvasId, prices, j.candles, changePercent);
     })
     .catch(e=>{
         clearTimeout(timeoutId);
