@@ -610,6 +610,12 @@
     <!-- Performance Optimization (Phase 5) -->
     <script src="{{ url_for('static', filename='js/performance.js') }}"></script>
 
+    <!-- Mobile Performance Optimization - Task 5.1.4 -->
+    <script src="{{ url_for('static', filename='js/mobile-performance.js') }}"></script>
+
+    <!-- Push Notifications - Task 5.2.4 -->
+    <script src="{{ url_for('static', filename='js/push-notifications.js') }}"></script>
+
     <!-- Offline Manager (Phase 5) -->
     <script src="{{ url_for('static', filename='js/offline-manager.js') }}"></script>
 
@@ -1010,6 +1016,45 @@
     </script>
 
     {% block scripts %}{% endblock %}
+
+    <!-- Mobile Navbar Enhancement - Task 5.1.1 -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Mobile menu auto-close on link click
+            const navbarToggle = document.querySelector('.navbar-toggler');
+            const navbarCollapse = document.getElementById('navbarNav');
+            
+            if (navbarCollapse && navbarToggle) {
+                // Get all nav links
+                const navLinks = navbarCollapse.querySelectorAll('.nav-link, .dropdown-item');
+                
+                navLinks.forEach(link => {
+                    link.addEventListener('click', function(e) {
+                        // Don't auto-close if it's a dropdown toggle
+                        if (!this.getAttribute('data-bs-toggle')) {
+                            // Close the menu using Bootstrap's collapse API
+                            const bsCollapse = new bootstrap.Collapse(navbarCollapse, {
+                                toggle: false
+                            });
+                            bsCollapse.hide();
+                        }
+                    });
+                });
+            }
+
+            // Sticky navbar shadow effect on scroll
+            const navbar = document.getElementById('mainNavbar');
+            if (navbar) {
+                window.addEventListener('scroll', function() {
+                    if (window.scrollY > 10) {
+                        navbar.classList.add('shadow-lg');
+                    } else {
+                        navbar.classList.remove('shadow-lg');
+                    }
+                });
+            }
+        });
+    </script>
 
     <script>
         // Check market status first, then initialize tooltips

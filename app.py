@@ -194,8 +194,8 @@ def validate_portfolio_context(user_id, context):
         return False, "League not found"
     
     # Check if league is active
-    if league.get("status") != "active":
-        return False, f"League is {league.get('status', 'inactive')}"
+    if not league.get("is_active", 1):
+        return False, "League is inactive"
     
     # Check if user is member
     members = db.get_league_members(league_id)
@@ -1654,8 +1654,12 @@ def dashboard():
         portfolio_values = []
         if portfolio_history:
             for entry in portfolio_history:
-                portfolio_dates.append(entry.get("date", ""))
-                portfolio_values.append(entry.get("value", 0))
+                # Extract date from timestamp
+                timestamp = entry.get("timestamp", "")
+                date_str = timestamp.split()[0] if timestamp else ""
+                portfolio_dates.append(date_str)
+                # Calculate total value (total_value is usually cash + stocks, but we get total_value directly)
+                portfolio_values.append(entry.get("total_value", 0))
     else:
         portfolio_history = []  # TODO: Implement league portfolio history
         portfolio_dates = []
@@ -3933,7 +3937,7 @@ def achievements():
     
     # Get user's earned badges
     cursor.execute("""
-        SELECT lab.*, la.name, la.description, la.icon, la.rarity, l.name as league_name
+        SELECT lab.*, la.name, la.description, la.badge_icon, la.rarity, l.name as league_name
         FROM league_badges lab
         LEFT JOIN league_achievements la ON lab.achievement_id = la.id
         LEFT JOIN leagues l ON la.league_id = l.id
@@ -3962,16 +3966,25 @@ def achievements():
             achievements_by_rarity[rarity] = []
         achievements_by_rarity[rarity].append(ach)
     
+    # Build earned keys from user badges
+    earned_keys = set()
+    for badge in user_badges:
+        if badge.get('name'):
+            # Convert achievement name to key format (lowercase, replace spaces with underscores)
+            key = badge.get('name', '').lower().replace(' ', '_').replace('-', '_')
+            earned_keys.add(key)
+    
     # Count stats
-    total_badges = len(user_badges)
-    total_achievements = len(all_achievements)
-    unlock_rate = (total_badges / max(total_achievements, 1)) * 100 if total_achievements > 0 else 0
+    earned_count = len(user_badges)
+    total_count = len(all_achievements)
+    unlock_rate = (earned_count / max(total_count, 1)) * 100 if total_count > 0 else 0
     
     return render_template("achievements.html",
                          user_badges=user_badges,
                          achievements_by_rarity=achievements_by_rarity,
-                         total_badges=total_badges,
-                         total_achievements=total_achievements,
+                         earned_keys=earned_keys,
+                         earned_count=earned_count,
+                         total_count=total_count,
                          unlock_rate=int(unlock_rate))
 
 
