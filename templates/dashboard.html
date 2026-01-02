@@ -591,6 +591,26 @@
         const dates = {{ portfolio_dates | tojson | safe }};
         const values = {{ portfolio_values | tojson | safe }};
         
+        // Get computed style for color - handle both light/dark themes
+        const computedStyle = getComputedStyle(document.documentElement);
+        const primaryColor = computedStyle.getPropertyValue('--primary-color').trim() || '#1976d2';
+        const textSecondary = computedStyle.getPropertyValue('--text-secondary').trim() || '#666';
+        const bgColor = computedStyle.getPropertyValue('--bg-primary').trim() || '#fff';
+        
+        // Extract RGB values for better color handling
+        function getRGB(color) {
+            if (color.startsWith('#')) {
+                const hex = color.substring(1);
+                const r = parseInt(hex.substring(0, 2), 16);
+                const g = parseInt(hex.substring(2, 4), 16);
+                const b = parseInt(hex.substring(4, 6), 16);
+                return [r, g, b];
+            }
+            return [25, 118, 210]; // Default blue
+        }
+        
+        const rgb = getRGB(primaryColor);
+        
         new Chart(chartCanvas, {
             type: 'line',
             data: {
@@ -598,15 +618,16 @@
                 datasets: [{
                     label: 'Portfolio Value',
                     data: values,
-                    borderColor: 'var(--primary-color)',
-                    backgroundColor: 'rgba(var(--primary-rgb, 25, 118, 210), 0.05)',
-                    borderWidth: 2,
+                    borderColor: primaryColor,
+                    backgroundColor: `rgba(${rgb[0]}, ${rgb[1]}, ${rgb[2]}, 0.1)`,
+                    borderWidth: 3,
                     fill: true,
                     tension: 0.4,
-                    pointRadius: 4,
-                    pointBackgroundColor: 'var(--primary-color)',
-                    pointBorderColor: 'white',
+                    pointRadius: 5,
+                    pointBackgroundColor: primaryColor,
+                    pointBorderColor: '#fff',
                     pointBorderWidth: 2,
+                    pointHoverRadius: 7,
                 }]
             },
             options: {
@@ -618,13 +639,19 @@
                         labels: {
                             usePointStyle: true,
                             padding: 15,
-                            color: 'var(--text-secondary)'
+                            color: textSecondary,
+                            font: {
+                                size: 13,
+                                weight: '500'
+                            }
                         }
                     },
                     tooltip: {
                         mode: 'index',
                         intersect: false,
                         backgroundColor: 'rgba(0,0,0,0.8)',
+                        padding: 12,
+                        borderRadius: 6,
                         callbacks: {
                             label: function(context) {
                                 return 'Value: $' + context.parsed.y.toFixed(2);
@@ -639,15 +666,19 @@
                             callback: function(value) {
                                 return '$' + value.toFixed(0);
                             },
-                            color: 'var(--text-secondary)'
+                            color: textSecondary,
+                            font: {
+                                size: 12
+                            }
                         },
                         grid: {
-                            color: 'rgba(0,0,0,0.05)'
+                            color: 'rgba(0,0,0,0.08)',
+                            drawBorder: true
                         }
                     },
                     x: {
                         ticks: {
-                            color: 'var(--text-secondary)'
+                            color: textSecondary
                         },
                         grid: {
                             color: 'rgba(0,0,0,0.05)'

@@ -459,6 +459,20 @@ main {
         flex-basis: auto;
     }
 
+    /* Trade form - ensure side-by-side layout on desktop */
+    #buyForm .row.g-3,
+    #sellForm .row.g-3 {
+        flex-direction: row;
+        flex-wrap: wrap;
+    }
+
+    #buyForm .row.g-3 > .col-md-6,
+    #sellForm .row.g-3 > .col-md-6 {
+        flex-basis: auto;
+        width: 50%;
+        max-width: 50%;
+    }
+
     /* Tab content - normal spacing on desktop */
     .tab-content {
         padding: 1rem;
@@ -2381,24 +2395,8 @@ textarea.form-control {
     font-weight: 500;
     color: var(--text-primary);
 }
-}
-    
-    .form-control.is-invalid:focus,
-    .form-select.is-invalid:focus {
-        box-shadow: 0 0 0 0.25rem rgba(239, 68, 68, 0.25);
-    }
-    
-    .form-control.is-valid,
-    .form-select.is-valid {
-        border-color: var(--success-color);
-    }
-    
-    .form-control.is-valid:focus,
-    .form-select.is-valid:focus {
-        box-shadow: 0 0 0 0.25rem rgba(16, 185, 129, 0.25);
-    }
-    
-    /* Input groups */
+
+    /* Input groups - stack vertically on mobile */
     .input-group {
         width: 100%;
         display: flex;
@@ -2703,6 +2701,39 @@ textarea.form-control {
     }
 }
 
+/* Tablet/Medium Desktop (769px - 1024px) - Form Fix */
+@media (min-width: 769px) and (max-width: 1024px) {
+    .form-control,
+    .form-select,
+    textarea.form-control {
+        width: 100% !important;
+        max-width: 100% !important;
+        padding: 0.5rem 0.75rem;
+        min-height: 2.5rem;
+        box-sizing: border-box;
+    }
+    
+    .input-group {
+        display: flex;
+        flex-direction: row;
+        align-items: stretch;
+        width: 100%;
+    }
+    
+    .input-group > .form-control,
+    .input-group > .form-select,
+    .input-group > input {
+        flex: 1;
+        width: auto !important;
+        margin-top: 0 !important;
+    }
+    
+    .input-group > .btn {
+        width: auto;
+        margin-top: 0 !important;
+    }
+}
+
 /* ============================================
    TOUCH AND INTERACTION IMPROVEMENTS
    ============================================ */
@@ -2713,56 +2744,95 @@ textarea.form-control {
    ============================================ */
 
 @media (min-width: 1025px) {
-    /* Reset mobile form constraints on desktop */
-    .form-control, .form-select {
+    /* Reset mobile form constraints on desktop - HIGH SPECIFICITY */
+    .form-control, 
+    .form-select,
+    textarea.form-control {
         font-size: 1rem !important;
-        min-height: auto;
-        width: auto;
-    }
-    
-    .form-control {
+        min-height: 2.5rem;
+        width: 100% !important;
+        max-width: none !important;
         padding: 0.5rem 0.75rem;
+        box-sizing: border-box;
     }
     
     .form-select {
         padding: 0.375rem 2.25rem 0.375rem 0.75rem;
     }
     
+    textarea.form-control {
+        min-height: auto;
+        resize: vertical;
+    }
+    
     .btn[type="submit"] {
         width: auto;
         min-height: auto;
         margin-top: 0;
+        padding: 0.5rem 1.5rem;
     }
     
-    /* Input groups display horizontally */
+    /* Input groups display horizontally on desktop */
     .input-group {
+        display: flex;
         flex-direction: row;
+        align-items: stretch;
+        width: 100%;
     }
     
     .input-group > .form-control,
-    .input-group > .form-select {
-        min-height: auto;
+    .input-group > .form-select,
+    .input-group > input {
+        min-height: 2.5rem !important;
         flex: 1;
+        width: auto !important;
+        max-width: none;
+        margin-top: 0 !important;
     }
     
     .input-group > .btn {
-        min-height: auto;
+        min-height: 2.5rem;
         width: auto;
         margin-top: 0;
+        padding: 0.5rem 1.5rem;
+        white-space: nowrap;
+    }
+    
+    .input-group-lg > .form-control,
+    .input-group-lg > input,
+    .input-group-lg > .form-select {
+        min-height: 2.875rem !important;
+        padding: 0.875rem 1rem;
+    }
+    
+    .input-group-lg > .btn {
+        min-height: 2.875rem;
+        padding: 0.875rem 1.5rem;
     }
     
     /* Form layout */
     form {
-        width: auto;
+        width: 100%;
     }
     
     .form-group {
-        width: auto;
+        width: 100%;
     }
     
-    .row.g-3 > [class*='col'] {
-        flex: 0 0 auto;
-        max-width: none;
+    /* Ensure columns render properly */
+    .row.g-3 > .col-md-6 {
+        flex: 0 0 50%;
+        max-width: 50%;
+    }
+    
+    .row.g-3 > .col-md-4 {
+        flex: 0 0 33.333%;
+        max-width: 33.333%;
+    }
+    
+    .row.g-3 > .col-12 {
+        flex: 0 0 100%;
+        max-width: 100%;
     }
 }
 
@@ -3543,7 +3613,7 @@ textarea.form-control {
 /* ================================================================
    Mobile Form Optimization - Task 5.1.2
    ================================================================ */
-@media (max-width: 768px) {
+@media (max-width: 575.98px) {
     /* Form container - full width with padding */
     form {
         width: 100%;
@@ -3789,4 +3859,45 @@ textarea.form-control {
     .modal .btn {
         min-height: 44px;
     }
+}
+
+/* ============================================
+   TEXT COLOR UTILITIES
+   ============================================ */
+
+/* Text success (gains, positive values) */
+.text-success {
+    color: var(--success-color) !important;
+    font-weight: 500;
+}
+
+/* Text danger (losses, negative values) */
+.text-danger {
+    color: var(--danger-color) !important;
+    font-weight: 500;
+}
+
+/* Text warning */
+.text-warning {
+    color: var(--warning-color) !important;
+}
+
+/* Text info */
+.text-info {
+    color: var(--info-color) !important;
+}
+
+/* Text muted */
+.text-muted {
+    color: var(--text-muted) !important;
+}
+
+/* Text primary */
+.text-primary {
+    color: var(--primary-color) !important;
+}
+
+/* Text secondary */
+.text-secondary {
+    color: var(--text-secondary) !important;
 }

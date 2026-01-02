@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Form Width Testing</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <style>
+        body {
+            padding: 20px;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+        }
+        
+        .test-container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .test-section {
+            margin: 40px 0;
+            padding: 20px;
+            border: 2px solid var(--border-color);
+            border-radius: 8px;
+        }
+        
+        .test-section h2 {
+            margin-top: 0;
+            font-size: 1.5rem;
+            color: var(--primary-color);
+        }
+        
+        .debug-info {
+            background: var(--card-bg);
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+            font-size: 0.9rem;
+            font-family: monospace;
+            color: var(--text-muted);
+        }
+        
+        .col-display {
+            display: flex;
+            gap: 20px;
+        }
+        
+        .col-md-6 {
+            flex: 0 0 50%;
+            background: rgba(0, 0, 0, 0.1);
+            padding: 10px;
+            border-radius: 4px;
+            border: 1px dashed var(--border-color);
+        }
+        
+        .col-md-4 {
+            flex: 0 0 33.333%;
+            background: rgba(0, 0, 0, 0.1);
+            padding: 10px;
+            border-radius: 4px;
+            border: 1px dashed var(--border-color);
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>📋 Form Width Testing - Debug Report</h1>
+        
+        <!-- Test 1: Basic Form Control -->
+        <div class="test-section">
+            <h2>Test 1: Basic Form Control (Full Width Expected)</h2>
+            <div class="debug-info">This form control should take full width of its container</div>
+            <form>
+                <label class="form-label" for="test1">Username:</label>
+                <input type="text" class="form-control" id="test1" placeholder="Enter username">
+            </form>
+        </div>
+        
+        <!-- Test 2: Form in Grid Column (50%) -->
+        <div class="test-section">
+            <h2>Test 2: Form in col-md-6 (Should be ~50% width)</h2>
+            <div class="debug-info">Two 50% columns - forms inside should fill their column</div>
+            <div style="display: flex; gap: 20px; margin-top: 20px;">
+                <div class="col-md-6">
+                    <label class="form-label">First Name:</label>
+                    <input type="text" class="form-control" placeholder="First name">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Last Name:</label>
+                    <input type="text" class="form-control" placeholder="Last name">
+                </div>
+            </div>
+        </div>
+        
+        <!-- Test 3: Select Dropdown -->
+        <div class="test-section">
+            <h2>Test 3: Select Dropdown (Should be full width)</h2>
+            <div class="debug-info">Select elements often have width issues - testing full-width behavior</div>
+            <label class="form-label" for="test3">Choose an option:</label>
+            <select class="form-select" id="test3">
+                <option>Select option...</option>
+                <option>Option 1</option>
+                <option>Option 2</option>
+                <option>Option 3</option>
+            </select>
+        </div>
+        
+        <!-- Test 4: Input Group -->
+        <div class="test-section">
+            <h2>Test 4: Input Group with Button (Horizontal on Desktop)</h2>
+            <div class="debug-info">Input + button should display horizontally on desktop, vertically on mobile</div>
+            <label class="form-label">Search:</label>
+            <div class="input-group input-group-lg">
+                <input type="text" class="form-control" placeholder="Search...">
+                <button class="btn btn-primary" type="button">Search</button>
+            </div>
+        </div>
+        
+        <!-- Test 5: Form Validation -->
+        <div class="test-section">
+            <h2>Test 5: Form Validation States</h2>
+            <div class="debug-info">Testing valid/invalid field styling</div>
+            <label class="form-label">Email (Valid):</label>
+            <input type="email" class="form-control is-valid" placeholder="user@example.com">
+            <small class="form-text">✓ Valid email format</small>
+            
+            <label class="form-label mt-3">Password (Invalid):</label>
+            <input type="password" class="form-control is-invalid" placeholder="Too short">
+            <small class="form-text">✗ Must be at least 8 characters</small>
+        </div>
+        
+        <!-- Test 6: Textarea -->
+        <div class="test-section">
+            <h2>Test 6: Textarea (Should be full width)</h2>
+            <div class="debug-info">Textarea elements should fill container width</div>
+            <label class="form-label">Comments:</label>
+            <textarea class="form-control" rows="4" placeholder="Enter your comments here..."></textarea>
+        </div>
+        
+        <!-- Test 7: Multi-Column Form Layout -->
+        <div class="test-section">
+            <h2>Test 7: Multi-Column Form Layout</h2>
+            <div class="debug-info">Complex layout with 50/50 and 33/33/33 splits</div>
+            <form>
+                <div style="display: flex; gap: 20px; margin-bottom: 20px;">
+                    <div style="flex: 0 0 50%;">
+                        <label class="form-label">First Name:</label>
+                        <input type="text" class="form-control" placeholder="First">
+                    </div>
+                    <div style="flex: 0 0 50%;">
+                        <label class="form-label">Last Name:</label>
+                        <input type="text" class="form-control" placeholder="Last">
+                    </div>
+                </div>
+                
+                <div style="display: flex; gap: 20px; margin-bottom: 20px;">
+                    <div style="flex: 0 0 33.333%;">
+                        <label class="form-label">City:</label>
+                        <input type="text" class="form-control" placeholder="City">
+                    </div>
+                    <div style="flex: 0 0 33.333%;">
+                        <label class="form-label">State:</label>
+                        <input type="text" class="form-control" placeholder="State">
+                    </div>
+                    <div style="flex: 0 0 33.333%;">
+                        <label class="form-label">ZIP:</label>
+                        <input type="text" class="form-control" placeholder="ZIP">
+                    </div>
+                </div>
+                
+                <button type="submit" class="btn btn-primary">Submit</button>
+            </form>
+        </div>
+        
+        <!-- Debug Panel -->
+        <div class="test-section" style="background: var(--card-bg); border-color: var(--primary-color);">
+            <h2>🔍 Debug Information</h2>
+            <div class="debug-info">
+                <strong>Current Window Width:</strong> <span id="width">-</span>px
+                <br>
+                <strong>Active Breakpoint:</strong> <span id="breakpoint">-</span>
+                <br>
+                <strong>Form Control Width (computed):</strong> <span id="formWidth">-</span>
+                <br>
+                <strong>Input Group Direction:</strong> <span id="inputGroupDir">-</span>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        function updateDebugInfo() {
+            const width = window.innerWidth;
+            document.getElementById('width').textContent = width;
+            
+            let breakpoint = 'Unknown';
+            if (width < 481) breakpoint = 'Mobile (< 481px)';
+            else if (width < 769) breakpoint = 'Tablet (481px - 768px)';
+            else if (width < 1025) breakpoint = 'Medium Desktop (769px - 1024px)';
+            else breakpoint = 'Large Desktop (1025px+)';
+            
+            document.getElementById('breakpoint').textContent = breakpoint;
+            
+            // Check form control actual width
+            const formControl = document.querySelector('.form-control');
+            if (formControl) {
+                const styles = window.getComputedStyle(formControl);
+                document.getElementById('formWidth').textContent = 
+                    `${styles.width} (max-width: ${styles.maxWidth})`;
+            }
+            
+            // Check input group direction
+            const inputGroup = document.querySelector('.input-group');
+            if (inputGroup) {
+                const styles = window.getComputedStyle(inputGroup);
+                document.getElementById('inputGroupDir').textContent = 
+                    styles.flexDirection;
+            }
+        }
+        
+        updateDebugInfo();
+        window.addEventListener('resize', updateDebugInfo);
+    </script>
+</body>
+</html>

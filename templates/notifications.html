@@ -1,56 +1,91 @@
 {% extends "layout.html" %} {% block title %}Notifications - StockLeague{%
 endblock %} {% block main %}
-<div class="container">
+<div class="container py-4">
   <div class="row justify-content-center">
-    <div class="col-lg-8">
+    <div class="col-lg-10">
+      <!-- Page Header -->
       <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1><i class="fas fa-bell"></i> Notifications</h1>
+        <div>
+          <h1 class="mb-0"><i class="fas fa-bell"></i> Notifications</h1>
+          <small class="text-muted">{{ notifications|length }} total</small>
+          {% if unread_count > 0 %}
+          <span class="badge bg-primary ms-2">{{ unread_count }} unread</span>
+          {% endif %}
+        </div>
         {% if unread_count > 0 %}
         <form action="/notifications/mark_all_read" method="post">
-          <button type="submit" class="btn btn-sm btn-outline-primary">
-            <i class="fas fa-check-double"></i> Mark All Read
+          <button type="submit" class="btn btn-primary">
+            <i class="fas fa-check-double"></i> Mark All as Read
           </button>
         </form>
         {% endif %}
       </div>
 
+      <!-- Filter/Sort Options -->
+      <div class="mb-4">
+        <div class="btn-group" role="group">
+          <button type="button" class="btn btn-outline-secondary active" onclick="filterNotifications('all')">
+            <i class="fas fa-list"></i> All
+          </button>
+          <button type="button" class="btn btn-outline-secondary" onclick="filterNotifications('unread')">
+            <i class="fas fa-circle"></i> Unread
+          </button>
+          <button type="button" class="btn btn-outline-secondary" onclick="filterNotifications('achievements')">
+            <i class="fas fa-trophy"></i> Achievements
+          </button>
+          <button type="button" class="btn btn-outline-secondary" onclick="filterNotifications('leagues')">
+            <i class="fas fa-trophy"></i> Leagues
+          </button>
+        </div>
+      </div>
+
       {% if notifications %}
-      <div class="list-group shadow">
+      <div id="notifications-container">
         {% for notif in notifications %}
         <div
-          class="list-group-item {% if not notif.is_read %}list-group-item-primary{% endif %}"
+          class="card mb-3 notification-card {% if not notif.is_read %}border-left-primary unread-notification{% else %}bg-light{% endif %}"
+          data-notification-type="{{ notif.notification_type }}"
         >
-          <div class="d-flex justify-content-between align-items-start">
-            <div class="flex-grow-1">
-              <div class="d-flex align-items-center mb-2">
-                {% if notif.notification_type == 'friend_request' %}
-                <i class="fas fa-user-plus fa-2x text-primary me-3"></i>
-                {% elif notif.notification_type == 'friend_accepted' %}
-                <i class="fas fa-user-check fa-2x text-success me-3"></i>
-                {% elif notif.notification_type == 'achievement' %}
-                <i class="fas fa-trophy fa-2x text-warning me-3"></i>
-                {% elif notif.notification_type == 'milestone' %}
-                <i class="fas fa-flag-checkered fa-2x text-info me-3"></i>
-                {% elif notif.notification_type == 'league_invite' %}
-                <i class="fas fa-trophy fa-2x text-warning me-3"></i>
-                {% elif notif.notification_type == 'league_result' %}
-                <i class="fas fa-medal fa-2x text-warning me-3"></i>
-                {% elif notif.notification_type == 'challenge_invite' %}
-                <i class="fas fa-bullseye fa-2x text-danger me-3"></i>
-                {% elif notif.notification_type == 'challenge_complete' %}
-                <i class="fas fa-check-circle fa-2x text-success me-3"></i>
-                {% elif notif.notification_type == 'new_follower' %}
-                <i class="fas fa-user-plus fa-2x text-info me-3"></i>
-                {% elif notif.notification_type == 'trade_copy' %}
-                <i class="fas fa-copy fa-2x text-secondary me-3"></i>
-                {% elif notif.notification_type == 'alert' %}
-                <i class="fas fa-bell fa-2x text-danger me-3"></i>
-                {% else %}
-                <i class="fas fa-info-circle fa-2x text-secondary me-3"></i>
-                {% endif %}
-                <div>
-                  <h5 class="mb-1">{{ notif.title }}</h5>
-                  <p class="mb-1">{{ notif.content }}</p>
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-start">
+              <!-- Icon and Content -->
+              <div class="d-flex flex-grow-1">
+                <div class="notification-icon me-3">
+                  {% if notif.notification_type == 'friend_request' %}
+                  <i class="fas fa-user-plus fa-2x text-primary"></i>
+                  {% elif notif.notification_type == 'friend_accepted' %}
+                  <i class="fas fa-user-check fa-2x text-success"></i>
+                  {% elif notif.notification_type == 'achievement' %}
+                  <i class="fas fa-trophy fa-2x text-warning"></i>
+                  {% elif notif.notification_type == 'milestone' %}
+                  <i class="fas fa-flag-checkered fa-2x text-info"></i>
+                  {% elif notif.notification_type == 'league_invite' %}
+                  <i class="fas fa-crown fa-2x text-warning"></i>
+                  {% elif notif.notification_type == 'league_result' %}
+                  <i class="fas fa-medal fa-2x text-warning"></i>
+                  {% elif notif.notification_type == 'challenge_invite' %}
+                  <i class="fas fa-bullseye fa-2x text-danger"></i>
+                  {% elif notif.notification_type == 'challenge_complete' %}
+                  <i class="fas fa-check-circle fa-2x text-success"></i>
+                  {% elif notif.notification_type == 'new_follower' %}
+                  <i class="fas fa-star fa-2x text-info"></i>
+                  {% elif notif.notification_type == 'trade_copy' %}
+                  <i class="fas fa-copy fa-2x text-secondary"></i>
+                  {% elif notif.notification_type == 'alert' %}
+                  <i class="fas fa-exclamation-triangle fa-2x text-danger"></i>
+                  {% else %}
+                  <i class="fas fa-info-circle fa-2x text-secondary"></i>
+                  {% endif %}
+                </div>
+                
+                <div class="flex-grow-1">
+                  <div class="d-flex align-items-center mb-1">
+                    <h5 class="mb-0">{{ notif.title }}</h5>
+                    {% if not notif.is_read %}
+                    <span class="badge bg-primary ms-2">New</span>
+                    {% endif %}
+                  </div>
+                  <p class="mb-2 text-muted">{{ notif.content }}</p>
                   <small class="text-muted">
                     <i class="fas fa-clock"></i> {{
                     notif.created_at.split('.')[0] }}
@@ -58,10 +93,43 @@ endblock %} {% block main %}
                 </div>
               </div>
 
-              {# Interactive action buttons based on notification type #} {% if
-              notif.notification_type == 'friend_request' and notif.related_data
-              %}
-              <div class="mt-2 d-flex gap-2">
+              <!-- Actions -->
+              <div class="ms-3">
+                {% if not notif.is_read %}
+                <form
+                  action="/notifications/mark_read/{{ notif.id }}"
+                  method="post"
+                  class="d-inline"
+                >
+                  <button
+                    type="submit"
+                    class="btn btn-sm btn-outline-primary"
+                    title="Mark as read"
+                  >
+                    <i class="fas fa-check"></i>
+                  </button>
+                </form>
+                {% endif %}
+                <form
+                  action="/notifications/delete/{{ notif.id }}"
+                  method="post"
+                  class="d-inline"
+                >
+                  <button
+                    type="submit"
+                    class="btn btn-sm btn-outline-danger"
+                    title="Delete notification"
+                  >
+                    <i class="fas fa-trash"></i>
+                  </button>
+                </form>
+              </div>
+            </div>
+
+            <!-- Interactive Actions -->
+            <div class="mt-3 pt-3 border-top">
+              {% if notif.notification_type == 'friend_request' and notif.related_data %}
+              <div class="d-flex gap-2">
                 <form
                   action="/friends/accept/{{ notif.related_data }}"
                   method="post"
@@ -83,102 +151,118 @@ endblock %} {% block main %}
               </div>
               {% elif notif.notification_type == 'league_invite' and
               notif.related_data %}
-              <div class="mt-2">
-                <a
-                  href="/leagues/{{ notif.related_data }}"
-                  class="btn btn-sm btn-primary"
-                >
-                  <i class="fas fa-trophy"></i> View League
-                </a>
-              </div>
+              <a
+                href="/leagues/{{ notif.related_data }}"
+                class="btn btn-sm btn-primary"
+              >
+                <i class="fas fa-crown"></i> View League
+              </a>
               {% elif notif.notification_type == 'challenge_invite' and
               notif.related_data %}
-              <div class="mt-2">
-                <a
-                  href="/challenges/{{ notif.related_data }}"
-                  class="btn btn-sm btn-primary"
-                >
-                  <i class="fas fa-bullseye"></i> Join Challenge
-                </a>
-              </div>
+              <a
+                href="/challenges/{{ notif.related_data }}"
+                class="btn btn-sm btn-primary"
+              >
+                <i class="fas fa-bullseye"></i> Join Challenge
+              </a>
               {% elif notif.notification_type == 'new_follower' and
               notif.related_data %}
-              <div class="mt-2">
-                <a
-                  href="/profile/{{ notif.related_data }}"
-                  class="btn btn-sm btn-outline-info"
-                >
-                  <i class="fas fa-user"></i> View Profile
-                </a>
-              </div>
+              <a
+                href="/profile/{{ notif.related_data }}"
+                class="btn btn-sm btn-outline-info"
+              >
+                <i class="fas fa-user"></i> View Profile
+              </a>
               {% elif notif.notification_type == 'league_result' and
               notif.related_data %}
-              <div class="mt-2">
-                <a
-                  href="/leagues/{{ notif.related_data }}"
-                  class="btn btn-sm btn-outline-warning"
-                >
-                  <i class="fas fa-trophy"></i> View Results
-                </a>
-              </div>
+              <a
+                href="/leagues/{{ notif.related_data }}"
+                class="btn btn-sm btn-outline-warning"
+              >
+                <i class="fas fa-trophy"></i> View Results
+              </a>
               {% elif notif.notification_type == 'achievement' %}
-              <div class="mt-2">
-                <a href="/achievements" class="btn btn-sm btn-outline-warning">
-                  <i class="fas fa-trophy"></i> View Achievements
-                </a>
-              </div>
+              <a href="/achievements" class="btn btn-sm btn-outline-warning">
+                <i class="fas fa-trophy"></i> View All Achievements
+              </a>
               {% endif %}
-            </div>
-            <div class="ms-3">
-              {% if not notif.is_read %}
-              <form
-                action="/notifications/mark_read/{{ notif.id }}"
-                method="post"
-                class="d-inline"
-              >
-                <button
-                  type="submit"
-                  class="btn btn-sm btn-outline-secondary"
-                  title="Mark as read"
-                >
-                  <i class="fas fa-check"></i>
-                </button>
-              </form>
-              {% endif %}
-              <form
-                action="/notifications/delete/{{ notif.id }}"
-                method="post"
-                class="d-inline"
-              >
-                <button
-                  type="submit"
-                  class="btn btn-sm btn-outline-danger"
-                  title="Delete"
-                >
-                  <i class="fas fa-trash"></i>
-                </button>
-              </form>
             </div>
           </div>
         </div>
         {% endfor %}
       </div>
 
-      <!-- Pagination -->
-      {% if notifications | length >= 20 %}
-      <div class="text-center mt-3">
-        <p class="text-muted">Showing latest 20 notifications</p>
-      </div>
-      {% endif %} {% else %}
+      <style>
+        .notification-card {
+          border-left: 4px solid transparent;
+          transition: all 0.3s ease;
+          cursor: pointer;
+        }
+
+        .notification-card:hover {
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+          transform: translateX(2px);
+        }
+
+        .notification-card.unread-notification {
+          border-left-color: #0d6efd;
+          background-color: rgba(13, 110, 253, 0.05);
+        }
+
+        .notification-icon {
+          min-width: 50px;
+          text-align: center;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .badge {
+          font-size: 0.75rem;
+          padding: 0.35rem 0.65rem;
+        }
+      </style>
+
+      <script>
+        function filterNotifications(type) {
+          const cards = document.querySelectorAll('.notification-card');
+          const buttons = document.querySelectorAll('.btn-group button');
+          
+          // Update active button
+          buttons.forEach(btn => btn.classList.remove('active'));
+          event.target.closest('button').classList.add('active');
+          
+          // Filter cards
+          if (type === 'all') {
+            cards.forEach(card => card.style.display = 'block');
+          } else if (type === 'unread') {
+            cards.forEach(card => {
+              card.style.display = card.classList.contains('unread-notification') ? 'block' : 'none';
+            });
+          } else if (type === 'achievements') {
+            cards.forEach(card => {
+              const notifType = card.dataset.notificationType;
+              card.style.display = (notifType === 'achievement' || notifType === 'milestone') ? 'block' : 'none';
+            });
+          } else if (type === 'leagues') {
+            cards.forEach(card => {
+              const notifType = card.dataset.notificationType;
+              card.style.display = (notifType.includes('league')) ? 'block' : 'none';
+            });
+          }
+        }
+      </script>
+      {% else %}
       <div class="card shadow">
         <div class="card-body text-center py-5">
           <i class="fas fa-bell-slash fa-4x text-muted mb-3"></i>
           <h4 class="text-muted">No notifications yet</h4>
           <p class="text-muted">You'll see notifications here when you:</p>
           <ul class="list-unstyled text-muted">
-            <li>Receive friend requests</li>
-            <li>Unlock achievements</li>
-            <li>Reach portfolio milestones</li>
+            <li><i class="fas fa-user-plus text-primary"></i> Receive friend requests</li>
+            <li><i class="fas fa-trophy text-warning"></i> Unlock achievements</li>
+            <li><i class="fas fa-crown text-warning"></i> Get league invites</li>
+            <li><i class="fas fa-flag-checkered text-info"></i> Reach portfolio milestones</li>
           </ul>
         </div>
       </div>

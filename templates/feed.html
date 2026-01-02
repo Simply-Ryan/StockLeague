@@ -223,8 +223,10 @@
     });
     
     function updateReactionUI(activityId, clickedEmoji, reactions, wasActive) {
-        // Find the specific card for this activity
-        const activityCard = document.querySelector(`.card [data-activity-id="${activityId}"].reaction-btn`)?.closest('.card');
+        // Find the specific card for this activity by finding a reaction button with this activity ID
+        // and then finding its closest .card ancestor
+        const reactionButton = document.querySelector(`.reaction-btn[data-activity-id="${activityId}"]`);
+        const activityCard = reactionButton?.closest('.card');
         if (!activityCard) return;
         
         // Update button states within this specific card

@@ -41,6 +41,7 @@ from performance_monitoring import PerformanceMonitor, monitor_endpoint
 from league_modes import get_league_mode, get_available_modes, MODE_ABSOLUTE_VALUE
 from league_rules import LeagueRuleEngine
 from advanced_league_system import AdvancedLeagueManager, RatingSystem, AchievementEngine, QuestSystem, FairPlayEngine, AnalyticsCalculator
+from advanced_orders import AdvancedOrderManager
 from utils import rate_limit, sanitize_xss, validate_symbol, validate_email, validate_username, sanitize_input
 from trade_throttle import validate_trade_throttle, record_trade, get_user_trade_history
 from soft_deletes import LeagueArchiveManager
@@ -1393,6 +1394,55 @@ def create_portfolio_snapshot(user_id):
         logging.error(f"Error creating portfolio snapshot for user {user_id}: {e}")
 
 
+def format_achievement_name(achievement_id_or_name):
+    """Format achievement variable names to display names.
+    
+    Examples:
+        'first_trade' -> 'First Trade'
+        'portfolio_1k' -> 'Portfolio $1K'
+        'active_trader' -> 'Active Trader'
+        'win_streak_10' -> 'Win Streak 10'
+    """
+    if not achievement_id_or_name:
+        return achievement_id_or_name
+    
+    # Achievement name mappings
+    achievement_names = {
+        'first_trade': 'First Trade',
+        'active_trader': 'Active Trader',
+        'day_trader': 'Day Trader',
+        'profit_maker': 'Profit Maker',
+        'big_winner': 'Big Winner',
+        'portfolio_builder': 'Portfolio Builder',
+        'portfolio_1k': 'Portfolio $1K',
+        'portfolio_5k': 'Portfolio $5K',
+        'portfolio_10k': 'Portfolio $10K',
+        'portfolio_50k': 'Portfolio $50K',
+        'diversified': 'Diversified',
+        'win_streak_5': 'Win Streak 5',
+        'win_streak_10': 'Win Streak 10',
+        'win_streak_20': 'Win Streak 20',
+        'perfect_week': 'Perfect Week',
+        'sector_specialist': 'Sector Specialist',
+        'market_timing_expert': 'Market Timing Expert',
+        'arbitrage_master': 'Arbitrage Master',
+        'volatile_trader': 'Volatile Trader',
+        'value_investor': 'Value Investor',
+    }
+    
+    # Check if we have a mapping for this achievement
+    if achievement_id_or_name in achievement_names:
+        return achievement_names[achievement_id_or_name]
+    
+    # If not in mapping, format by converting underscores to spaces and title casing
+    formatted = achievement_id_or_name.replace('_', ' ').title()
+    return formatted
+
+
+# Register achievement name formatter as Jinja2 filter
+app.jinja_env.filters["achievement_name"] = format_achievement_name
+
+
 def check_achievements(user_id):
     """Check and award achievements for a user"""
     user = db.get_user(user_id)
@@ -1963,11 +2013,42 @@ def buy():
 @app.route("/history")
 @login_required
 def history():
-    """Show history of transactions"""
+    """Show history of transactions with filtering and sorting"""
     user_id = session["user_id"]
     transactions = db.get_transactions(user_id)
     
-    return render_template("history.html", transactions=transactions)
+    # Get filter parameters from request
+    filter_type = request.args.get('type', 'all')  # all, buy, sell
+    sort_by = request.args.get('sort', 'date_desc')  # date_desc, date_asc, symbol_asc, symbol_desc, shares_desc, shares_asc, price_desc, price_asc
+    
+    # Apply type filter
+    if filter_type == 'buy':
+        transactions = [t for t in transactions if t['type'] == 'buy']
+    elif filter_type == 'sell':
+        transactions = [t for t in transactions if t['type'] == 'sell']
+    
+    # Apply sorting
+    if sort_by == 'date_asc':
+        transactions.sort(key=lambda x: x['timestamp'])
+    elif sort_by == 'date_desc':
+        transactions.sort(key=lambda x: x['timestamp'], reverse=True)
+    elif sort_by == 'symbol_asc':
+        transactions.sort(key=lambda x: x['symbol'])
+    elif sort_by == 'symbol_desc':
+        transactions.sort(key=lambda x: x['symbol'], reverse=True)
+    elif sort_by == 'shares_asc':
+        transactions.sort(key=lambda x: abs(x['shares']))
+    elif sort_by == 'shares_desc':
+        transactions.sort(key=lambda x: abs(x['shares']), reverse=True)
+    elif sort_by == 'price_asc':
+        transactions.sort(key=lambda x: x['price'])
+    elif sort_by == 'price_desc':
+        transactions.sort(key=lambda x: x['price'], reverse=True)
+    
+    return render_template("history.html", 
+                         transactions=transactions,
+                         filter_type=filter_type,
+                         sort_by=sort_by)
 
 
 @app.route("/analytics")
@@ -3928,60 +4009,53 @@ def tournament_detail(tournament_id):
 @app.route("/achievements")
 @login_required
 def achievements():
-    """Show achievements and badges"""
+    """Show personal achievements and badges"""
     user_id = session["user_id"]
     
-    # Get user's achievements across all leagues
+    # Get user's personal achievements
     conn = db.get_connection()
     cursor = conn.cursor()
     
-    # Get user's earned badges
+    # Get user's earned personal achievements
     cursor.execute("""
-        SELECT lab.*, la.name, la.description, la.badge_icon, la.rarity, l.name as league_name
-        FROM league_badges lab
-        LEFT JOIN league_achievements la ON lab.achievement_id = la.id
-        LEFT JOIN leagues l ON la.league_id = l.id
-        WHERE lab.user_id = ?
-        ORDER BY lab.unlocked_at DESC
+        SELECT ua.*, a.name, a.description, a.icon, a.rarity, a.category, a.points
+        FROM user_achievements ua
+        LEFT JOIN achievements a ON ua.achievement_id = a.id
+        WHERE ua.user_id = ?
+        ORDER BY ua.unlocked_at DESC
     """, (user_id,))
-    user_badges = [dict(row) for row in cursor.fetchall()]
+    user_achievements_earned = [dict(row) for row in cursor.fetchall()]
     
-    # Get all available achievements
+    # Get all available personal achievements
     cursor.execute("""
-        SELECT la.*, COUNT(DISTINCT lab.user_id) as unlock_count
-        FROM league_achievements la
-        LEFT JOIN league_badges lab ON la.id = lab.achievement_id AND lab.user_id = ?
-        GROUP BY la.id
-        ORDER BY la.rarity DESC, la.name ASC
+        SELECT a.*, 
+               COUNT(DISTINCT ua.user_id) as unlock_count,
+               CASE WHEN ua.user_id IS NOT NULL THEN 1 ELSE 0 END as is_earned
+        FROM achievements a
+        LEFT JOIN user_achievements ua ON a.id = ua.achievement_id AND ua.user_id = ?
+        GROUP BY a.id
+        ORDER BY a.rarity DESC, a.name ASC
     """, (user_id,))
     all_achievements = [dict(row) for row in cursor.fetchall()]
     
     conn.close()
     
-    # Group achievements by rarity
-    achievements_by_rarity = {}
-    for ach in all_achievements:
-        rarity = ach.get('rarity', 'common')
-        if rarity not in achievements_by_rarity:
-            achievements_by_rarity[rarity] = []
-        achievements_by_rarity[rarity].append(ach)
-    
-    # Build earned keys from user badges
+    # Build earned keys from user achievements (convert to lowercase with underscores)
     earned_keys = set()
-    for badge in user_badges:
-        if badge.get('name'):
-            # Convert achievement name to key format (lowercase, replace spaces with underscores)
-            key = badge.get('name', '').lower().replace(' ', '_').replace('-', '_')
+    for achievement in user_achievements_earned:
+        if achievement.get('name'):
+            # Convert achievement name to key format (lowercase, replace spaces/hyphens with underscores)
+            key = achievement.get('name', '').lower().replace(' ', '_').replace('-', '_')
             earned_keys.add(key)
     
     # Count stats
-    earned_count = len(user_badges)
+    earned_count = len(user_achievements_earned)
     total_count = len(all_achievements)
     unlock_rate = (earned_count / max(total_count, 1)) * 100 if total_count > 0 else 0
     
     return render_template("achievements.html",
-                         user_badges=user_badges,
-                         achievements_by_rarity=achievements_by_rarity,
+                         user_achievements=user_achievements_earned,
+                         all_achievements=all_achievements,
                          earned_keys=earned_keys,
                          earned_count=earned_count,
                          total_count=total_count,
@@ -4119,181 +4193,7 @@ def api_league_analytics(league_id):
         return jsonify({"error": str(e)}), 500
 
 
-@app.route("/challenges")
-@login_required
-def challenges():
-    """Show all challenges"""
-    user_id = session["user_id"]
-    
-    # Get user's active challenges
-    user_challenges = db.get_user_challenges(user_id)
-    
-    # Get all active challenges
-    all_challenges = db.get_active_challenges(limit=50)
-    
-    # Separate challenges user is participating in vs available
-    participating_ids = {c['id'] for c in user_challenges}
-    available_challenges = [c for c in all_challenges if c['id'] not in participating_ids]
-    
-    return render_template("challenges.html",
-                         user_challenges=user_challenges,
-                         available_challenges=available_challenges)
 
-
-@app.route("/challenges/create", methods=["GET", "POST"])
-@login_required
-def create_challenge():
-    """Create a new challenge"""
-    if request.method == "POST":
-        name = request.form.get("name")
-        description = request.form.get("description", "")
-        challenge_type = request.form.get("challenge_type")
-        duration_days = int(request.form.get("duration_days", 7))
-        
-        if not name or not challenge_type:
-            return apology("must provide challenge name and type", 400)
-        
-        # Build rules based on challenge type
-        rules = {}
-        if challenge_type == "profit_target":
-            rules['target_profit'] = float(request.form.get("target_profit", 1000))
-        elif challenge_type == "trade_volume":
-            rules['target_trades'] = int(request.form.get("target_trades", 10))
-        elif challenge_type == "portfolio_value":
-            rules['target_value'] = float(request.form.get("target_value", 15000))
-        elif challenge_type == "sector_focus":
-            rules['target_sector'] = request.form.get("target_sector", "Technology")
-            rules['min_trades'] = int(request.form.get("min_trades", 5))
-        
-        # Build reward
-        reward = {
-            'cash': float(request.form.get("reward_cash", 0)),
-            'achievement': request.form.get("reward_achievement", ""),
-            'badge': request.form.get("reward_badge", "")
-        }
-        
-        user_id = session["user_id"]
-        
-        # Create challenge
-        challenge_id = db.create_challenge(
-            name=name,
-            description=description,
-            challenge_type=challenge_type,
-            rules=rules,
-            creator_id=user_id,
-            duration_days=duration_days,
-            reward=reward
-        )
-        
-        flash(f'Challenge "{name}" created successfully!', "success")
-        return redirect(f"/challenges/{challenge_id}")
-    
-    return render_template("create_challenge.html")
-
-
-@app.route("/challenges/<int:challenge_id>")
-@login_required
-def challenge_detail(challenge_id):
-    """Show challenge details"""
-    user_id = session["user_id"]
-    
-    # Get challenge details
-    challenge = db.get_challenge(challenge_id)
-    if not challenge:
-        return apology("challenge not found", 404)
-    
-    # Get leaderboard
-    leaderboard = db.get_challenge_leaderboard(challenge_id, limit=100)
-    
-    # Check if user is participating
-    is_participating = any(entry['user_id'] == user_id for entry in leaderboard)
-    user_entry = next((entry for entry in leaderboard if entry['user_id'] == user_id), None)
-    
-    # Calculate time remaining
-    from datetime import datetime
-    # Handle both formats: with and without fractional seconds
-    end_time_str = challenge['end_time']
-    if '.' in end_time_str:
-        # Remove fractional seconds if present
-        end_time_str = end_time_str.split('.')[0]
-    end_time = datetime.strptime(end_time_str, '%Y-%m-%d %H:%M:%S')
-    now = datetime.now()
-    time_remaining = end_time - now
-    days_remaining = max(0, time_remaining.days)
-    hours_remaining = max(0, time_remaining.seconds // 3600)
-    
-    return render_template("challenge_detail.html",
-                         challenge=challenge,
-                         leaderboard=leaderboard,
-                         is_participating=is_participating,
-                         user_entry=user_entry,
-                         days_remaining=days_remaining,
-                         hours_remaining=hours_remaining)
-
-
-@app.route("/challenges/<int:challenge_id>/join", methods=["POST"])
-@login_required
-def join_challenge(challenge_id):
-    """Join a challenge"""
-    user_id = session["user_id"]
-    
-    # Check if challenge exists and is active
-    challenge = db.get_challenge(challenge_id)
-    if not challenge:
-        return apology("challenge not found", 404)
-    
-    if not challenge['is_active']:
-
-        return apology("challenge is no longer active", 400)
-    
-    # Join challenge
-    success = db.join_challenge(challenge_id, user_id)
-
-    
-    if success:
-        flash(f'You joined "{challenge["name"]}"! Good luck!', "success")
-    else:
-        flash("You are already participating in this challenge", "warning")
-    
-    return redirect(f"/challenges/{challenge_id}")
-
-
-@app.route("/challenges/<int:challenge_id>/leave", methods=["POST"])
-@login_required
-def leave_challenge(challenge_id):
-    """Leave a challenge"""
-    user_id = session["user_id"]
-    
-    conn = db.get_connection()
-    cursor = conn.cursor()
-    cursor.execute("""
-        DELETE FROM challenge_participants
-        WHERE challenge_id = ? AND user_id = ?
-    """, (challenge_id, user_id))
-    conn.commit()
-    conn.close()
-    
-    flash("You left the challenge", "info")
-    return redirect("/challenges")
-
-
-@app.route("/challenges/<int:challenge_id>/update", methods=["POST"])
-@login_required
-def update_challenge_score(challenge_id):
-    """Manually update challenge score (admin only)"""
-    user_id = session["user_id"]
-    
-    # Check if user is challenge creator
-    challenge = db.get_challenge(challenge_id)
-    if not challenge or challenge['creator_id'] != user_id:
-        return apology("unauthorized", 403)
-    
-    # Recalculate all participant scores
-    from datetime import datetime
-    _update_all_challenge_scores(challenge_id)
-    
-    flash("Challenge scores updated!", "success")
-    return redirect(f"/challenges/{challenge_id}")
 
 
 @app.route("/about")
@@ -6145,39 +6045,7 @@ def handle_get_chart_data(data):
         emit('chart_error', {'error': str(e)})
 
 
-def _update_user_challenge_progress(user_id):
-    """Update user's progress in all active challenges after a trade"""
-    user_challenges = db.get_user_challenges(user_id)
-    
-    for challenge in user_challenges:
-        if not challenge['completed']:
-            score = _calculate_challenge_score(challenge, user_id)
-            db.update_challenge_progress(challenge['id'], user_id, score)
-            
-            # Check if challenge is completed
-            if db.check_challenge_completion(challenge['id'], user_id):
-                reward = db.complete_challenge(challenge['id'], user_id)
-                
-                # Award reward
-                if reward and reward.get('cash', 0) > 0:
-                    conn = db.get_connection()
-                    cursor = conn.cursor()
-                    cursor.execute("""
-                        UPDATE users SET cash = cash + ? WHERE id = ?
-                    """, (reward['cash'], user_id))
-                    conn.commit()
-                    conn.close()
-                
-                # Send notification
-                db.add_notification(
-                    user_id,
-                    'challenge_complete',
-                    'Challenge Completed!',
-                    f'You completed "{challenge["name"]}"! Reward: ${reward.get("cash", 0):.2f}',
-                    f'/challenges/{challenge["id"]}'
-                )
-
-
+# Challenge system removed - see ISSUES_ASSESSMENT.md
 def _execute_copy_trades(trader_id, symbol, shares, price, trade_type, txn_id):
     """Execute copy trades for all active copiers of a trader"""
     copiers = db.get_active_copiers(trader_id)
@@ -6280,115 +6148,7 @@ def _execute_copy_trades(trader_id, symbol, shares, price, trade_type, txn_id):
             continue
 
 
-def _update_all_challenge_scores(challenge_id):
-    """Update scores for all participants in a challenge"""
-    challenge = db.get_challenge(challenge_id)
-    if not challenge:
-        return
-    
-    leaderboard = db.get_challenge_leaderboard(challenge_id)
-    
-    for entry in leaderboard:
-        user_id = entry['user_id']
-        score = _calculate_challenge_score(challenge, user_id)
-        db.update_challenge_progress(challenge_id, user_id, score)
-        
-        # Check if challenge is completed
-        if not entry['completed'] and db.check_challenge_completion(challenge_id, user_id):
-            reward = db.complete_challenge(challenge_id, user_id)
-            
-            # Award reward
-            if reward and reward.get('cash', 0) > 0:
-                conn = db.get_connection()
-                cursor = conn.cursor()
-                cursor.execute("""
-                    UPDATE users SET cash = cash + ? WHERE id = ?
-                """, (reward['cash'], user_id))
-                conn.commit()
-                conn.close()
-            
-            # Send notification
-            db.add_notification(
-                user_id,
-                'challenge_complete',
-                'Challenge Completed!',
-                f'You completed "{challenge["name"]}"! Reward: ${reward.get("cash", 0):.2f}',
-                f'/challenges/{challenge["id"]}'
-            )
-
-
-def _calculate_challenge_score(challenge, user_id):
-    """Calculate user's score for a challenge"""
-    challenge_type = challenge['challenge_type']
-    rules = challenge['rules']
-    
-    conn = db.get_connection()
-    cursor = conn.cursor()
-    
-    # Get user's join time
-    cursor.execute("""
-        SELECT joined_at FROM challenge_participants
-        WHERE challenge_id = ? AND user_id = ?
-    """, (challenge['id'], user_id))
-    result = cursor.fetchone()
-    
-    if not result:
-        conn.close()
-        return 0
-    
-    joined_at = result['joined_at']
-    
-    if challenge_type == 'profit_target':
-        # Calculate profit since joining
-        cursor.execute("""
-            SELECT 
-                SUM(CASE WHEN type = 'sell' THEN shares * price ELSE -shares * price END) as net_profit
-            FROM transactions
-            WHERE user_id = ? AND timestamp >= ?
-        """, (user_id, joined_at))
-        result = cursor.fetchone()
-        score = result['net_profit'] if result and result['net_profit'] else 0
-    
-    elif challenge_type == 'trade_volume':
-        # Count trades since joining
-        cursor.execute("""
-            SELECT COUNT(*) as trade_count
-            FROM transactions
-            WHERE user_id = ? AND timestamp >= ?
-        """, (user_id, joined_at))
-        result = cursor.fetchone()
-        score = result['trade_count'] if result else 0
-    
-    elif challenge_type == 'portfolio_value':
-        # Get current portfolio value
-        user = db.get_user(user_id)
-        stocks = db.get_user_stocks(user_id)
-        
-        total_value = user['cash']
-        for stock in stocks:
-            quote = lookup(stock['symbol'])
-            if quote:
-                total_value += stock['shares'] * quote['price']
-        
-        score = total_value
-    
-    elif challenge_type == 'sector_focus':
-        # Count trades in target sector
-        target_sector = rules.get('target_sector', 'Technology')
-        # Simplified - just count all trades (real implementation would check sectors)
-        cursor.execute("""
-            SELECT COUNT(*) as trade_count
-            FROM transactions
-            WHERE user_id = ? AND timestamp >= ?
-        """, (user_id, joined_at))
-        result = cursor.fetchone()
-        score = result['trade_count'] if result else 0
-    
-    else:
-        score = 0
-    
-    conn.close()
-    return score
+# Challenge system removed - see ISSUES_ASSESSMENT.md
 
 
 def background_price_updater():
@@ -6800,7 +6560,179 @@ def broadcast_stock_prices():
         app_logger.error(f"Error in broadcast_stock_prices: {e}", exc_info=True)
 
 
+# ============================================
+# PHASE 6: ADVANCED ORDERS ROUTES
+# ============================================
+
+order_manager = None  # Will be initialized with db instance
+
+
+def initialize_order_manager():
+    """Initialize the order manager with database"""
+    global order_manager
+    order_manager = AdvancedOrderManager(db)
+    return order_manager
+
+
+@app.route("/advanced-orders")
+@login_required
+def advanced_orders():
+    """View and manage advanced orders"""
+    user_id = session["user_id"]
+    
+    # Get pending and completed orders
+    pending_orders = order_manager.get_user_pending_orders(user_id)
+    order_history = order_manager.get_order_history(user_id, limit=20)
+    
+    return render_template("advanced_orders.html",
+                         pending_orders=pending_orders,
+                         order_history=order_history,
+                         symbol="")
+
+
+@app.route("/advanced-orders/create", methods=["POST"])
+@login_required
+def create_advanced_order():
+    """Create a new advanced order"""
+    user_id = session["user_id"]
+    
+    try:
+        # Get form data
+        symbol = request.form.get("symbol", "").upper()
+        order_type = request.form.get("order_type", "")
+        action = request.form.get("action", "")
+        shares = int(request.form.get("shares", 0))
+        limit_price = float(request.form.get("limit_price", 0)) if request.form.get("limit_price") else None
+        stop_price = float(request.form.get("stop_price", 0)) if request.form.get("stop_price") else None
+        notes = request.form.get("notes", "")
+        
+        # Validate
+        if not symbol or not order_type or not action or shares <= 0:
+            flash("Invalid order parameters", "danger")
+            return redirect(f"/advanced-orders?symbol={symbol}")
+        
+        # Create based on order type
+        if order_type == "limit":
+            if not limit_price or limit_price <= 0:
+                flash("Limit price required and must be positive", "danger")
+                return redirect(f"/advanced-orders?symbol={symbol}")
+            
+            result = order_manager.create_limit_order(
+                user_id=user_id,
+                symbol=symbol,
+                shares=shares,
+                action=action,
+                limit_price=limit_price,
+                notes=notes
+            )
+        
+        elif order_type == "stop":
+            if not stop_price or stop_price <= 0:
+                flash("Stop price required and must be positive", "danger")
+                return redirect(f"/advanced-orders?symbol={symbol}")
+            
+            # TODO: Implement stop order creation
+            result = {"error": "Stop orders coming soon"}
+        
+        elif order_type == "trailing_stop":
+            # TODO: Implement trailing stop creation
+            result = {"error": "Trailing stops coming soon"}
+        
+        else:
+            result = {"error": f"Unknown order type: {order_type}"}
+        
+        if "error" in result:
+            flash(result["error"], "danger")
+        elif "success" in result and result["success"]:
+            flash(result["message"], "success")
+        else:
+            flash("Failed to create order", "danger")
+        
+        return redirect(f"/advanced-orders?symbol={symbol}")
+    
+    except Exception as e:
+        app_logger.error(f"Error creating advanced order: {str(e)}")
+        flash(f"Error: {str(e)}", "danger")
+        return redirect("/advanced-orders")
+
+
+@app.route("/advanced-orders/<int:order_id>/cancel", methods=["POST"])
+@login_required
+def cancel_order(order_id):
+    """Cancel a pending order"""
+    user_id = session["user_id"]
+    
+    try:
+        result = order_manager.cancel_limit_order(order_id, user_id)
+        
+        if "error" in result:
+            flash(result["error"], "danger")
+        else:
+            flash(result["message"], "success")
+    
+    except Exception as e:
+        app_logger.error(f"Error cancelling order: {str(e)}")
+        flash(f"Error: {str(e)}", "danger")
+    
+    return redirect("/advanced-orders")
+
+
+@app.route("/advanced-orders/<int:order_id>/edit", methods=["POST"])
+@login_required
+def edit_order(order_id):
+    """Edit a pending order's limit price"""
+    user_id = session["user_id"]
+    
+    try:
+        new_limit_price = float(request.form.get("limit_price", 0))
+        
+        result = order_manager.edit_limit_order(order_id, user_id, new_limit_price)
+        
+        if "error" in result:
+            flash(result["error"], "danger")
+        else:
+            flash(result["message"], "success")
+    
+    except ValueError:
+        flash("Invalid limit price", "danger")
+    except Exception as e:
+        app_logger.error(f"Error editing order: {str(e)}")
+        flash(f"Error: {str(e)}", "danger")
+    
+    return redirect("/advanced-orders")
+
+
+@app.route("/api/advanced-orders/pending")
+@login_required
+def api_get_pending_orders():
+    """Get pending orders as JSON"""
+    user_id = session["user_id"]
+    
+    try:
+        orders = order_manager.get_user_pending_orders(user_id)
+        return jsonify({
+            "success": True,
+            "count": len(orders),
+            "orders": orders
+        }), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+def execute_pending_orders():
+    """Background job to execute pending orders - called every minute"""
+    try:
+        result = order_manager.check_and_execute_orders()
+        if result.get("executed", 0) > 0:
+            app_logger.info(f"Executed {result['executed']} orders")
+    except Exception as e:
+        app_logger.error(f"Error in execute_pending_orders: {str(e)}")
+
+
 if __name__ == "__main__":
+    # Initialize advanced order manager
+    initialize_order_manager()
+    
     # Start APScheduler jobs for leaderboards and real-time updates
     try:
         scheduler = BackgroundScheduler()
@@ -6810,8 +6742,10 @@ if __name__ == "__main__":
         scheduler.add_job(compute_and_cache_league_leaderboards, 'interval', minutes=5, id='league_leaderboards')
         # Broadcast stock prices every 5 seconds (market data updates)
         scheduler.add_job(broadcast_stock_prices, 'interval', seconds=5, id='broadcast_stock_prices')
+        # Execute pending orders every minute
+        scheduler.add_job(execute_pending_orders, 'interval', minutes=1, id='execute_pending_orders')
         scheduler.start()
-        print("Scheduler started: Global leaderboard (5min), League leaderboards (5min), Stock prices (5sec)")
+        print("Scheduler started: Global leaderboard (5min), League leaderboards (5min), Stock prices (5sec), Pending orders (1min)")
     except Exception as e:
         print("Failed to start scheduler:", e)
 
