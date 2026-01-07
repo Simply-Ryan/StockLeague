@@ -11,7 +11,7 @@
                 <i class="fas fa-file-pdf"></i> Export PDF
             </button>
             <button class="btn btn-outline-success btn-sm" onclick="exportCSV()">
-                <i class="fas fa-file-csv"></i> Export CSV
+                <i class="fas fa-file"></i> Export CSV
             </button>
         </div>
     </div>
@@ -120,7 +120,7 @@
                     <canvas id="sectorChart" height="250"></canvas>
                     {% else %}
                     <div class="text-center py-5">
-                        <i class="fas fa-chart-pie fa-3x text-muted mb-3"></i>
+                        <i class="fas fa-pie-chart fa-3x text-muted mb-3"></i>
                         <p class="text-muted">No holdings yet</p>
                     </div>
                     {% endif %}
@@ -207,7 +207,7 @@
                             <td>
                                 <strong>{{ pos.symbol }}</strong>
                                 <a href="/trade?symbol={{ pos.symbol }}" class="btn btn-sm btn-link p-0 ms-1">
-                                    <i class="fas fa-external-link-alt"></i>
+                                    <i class="fas fa-arrow-up-right-from-square"></i>
                                 </a>
                             </td>
                             <td><span class="badge bg-secondary">{{ pos.sector }}</span></td>

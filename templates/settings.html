@@ -38,7 +38,7 @@
                 </li>
                 <li class="nav-item" role="presentation">
                     <button class="nav-link" id="preferences-tab" data-bs-toggle="tab" data-bs-target="#preferences" type="button" role="tab">
-                        <i class="fas fa-sliders-h"></i> Preferences
+                        <i class="fas fa-sliders"></i> Preferences
                     </button>
                 </li>
             </ul>
@@ -56,7 +56,7 @@
                                 {% if user.avatar_url %}
                                     <img id="avatarPreview" src="{{ user.avatar_url }}" alt="Avatar" class="rounded-circle mb-3" style="width: 120px; height: 120px; object-fit: cover; border: 3px solid #007bff;">
                                 {% else %}
-                                    <i id="avatarPlaceholder" class="fas fa-user-circle" style="font-size: 120px; color: #ccc;"></i>
+                                    <i id="avatarPlaceholder" class="fas fa-circle-user" style="font-size: 120px; color: #ccc;"></i>
                                     <img id="avatarPreview" src="#" alt="Avatar" class="rounded-circle mb-3" style="width: 120px; height: 120px; object-fit: cover; border: 3px solid #007bff; display: none;">
                                 {% endif %}
                             </div>
@@ -132,7 +132,7 @@
                                 </div>
 
                                 <button type="submit" class="btn btn-primary w-100">
-                                    <i class="fas fa-save"></i> Save Profile Changes
+                                    <i class="fas fa-floppy-disk"></i> Save Profile Changes
                                 </button>
                             </form>
                         </div>
@@ -274,7 +274,7 @@
                                 </div>
 
                                 <button type="submit" class="btn btn-secondary w-100 mt-4">
-                                    <i class="fas fa-save"></i> Save Privacy Settings
+                                    <i class="fas fa-floppy-disk"></i> Save Privacy Settings
                                 </button>
                             </form>
                         </div>
@@ -329,7 +329,7 @@
                                 </div>
 
                                 <button type="submit" class="btn btn-primary w-100">
-                                    <i class="fas fa-save"></i> Save Time Zone
+                                    <i class="fas fa-floppy-disk"></i> Save Time Zone
                                 </button>
                             </form>
                         </div>
@@ -390,7 +390,7 @@
                                 </div>
 
                                 <button type="submit" class="btn btn-info w-100 mt-4">
-                                    <i class="fas fa-save"></i> Save Preferences
+                                    <i class="fas fa-floppy-disk"></i> Save Preferences
                                 </button>
                             </form>
                         </div>

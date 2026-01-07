@@ -28,13 +28,13 @@
                 <form action="/leagues/join" method="post" class="d-inline">
                     <input type="hidden" name="league_id" value="{{ league.id }}">
                     <button type="submit" class="btn btn-success btn-lg">
-                        <i class="fas fa-sign-in-alt"></i> Join League
+                        <i class="fas fa-right-to-bracket"></i> Join League
                     </button>
                 </form>
                 {% else %}
                 <div class="btn-group" role="group" style="flex-wrap: wrap;">
                     <a href="/leagues/{{ league.id }}/trade" class="btn btn-primary" title="Make trades">
-                        <i class="fas fa-exchange-alt"></i> Trade
+                        <i class="fas fa-arrows-left-right"></i> Trade
                     </a>
                     <a href="/leagues/{{ league.id }}/dashboard" class="btn btn-info" title="View statistics">
                         <i class="fas fa-chart-line"></i> Dashboard
@@ -44,7 +44,7 @@
                     </a>
                     <form action="/leagues/{{ league.id }}/leave" method="post" class="d-inline" onsubmit="return confirm('Are you sure?');">
                         <button type="submit" class="btn btn-outline-danger" title="Leave league">
-                            <i class="fas fa-sign-out-alt"></i> Leave
+                            <i class="fas fa-right-from-bracket"></i> Leave
                         </button>
                     </form>
                 </div>
@@ -145,17 +145,153 @@
 
     <!-- Main Content -->
     <div class="row g-4">
+        <!-- League Statistics Cards -->
+        {% if leaderboard|length > 0 %}
+        <div class="col-12">
+            <div class="row g-3">
+                <!-- Top Performer -->
+                <div class="col-sm-6 col-lg-3">
+                    <div class="card h-100 border-0">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center justify-content-between mb-2">
+                                <small class="text-muted text-uppercase fw-bold">Top Performer</small>
+                                <i class="fas fa-trophy text-warning"></i>
+                            </div>
+                            {% if leaderboard[0] %}
+                            <div class="fs-6 fw-bold mb-1">{{ leaderboard[0].username }}</div>
+                            <div class="fs-5 text-success fw-bold">
+                                +{{ ((leaderboard[0].total_value|default(league.starting_cash) - league.starting_cash) / league.starting_cash * 100)|round(1) }}%
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- League Average Return -->
+                <div class="col-sm-6 col-lg-3">
+                    <div class="card h-100 border-0">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center justify-content-between mb-2">
+                                <small class="text-muted text-uppercase fw-bold">League Avg Return</small>
+                                <i class="fas fa-chart-line text-info"></i>
+                            </div>
+                            {% set total_return = 0 %}
+                            {% for member in leaderboard %}
+                                {% set total_return = total_return + ((member.total_value|default(league.starting_cash) - league.starting_cash) / league.starting_cash * 100) %}
+                            {% endfor %}
+                            {% set avg_return = total_return / (leaderboard|length if leaderboard|length > 0 else 1) %}
+                            <div class="fs-5 {% if avg_return >= 0 %}text-success{% else %}text-danger{% endif %} fw-bold">
+                                {% if avg_return >= 0 %}+{% endif %}{{ avg_return|round(1) }}%
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Winning Traders -->
+                <div class="col-sm-6 col-lg-3">
+                    <div class="card h-100 border-0">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center justify-content-between mb-2">
+                                <small class="text-muted text-uppercase fw-bold">Winning Traders</small>
+                                <i class="fas fa-arrow-up text-success"></i>
+                            </div>
+                            {% set winners_count = 0 %}
+                            {% for member in leaderboard %}
+                                {% if (member.total_value|default(league.starting_cash) - league.starting_cash) >= 0 %}
+                                    {% set winners_count = winners_count + 1 %}
+                                {% endif %}
+                            {% endfor %}
+                            <div class="fs-5 fw-bold">{{ winners_count }}/{{ leaderboard|length }}</div>
+                            <small class="text-muted">{{ ((winners_count / (leaderboard|length if leaderboard|length > 0 else 1)) * 100)|round(0) }}%</small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Largest Gain -->
+                <div class="col-sm-6 col-lg-3">
+                    <div class="card h-100 border-0">
+                        <div class="card-body">
+                            <div class="d-flex align-items-center justify-content-between mb-2">
+                                <small class="text-muted text-uppercase fw-bold">Largest Gain</small>
+                                <i class="fas fa-arrow-trend-up text-success"></i>
+                            </div>
+                            {% set max_gain = 0 %}
+                            {% for member in leaderboard %}
+                                {% set gain = member.total_value|default(league.starting_cash) - league.starting_cash %}
+                                {% if gain > max_gain %}
+                                    {% set max_gain = gain %}
+                                {% endif %}
+                            {% endfor %}
+                            <div class="fs-5 text-success fw-bold">+{{ (max_gain / league.starting_cash * 100)|round(1) }}%</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
         <!-- Leaderboard -->
         <div class="col-12">
             <div class="card h-100 shadow-sm">
                 <div class="card-header bg-gradient bg-primary text-white border-0">
-                    <div class="d-flex align-items-center justify-content-between">
+                    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
                         <h5 class="mb-0"><i class="fas fa-medal"></i> Leaderboard</h5>
                         {% if leaderboard|length > 0 %}
                         <small>{{ leaderboard|length }} participants</small>
                         {% endif %}
                     </div>
                 </div>
+
+                <!-- Leaderboard Controls -->
+                {% if leaderboard %}
+                <div class="card-body pt-3 pb-2">
+                    <div class="row g-2 align-items-center">
+                        <!-- Search -->
+                        <div class="col-12 col-md-auto flex-grow-1">
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text"><i class="fas fa-search"></i></span>
+                                <input type="text" class="form-control" id="member-search" placeholder="Search members...">
+                            </div>
+                        </div>
+
+                        <!-- Sort -->
+                        <div class="col-6 col-md-auto">
+                            <select class="form-select form-select-sm" id="leaderboard-sort">
+                                <option value="rank">Sort: Rank</option>
+                                <option value="value">Sort: Value</option>
+                                <option value="return">Sort: Return %</option>
+                                <option value="name">Sort: Name</option>
+                            </select>
+                        </div>
+
+                        <!-- Filter -->
+                        <div class="col-6 col-md-auto">
+                            <select class="form-select form-select-sm" id="leaderboard-filter">
+                                <option value="all">Filter: All</option>
+                                <option value="winners">Filter: Winners (+)</option>
+                                <option value="losers">Filter: Losers (-)</option>
+                                <option value="top10">Filter: Top 10</option>
+                                <option value="active">Filter: Active</option>
+                            </select>
+                        </div>
+
+                        <!-- Mobile Toggle -->
+                        <div class="col-12 col-md-auto d-md-none">
+                            <div class="btn-group btn-group-sm w-100" role="group">
+                                <input type="radio" class="btn-check" name="view-toggle" id="view-table" checked>
+                                <label class="btn btn-outline-primary" for="view-table">
+                                    <i class="fas fa-table"></i> Table
+                                </label>
+                                <input type="radio" class="btn-check" name="view-toggle" id="view-cards">
+                                <label class="btn btn-outline-primary" for="view-cards">
+                                    <i class="fas fa-grip"></i> Cards
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
                 <div class="card-body p-0">
                     {% if leaderboard %}
                     <div class="table-responsive">
@@ -235,7 +371,7 @@
                                                 </li>
                                                 <li>
                                                     <button class="dropdown-item btn-mute" data-user-id="{{ member.id }}" style="cursor: pointer;">
-                                                        <i class="fas fa-volume-mute"></i> Mute
+                                                        <i class="fas fa-volume-xmark"></i> Mute
                                                     </button>
                                                 </li>
                                                 <li><hr class="dropdown-divider"></li>
@@ -453,5 +589,122 @@ const LEAGUE_ID = {{ league.id }};
 
 <!-- Real-time Leaderboard Updates -->
 <script src="{{ url_for('static', filename='js/leaderboard-realtime.js') }}"></script>
+
+<script>
+// Leaderboard Sorting & Filtering
+document.addEventListener('DOMContentLoaded', function() {
+    const leaderboardTable = document.querySelector('.table tbody');
+    const searchInput = document.getElementById('member-search');
+    const sortSelect = document.getElementById('leaderboard-sort');
+    const filterSelect = document.getElementById('leaderboard-filter');
+    const viewToggleTable = document.getElementById('view-table');
+    const viewToggleCards = document.getElementById('view-cards');
+
+    if (!leaderboardTable) return;
+
+    const allRows = Array.from(leaderboardTable.querySelectorAll('tr'));
+
+    // Update leaderboard display
+    function updateLeaderboard() {
+        const searchTerm = (searchInput?.value || '').toLowerCase();
+        const sortBy = sortSelect?.value || 'rank';
+        const filterBy = filterSelect?.value || 'all';
+
+        let filteredRows = allRows.filter(row => {
+            const username = row.querySelector('div.fw-bold')?.textContent.toLowerCase() || '';
+            const returnTd = row.querySelectorAll('td')[4]?.textContent || '0';
+            const returnVal = parseFloat(returnTd.replace(/[^\d.-]/g, '')) || 0;
+
+            // Search filter
+            if (searchTerm && !username.includes(searchTerm)) return false;
+
+            // Type filter
+            switch(filterBy) {
+                case 'winners':
+                    return returnVal >= 0;
+                case 'losers':
+                    return returnVal < 0;
+                case 'top10':
+                    const rankBadge = row.querySelector('.badge');
+                    const rank = parseInt(rankBadge?.textContent.replace('#', '')) || 999;
+                    return rank <= 10;
+                case 'active':
+                    const positionBadge = row.querySelector('.badge.bg-info');
+                    const positions = parseInt(positionBadge?.textContent) || 0;
+                    return positions > 0;
+                default:
+                    return true;
+            }
+        });
+
+        // Sorting
+        filteredRows.sort((a, b) => {
+            const getReturnVal = (row) => {
+                const returnTd = row.querySelectorAll('td')[4];
+                return parseFloat(returnTd?.textContent.replace(/[^\d.-]/g, '')) || 0;
+            };
+
+            const getUserName = (row) => {
+                return row.querySelector('div.fw-bold')?.textContent || '';
+            };
+
+            const getPortfolioVal = (row) => {
+                const valueTd = row.querySelectorAll('td')[3];
+                return parseFloat(valueTd?.textContent.replace(/[^\d.-]/g, '')) || 0;
+            };
+
+            const getRank = (row) => {
+                const rankBadge = row.querySelector('.badge');
+                return parseInt(rankBadge?.textContent.replace('#', '')) || 999;
+            };
+
+            switch(sortBy) {
+                case 'name':
+                    return getUserName(a).localeCompare(getUserName(b));
+                case 'value':
+                    return getPortfolioVal(b) - getPortfolioVal(a); // Descending
+                case 'return':
+                    return getReturnVal(b) - getReturnVal(a); // Descending
+                case 'rank':
+                default:
+                    return getRank(a) - getRank(b);
+            }
+        });
+
+        // Update display
+        leaderboardTable.innerHTML = '';
+        filteredRows.forEach(row => {
+            leaderboardTable.appendChild(row.cloneNode(true));
+        });
+
+        // Show message if no results
+        if (filteredRows.length === 0) {
+            const noResults = document.createElement('tr');
+            noResults.innerHTML = '<td colspan="7" class="text-center py-4 text-muted">No members match your criteria</td>';
+            leaderboardTable.appendChild(noResults);
+        }
+    }
+
+    // Event listeners
+    searchInput?.addEventListener('input', updateLeaderboard);
+    sortSelect?.addEventListener('change', updateLeaderboard);
+    filterSelect?.addEventListener('change', updateLeaderboard);
+
+    // Mobile view toggle (if implemented later)
+    viewToggleTable?.addEventListener('change', function() {
+        if (this.checked) {
+            document.querySelector('.table-responsive').style.display = 'block';
+        }
+    });
+
+    viewToggleCards?.addEventListener('change', function() {
+        if (this.checked) {
+            // Card view would be implemented here
+            alert('Card view coming soon!');
+            viewToggleTable.checked = true;
+        }
+    });
+});
+</script>
 
 {% endblock %}

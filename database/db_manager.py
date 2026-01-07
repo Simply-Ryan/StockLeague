@@ -3186,18 +3186,19 @@ class DatabaseManager:
     # ============ ACTIVITY FEED METHODS ============
     
     def get_friend_activity(self, user_id, limit=50):
-        """Get recent activity from friends (trades and achievements)"""
+        """Get recent activity from user and their friends (trades and achievements)"""
         conn = self.get_connection()
         cursor = conn.cursor()
         
-        # Get transactions from friends
+        # Get transactions from user and friends
         cursor.execute("""
             SELECT 
                 t.id, t.user_id, u.username, t.symbol, t.shares, t.price, 
                 t.type, t.timestamp, 'transaction' as activity_type
             FROM transactions t
             JOIN users u ON t.user_id = u.id
-            WHERE t.user_id IN (
+            WHERE t.user_id = ?
+            OR t.user_id IN (
                 SELECT friend_id FROM friends 
                 WHERE user_id = ? AND status = 'accepted'
                 UNION
@@ -3214,7 +3215,8 @@ class DatabaseManager:
             FROM user_achievements ua
             JOIN users u ON ua.user_id = u.id
             JOIN achievements a ON ua.achievement_id = a.id
-            WHERE ua.user_id IN (
+            WHERE ua.user_id = ?
+            OR ua.user_id IN (
                 SELECT friend_id FROM friends 
                 WHERE user_id = ? AND status = 'accepted'
                 UNION
@@ -3224,7 +3226,7 @@ class DatabaseManager:
             
             ORDER BY timestamp DESC
             LIMIT ?
-        """, (user_id, user_id, user_id, user_id, limit))
+        """, (user_id, user_id, user_id, user_id, user_id, user_id, limit))
         
         activities = cursor.fetchall()
         conn.close()

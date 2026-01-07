@@ -346,7 +346,7 @@
     <!-- Dashboard Header -->
     <div class="dashboard-header">
         <h1 class="dashboard-title">
-            <i class="fas fa-chart-pie"></i> Portfolio Dashboard
+            <i class="fas fa-pie-chart"></i> Portfolio Dashboard
         </h1>
         <div class="dashboard-actions">
             <a href="/trade" class="btn btn-success">
@@ -388,7 +388,7 @@
             <div class="stat-label">Total Portfolio Value</div>
             <div class="stat-value" id="portfolio-value">{{ grand_total | usd }}</div>
             <div class="stat-change">
-                <i class="fas fa-sync-alt fa-spin"></i> Updating...
+                <i class="fas fa-arrows-rotate fa-spin"></i> Updating...
             </div>
         </div>
 
@@ -436,7 +436,7 @@
 
     <!-- Quick Actions -->
     <div>
-        <h3 class="section-title mb-3"><i class="fas fa-lightning-bolt"></i> Quick Actions</h3>
+        <h3 class="section-title mb-3"><i class="fas fa-bolt"></i> Quick Actions</h3>
         <div class="quick-actions">
             <a href="/trade" class="action-btn">
                 <i class="fas fa-search"></i>
@@ -595,7 +595,9 @@
         const computedStyle = getComputedStyle(document.documentElement);
         const primaryColor = computedStyle.getPropertyValue('--primary-color').trim() || '#1976d2';
         const textSecondary = computedStyle.getPropertyValue('--text-secondary').trim() || '#666';
-        const bgColor = computedStyle.getPropertyValue('--bg-primary').trim() || '#fff';
+        const textPrimary = computedStyle.getPropertyValue('--text-primary').trim() || '#000';
+        const bgPrimary = computedStyle.getPropertyValue('--bg-primary').trim() || '#fff';
+        const bgCard = computedStyle.getPropertyValue('--card-bg').trim() || '#fff';
         
         // Extract RGB values for better color handling
         function getRGB(color) {
@@ -609,7 +611,18 @@
             return [25, 118, 210]; // Default blue
         }
         
+        // Detect light mode (when text is dark)
+        function isLightMode() {
+            const isDark = textPrimary.toLowerCase() === '#ffffff' || textPrimary.toLowerCase() === '#fff' || textPrimary.toLowerCase() === 'white';
+            return !isDark;
+        }
+        
         const rgb = getRGB(primaryColor);
+        const lightMode = isLightMode();
+        
+        // In light mode, use dark point border; in dark mode, use white
+        const pointBorderColor = lightMode ? '#333333' : '#ffffff';
+        const gridColor = lightMode ? 'rgba(0, 0, 0, 0.1)' : 'rgba(255, 255, 255, 0.1)';
         
         new Chart(chartCanvas, {
             type: 'line',
@@ -625,7 +638,7 @@
                     tension: 0.4,
                     pointRadius: 5,
                     pointBackgroundColor: primaryColor,
-                    pointBorderColor: '#fff',
+                    pointBorderColor: pointBorderColor,
                     pointBorderWidth: 2,
                     pointHoverRadius: 7,
                 }]

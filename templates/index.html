@@ -211,14 +211,14 @@
         <div class="hero-cta">
             {% if session.get('user_id') %}
             <a href="/dashboard" class="btn btn-light btn-lg">
-                <i class="fas fa-chart-pie me-2"></i>Go to Dashboard
+                <i class="fas fa-pie-chart me-2"></i>Go to Dashboard
             </a>
             <a href="/trade" class="btn btn-outline-light btn-lg">
                 <i class="fas fa-arrow-up me-2"></i>Start Trading
             </a>
             {% else %}
             <a href="/login" class="btn btn-light btn-lg">
-                <i class="fas fa-sign-in-alt me-2"></i>Login
+                <i class="fas fa-right-to-bracket me-2"></i>Login
             </a>
             <a href="/signup" class="btn btn-outline-light btn-lg">
                 <i class="fas fa-user-plus me-2"></i>Sign Up
@@ -252,7 +252,7 @@
                 <p>Chat with friends, share strategies, and learn from other experienced traders.</p>
             </div>
             <div class="feature-card">
-                <div class="feature-icon"><i class="fas fa-bolt"></i></div>
+                <div class="feature-icon"><i class="fas fa-zap"></i></div>
                 <h3>Real-Time Data</h3>
                 <p>Live stock prices and market data updated in real-time for accurate trading.</p>
             </div>
@@ -319,7 +319,7 @@
     </div>
     {% else %}
     <div class="market-section">
-        <h2 class="section-title"><i class="fas fa-lightning-bolt"></i> Quick Actions</h2>
+        <h2 class="section-title"><i class="fas fa-bolt"></i> Quick Actions</h2>
         <div class="feature-grid">
             <a href="/trade" class="feature-card text-decoration-none" style="color: inherit;">
                 <div class="feature-icon"><i class="fas fa-search"></i></div>
@@ -342,7 +342,7 @@
                 <p>View detailed portfolio analysis</p>
             </a>
             <a href="/leaderboard" class="feature-card text-decoration-none" style="color: inherit;">
-                <div class="feature-icon"><i class="fas fa-ranking-star"></i></div>
+                <div class="feature-icon"><i class="fas fa-star"></i></div>
                 <h3>Leaderboard</h3>
                 <p>See how you rank globally</p>
             </a>

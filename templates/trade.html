@@ -112,7 +112,7 @@
                 <div class="card-header bg-light border-0">
                     <!-- Header with title and portfolio info -->
                     <div class="d-flex justify-content-between align-items-center mb-3">
-                        <h6 class="mb-0"><i class="fas fa-exchange-alt text-primary"></i> Trade {{ quote.symbol }}</h6>
+                        <h6 class="mb-0"><i class="fas fa-arrows-left-right text-primary"></i> Trade {{ quote.symbol }}</h6>
                         <div class="text-end">
                             <small class="text-muted d-block">Available Cash: <strong class="text-success" id="availableCash">{{ user_cash | usd }}</strong></small>
                             <small class="text-muted d-block">Your Holdings: <strong class="text-info" id="userHoldings">{{ user_shares }} shares</strong></small>
@@ -131,7 +131,7 @@
                             <button class="nav-link {% if user_shares == 0 %}disabled{% endif %}" id="sell-tab" data-bs-toggle="tab" 
                                     data-bs-target="#sell-panel" type="button" role="tab" aria-controls="sell-panel" aria-selected="false"
                                     {% if user_shares == 0 %}disabled{% endif %}>
-                                <i class="fas fa-minus-circle text-danger"></i> Sell
+                                <i class="fas fa-circle-minus text-danger"></i> Sell
                             </button>
                         </li>
                     </ul>
@@ -176,7 +176,7 @@
                                 </div>
                                 <div class="mb-3">
                                     <label for="buy_notes" class="form-label fw-bold">
-                                        <i class="fas fa-sticky-note text-muted"></i> Notes (Optional)
+                                        <i class="fas fa-note-sticky text-muted"></i> Notes (Optional)
                                     </label>
                                     <textarea class="form-control" id="buy_notes" name="notes" rows="2" 
                                               placeholder="Why are you buying this stock?" maxlength="200"></textarea>
@@ -204,7 +204,7 @@
 
                                 <input type="hidden" name="symbol" value="{{ quote.symbol }}">
                                 <button type="submit" class="btn btn-success btn-lg w-100" id="buySubmitBtn">
-                                    <i class="fas fa-shopping-cart"></i> Buy {{ quote.symbol }}
+                                    <i class="fas fa-cart-shopping"></i> Buy {{ quote.symbol }}
                                 </button>
                             </form>
                         </div>
@@ -246,7 +246,7 @@
                                 </div>
                                 <div class="mb-3">
                                     <label for="sell_notes" class="form-label fw-bold">
-                                        <i class="fas fa-sticky-note text-muted"></i> Notes (Optional)
+                                        <i class="fas fa-note-sticky text-muted"></i> Notes (Optional)
                                     </label>
                                     <textarea class="form-control" id="sell_notes" name="notes" rows="2" 
                                               placeholder="Why are you selling?" maxlength="200"></textarea>
@@ -274,7 +274,7 @@
 
                                 <input type="hidden" name="symbol" value="{{ quote.symbol }}">
                                 <button type="submit" class="btn btn-danger btn-lg w-100" id="sellSubmitBtn">
-                                    <i class="fas fa-hand-holding-usd"></i> Sell {{ quote.symbol }}
+                                    <i class="fas fa-hand-holding-dollar"></i> Sell {{ quote.symbol }}
                                 </button>
                             </form>
                             {% else %}

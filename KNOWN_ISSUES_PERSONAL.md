@@ -1,3 +1,4 @@
+THIS FILE SHOULD ONLY BE EDITED BY DEVELOPERS (NOT AI - for AI, edit KNOWN_ISSUES.md)
 ## Potentially Complex Issues that NEED to be fixed (PRIORITY)
 - /challenges in dropdown should be removed 
 

@@ -235,8 +235,12 @@ def cache_chart_data(symbol, days=30, chart_data=None, ttl=600):
         return False
 
 
-def get_popular_stocks():
-    """Get quotes for popular stocks to display on homepage"""
+def get_popular_stocks(limit=None):
+    """Get quotes for popular stocks to display on homepage
+    
+    Args:
+        limit: Maximum number of stocks to return. If None, returns all.
+    """
     popular_symbols = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA', 'NVDA', 'META', 'SPY']
     
     # Use a short cache to avoid repeated lookups on page refresh
@@ -245,6 +249,8 @@ def get_popular_stocks():
     if key in _market_cache:
         data, ts = _market_cache[key]
         if now - ts < _MARKET_TTL:
+            if limit:
+                return data[:limit]
             return data
 
     stocks = []
@@ -254,6 +260,9 @@ def get_popular_stocks():
             stocks.append(quote)
 
     _market_cache[key] = (stocks, now)
+    
+    if limit:
+        return stocks[:limit]
     return stocks
 
 
@@ -410,8 +419,12 @@ def _local_search_tickers(query: str, limit: int = 8) -> List[dict]:
     return results[:limit]
 
 
-def get_market_movers():
-    """Get top gaining and losing stocks from major indices"""
+def get_market_movers(limit=5):
+    """Get top gaining and losing stocks from major indices
+    
+    Args:
+        limit: Number of gainers and losers to return (default: 5 each)
+    """
     try:
         # Get S&P 500 constituents (we'll check a subset)
         major_symbols = [
@@ -425,7 +438,10 @@ def get_market_movers():
         if key in _market_cache:
             data, ts = _market_cache[key]
             if now - ts < _MARKET_TTL:
-                return data
+                return {
+                    'gainers': data['gainers'][:limit],
+                    'losers': data['losers'][:limit]
+                }
 
         movers = []
         for symbol in major_symbols[:20]:  # Process subset to balance performance
@@ -442,9 +458,9 @@ def get_market_movers():
         # Sort by change_percent
         movers.sort(key=lambda x: x['change_percent'], reverse=True)
         
-        # Get top 5 gainers and losers
-        gainers = movers[:5]
-        losers = movers[-5:]
+        # Get top gainers and losers
+        gainers = movers[:limit]
+        losers = movers[-limit:]
         losers.reverse()  # Show worst losers first
         
         result = {
@@ -1237,6 +1253,7 @@ def fetch_news_finnhub(symbol=None, limit=50):
     """
     import yfinance as yf
     from datetime import datetime
+    from dateutil import parser as date_parser
     
     try:
         if symbol:
@@ -1254,24 +1271,50 @@ def fetch_news_finnhub(symbol=None, limit=50):
         # Process and add sentiment
         processed_articles = []
         for article in articles[:limit]:
+            # Extract from content wrapper (new yfinance API structure)
+            content = article.get('content', article)
+            
             # Analyze sentiment
-            headline = article.get('title', '')
-            summary = article.get('summary', '')
+            headline = content.get('title', '')
+            summary = content.get('summary', '')
             text_to_analyze = f"{headline}. {summary}"
             
             sentiment = analyze_sentiment(text_to_analyze)
             
             # Convert timestamp to readable format
-            timestamp = article.get('providerPublishTime', int(time.time()))
-            published_at = datetime.fromtimestamp(timestamp).strftime('%Y-%m-%d %H:%M:%S')
+            pubdate = content.get('pubDate') or content.get('displayTime')
+            if pubdate:
+                try:
+                    published_dt = date_parser.parse(pubdate)
+                    published_at = published_dt.strftime('%Y-%m-%d %H:%M:%S')
+                except:
+                    published_at = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            else:
+                published_at = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            
+            # Get image URL from thumbnail
+            image_url = ''
+            if content.get('thumbnail'):
+                resolutions = content['thumbnail'].get('resolutions', [])
+                if resolutions:
+                    image_url = resolutions[0].get('url', '')
+            
+            # Get provider name
+            provider = content.get('provider', {})
+            source = provider.get('displayName', 'Yahoo Finance') if isinstance(provider, dict) else 'Yahoo Finance'
+            
+            # Get URL
+            url = content.get('canonicalUrl', {})
+            if isinstance(url, dict):
+                url = url.get('url', '')
             
             processed_articles.append({
                 'symbol': symbol,
                 'headline': headline,
                 'summary': summary,
-                'source': article.get('publisher', 'Yahoo Finance'),
-                'url': article.get('link', ''),
-                'image_url': article.get('thumbnail', {}).get('resolutions', [{}])[0].get('url', '') if article.get('thumbnail') else '',
+                'source': source,
+                'url': url,
+                'image_url': image_url,
                 'published_at': published_at,
                 'sentiment_score': sentiment['score'],
                 'sentiment_label': sentiment['label'],
@@ -1282,6 +1325,8 @@ def fetch_news_finnhub(symbol=None, limit=50):
     
     except Exception as e:
         print(f"Error fetching news from Yahoo Finance: {e}")
+        import traceback
+        traceback.print_exc()
         return []
 
 

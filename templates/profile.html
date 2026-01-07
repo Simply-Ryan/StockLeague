@@ -13,7 +13,7 @@
                         {% if profile_user.avatar_url %}
                             <img src="{{ profile_user.avatar_url }}" alt="Avatar" class="rounded-circle mb-2" style="width: 96px; height: 96px; object-fit: cover; border: 2px solid #ccc;">
                         {% else %}
-                            <i class="fas fa-user-circle fa-5x text-primary"></i>
+                            <i class="fas fa-circle-user fa-5x text-primary"></i>
                         {% endif %}
                     </div>
                     <h3 class="mb-2">{{ profile_user.username }}</h3>
@@ -104,7 +104,7 @@
                     <div class="list-group list-group-flush">
                         {% for friend in friends[:5] %}
                         <a href="/profile/{{ friend.username }}" class="list-group-item list-group-item-action">
-                            <i class="fas fa-user-circle text-primary"></i> {{ friend.username }}
+                            <i class="fas fa-circle-user text-primary"></i> {{ friend.username }}
                         </a>
                         {% endfor %}
                         {% if friends | length > 5 %}

@@ -534,19 +534,57 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
 
 <script>
+// Utility function to get theme-aware colors
+function getChartColors() {
+    const style = getComputedStyle(document.documentElement);
+    return {
+        primaryColor: style.getPropertyValue('--primary-color').trim() || '#6366f1',
+        successColor: style.getPropertyValue('--success-color').trim() || '#10b981',
+        dangerColor: style.getPropertyValue('--danger-color').trim() || '#ef4444',
+        textPrimary: style.getPropertyValue('--text-primary').trim() || '#fff',
+        textSecondary: style.getPropertyValue('--text-secondary').trim() || '#e2e8f0',
+        cardBg: style.getPropertyValue('--card-bg').trim() || '#1e293b'
+    };
+}
+
+// Extract RGB values from hex color
+function hexToRgb(hex) {
+    if (!hex || !hex.startsWith('#')) return [99, 102, 241];
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    return result ? [parseInt(result[1], 16), parseInt(result[2], 16), parseInt(result[3], 16)] : [99, 102, 241];
+}
+
+// Detect if we're in light mode
+function isLightMode() {
+    const textColor = getComputedStyle(document.documentElement).getPropertyValue('--text-primary').trim();
+    const isDark = textColor.toLowerCase() === '#ffffff' || textColor.toLowerCase() === '#fff' || textColor === 'white';
+    return !isDark;
+}
+
 // Allocation Chart
 const allocationCtx = document.getElementById('allocationChart').getContext('2d');
+const colors = getChartColors();
+const lightMode = isLightMode();
+
+// Dynamic palette that adapts to theme
+const dynamicPalette = [
+    colors.primaryColor,
+    '#8b5cf6', '#ec4899', '#f43f5e', '#fb7185',
+    '#fda4af', '#fdba74', '#fbbf24', '#fcd34d', '#bfdbfe'
+];
+
+// In light mode, use darker border; in dark mode, use card bg
+const borderColor = lightMode ? '#e0e7ff' : colors.cardBg;
+const pointBorderColor = lightMode ? '#333333' : '#ffffff';
+
 new Chart(allocationCtx, {
     type: 'doughnut',
     data: {
         labels: [{% for stock in stocks %}'{{ stock.symbol }}',{% endfor %}'Cash'],
         datasets: [{
             data: [{% for stock in stocks %}{{ stock.portfolio_pct }},{% endfor %}{{ cash_pct }}],
-            backgroundColor: [
-                '#6366f1', '#8b5cf6', '#ec4899', '#f43f5e', '#fb7185',
-                '#fda4af', '#fdba74', '#fbbf24', '#fcd34d', '#bfdbfe'
-            ],
-            borderColor: 'var(--card-bg)',
+            backgroundColor: dynamicPalette,
+            borderColor: borderColor,
             borderWidth: 2
         }]
     },
@@ -554,13 +592,22 @@ new Chart(allocationCtx, {
         responsive: true,
         maintainAspectRatio: false,
         plugins: {
-            legend: { position: 'bottom' }
+            legend: {
+                position: 'bottom',
+                labels: {
+                    color: colors.textSecondary,
+                    padding: 15,
+                    font: { size: 12 }
+                }
+            }
         }
     }
 });
 
 // Performance Chart
 const performanceCtx = document.getElementById('performanceChart').getContext('2d');
+const primaryRGB = hexToRgb(colors.primaryColor);
+
 new Chart(performanceCtx, {
     type: 'line',
     data: {
@@ -568,25 +615,63 @@ new Chart(performanceCtx, {
         datasets: [{
             label: 'Portfolio Value',
             data: {{ portfolio_history_values|safe }},
-            borderColor: '#6366f1',
-            backgroundColor: 'rgba(99, 102, 241, 0.1)',
+            borderColor: colors.primaryColor,
+            backgroundColor: `rgba(${primaryRGB[0]}, ${primaryRGB[1]}, ${primaryRGB[2]}, 0.1)`,
             borderWidth: 2,
             fill: true,
             tension: 0.4,
             pointRadius: 4,
-            pointBackgroundColor: '#6366f1',
-            pointBorderColor: 'white',
-            pointBorderWidth: 2
+            pointBackgroundColor: colors.primaryColor,
+            pointBorderColor: pointBorderColor,
+            pointBorderWidth: 2,
+            pointHoverRadius: 6
         }]
     },
     options: {
         responsive: true,
         maintainAspectRatio: false,
         plugins: {
-            legend: { display: true }
+            legend: {
+                display: true,
+                labels: {
+                    color: colors.textSecondary,
+                    padding: 15,
+                    font: { size: 12 }
+                }
+            },
+            tooltip: {
+                backgroundColor: lightMode ? 'rgba(255, 255, 255, 0.9)' : 'rgba(0, 0, 0, 0.8)',
+                titleColor: lightMode ? '#000' : '#fff',
+                bodyColor: lightMode ? '#000' : '#fff',
+                borderColor: colors.primaryColor,
+                borderWidth: 1,
+                padding: 10,
+                displayColors: true
+            }
         },
         scales: {
-            y: { beginAtZero: false }
+            y: {
+                beginAtZero: false,
+                ticks: {
+                    color: colors.textMuted,
+                    callback: function(value) {
+                        return '$' + value.toLocaleString('en-US', {maximumFractionDigits: 0});
+                    }
+                },
+                grid: {
+                    color: lightMode ? 'rgba(0, 0, 0, 0.05)' : 'rgba(255, 255, 255, 0.05)'
+                }
+            },
+            x: {
+                ticks: {
+                    color: colors.textMuted,
+                    maxRotation: 45,
+                    minRotation: 0
+                },
+                grid: {
+                    display: false
+                }
+            }
         }
     }
 });

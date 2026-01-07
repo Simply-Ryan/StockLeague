@@ -56,13 +56,13 @@
                     
                     {% if item.notes %}
                     <div class="alert alert-info py-2 mb-3">
-                        <small><i class="fas fa-sticky-note"></i> {{ item.notes }}</small>
+                        <small><i class="fas fa-note-sticky"></i> {{ item.notes }}</small>
                     </div>
                     {% endif %}
                     
                     <div class="d-grid gap-2">
                         <a href="/buy?symbol={{ item.symbol }}" class="btn btn-sm btn-success">
-                            <i class="fas fa-shopping-cart"></i> Buy
+                            <i class="fas fa-cart-shopping"></i> Buy
                         </a>
                         <a href="/trade?symbol={{ item.symbol }}" class="btn btn-sm btn-outline-primary">
                             <i class="fas fa-chart-line"></i> View Details
