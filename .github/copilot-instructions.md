@@ -8,10 +8,23 @@ This guide helps AI coding agents work productively in the StockLeague codebase.
 
 ### Major Components
 
-1. **Core Flask App** (`app.py`, ~6700 lines)
-   - Main entrypoint with mixed route groups (auth, portfolio, leagues, admin, explore, API)
-   - Plan: Future refactoring into Blueprints (examples exist in `blueprints/` for modular routes)
+1. **Application Factory** (`app_factory.py`, ~460 lines)
+   - Flask factory pattern for environment-specific configuration
+   - Supports dev, production, and testing environments
+   - Centralizes extension initialization (DB, SocketIO, scheduler)
+   - Blueprint registration and WebSocket setup
+
+2. **Blueprint System** (`blueprints/` directory)
+   - Modular route organization replacing monolithic app.py
+   - Core blueprints: auth_bp.py, portfolio_bp.py, trades_bp.py, leagues_bp.py, chat_bp.py
+   - Specialized blueprints: explore_bp.py, api_bp.py, audit_bp.py, monitoring_bp.py, engagement_bp.py
+   - Each blueprint handles specific feature domain with isolated logic
+
+3. **Core Flask App** (`app.py`, ~6700 lines)
+   - Main entrypoint with remaining core routes
+   - Blueprint registration and initialization
    - WebSocket integration via Flask-SocketIO for real-time updates
+   - Global error handlers and decorators
 
 2. **Database Layer** (`database/db_manager.py`, ~4700 lines)
    - Lightweight SQLite wrapper with ~30+ tables
@@ -19,18 +32,24 @@ This guide helps AI coding agents work productively in the StockLeague codebase.
    - Uses WAL mode + foreign key pragmas for concurrency
    - Migration pattern: Add new columns via `migrate_*` methods on DatabaseManager init
 
-3. **Advanced Features** (modular system)
+3. **Stock Data** (`helpers.py`)
+   - Stock lookup via yfinance (primary source)
+   - Sentiment analysis via VADER NLP
+   - Real-time quote caching (30-second TTL)
+   - Market data aggregation from multiple sources
+
+4. **Advanced Features** (modular system)
    - `advanced_league_system.py`: Divisions, seasons, tournaments, achievements, ratings
    - `advanced_orders.py`: Limit orders, stop orders, trailing stops
    - `options_trading.py`: Options contracts with Black-Scholes Greeks
    - `league_rules.py`: Per-league configuration and trade validation
    - `redis_cache_manager.py`: Optional Redis caching layer
 
-4. **Real-time Updates** (`realtime_updates.py`, `leaderboard_updates.py`)
+5. **Real-time Updates** (`realtime_updates.py`, `leaderboard_updates.py`)
    - Socket.IO events for live leaderboard, portfolio changes, notifications
    - Broadcast pattern: `socketio.emit('event_name', data, room=f'room_or_user_id')`
 
-5. **Monitoring & Optimization**
+6. **Monitoring & Optimization**
    - `performance_monitoring.py`: CPU, memory, API latency tracking
    - `database_optimization.py`: Query profiling, index verification
    - `audit_logger.py`: Comprehensive action logging for compliance
@@ -40,11 +59,24 @@ This guide helps AI coding agents work productively in the StockLeague codebase.
 ```
 StockLeague/
 ├── app.py                           # Main Flask app + routes
+├── app_factory.py                   # Application factory with environment configs
 ├── database/
 │   ├── db_manager.py               # SQLite wrapper with all schema
 │   ├── league_schema_upgrade.py     # Migration helpers
 │   ├── advanced_league_features.py  # Advanced table initialization
-├── helpers.py                       # Stock lookup, caching, sentiment
+├── blueprints/                      # Modular route groups
+│   ├── auth_bp.py                  # Authentication routes
+│   ├── portfolio_bp.py              # Portfolio management
+│   ├── trades_bp.py                # Buy/sell/trade routes
+│   ├── leagues_bp.py                # League management
+│   ├── chat_bp.py                  # Chat + WebSocket handlers
+│   ├── explore_bp.py                # Stock discovery
+│   ├── api_bp.py                   # Core API endpoints
+│   ├── audit_bp.py                 # Audit logging routes
+│   ├── monitoring_bp.py             # Admin monitoring
+│   ├── engagement_bp.py             # Engagement features
+│   └── __init__.py                 # Blueprint exports
+├── helpers.py                       # Stock lookup (yfinance), caching, sentiment
 ├── utils.py                         # Validation, sanitization, rate limiting
 ├── error_handlers.py                # Standardized error patterns
 ├── advanced_league_system.py        # Divisions, ratings, achievements
@@ -53,8 +85,6 @@ StockLeague/
 ├── realtime_updates.py              # WebSocket event managers
 ├── performance_monitoring.py        # System metrics collection
 ├── audit_logger.py / audit_routes.py # Action logging + UI
-├── blueprints/                      # Modular route groups (emerging pattern)
-│   ├── auth_bp.py, portfolio_bp.py, etc.
 ├── static/                          # CSS, JS, images
 ├── templates/                       # Jinja2 templates
 └── tests/                           # Test files
@@ -238,11 +268,25 @@ if not member.get('is_admin'):
 
 ### Adding a New Route
 
-1. Define in `app.py` or create new file in `blueprints/`
-2. Use `@login_required` decorator if needs auth
-3. Follow error handling pattern above
-4. Add logging for important operations
-5. If modifying database: add schema to `database/db_manager.py`, migrations to `init_db()`
+1. **Option A - Blueprint Route (Recommended)**: Add to appropriate blueprint in `blueprints/`:
+   - Trades: `blueprints/trades_bp.py` (buy, sell, order management)
+   - Portfolios: `blueprints/portfolio_bp.py` (holdings, context switching)
+   - Leagues: `blueprints/leagues_bp.py` (league management)
+   - Chat: `blueprints/chat_bp.py` (messaging, WebSocket)
+   - API: `blueprints/api_bp.py` (RESTful endpoints)
+   - Authentication: `blueprints/auth_bp.py` (login, register, logout)
+
+2. **Option B - App.py Routes**: If adding to main `app.py`:
+   - Routes added here automatically integrate with blueprints via fallback pattern
+   - Useful for core features or temporary endpoints
+
+3. **Implementation Steps** (either location):
+   - Use `@login_required` decorator if needs auth
+   - Follow error handling pattern (try/except with proper logging)
+   - Add rate limiting for API endpoints
+   - If modifying database: add schema to `database/db_manager.py`, migrations to `init_db()`
+
+4. **Testing**: All blueprints automatically load and integrate via `app_factory.py`
 
 ### Modifying Database Schema
 
@@ -317,12 +361,15 @@ socket.on('portfolio_updated', function(data) {
 
 ## 📚 Key Files to Review
 
+- [app_factory.py](app_factory.py) - Application factory with environment configuration
+- [blueprints/](blueprints/) - Modular route system (auth, portfolio, trades, leagues, chat, api, audit, monitoring, engagement)
 - [database/db_manager.py](database/db_manager.py) - All DB methods (~4700 lines)
-- [app.py](app.py) - All Flask routes (see imports for feature modules)
-- [helpers.py](helpers.py) - Stock lookup, caching logic
-- [error_handlers.py](error_handlers.py) - Error patterns
-- [advanced_league_system.py](advanced_league_system.py) - League features
-- [PHASE_2_PROGRESS_SUMMARY.md](PHASE_2_PROGRESS_SUMMARY.md) - Design pattern docs
+- [app.py](app.py) - Core Flask app with remaining routes (see imports for feature modules)
+- [helpers.py](helpers.py) - Stock lookup via yfinance, caching logic, sentiment analysis
+- [error_handlers.py](error_handlers.py) - Error patterns and standardized responses
+- [advanced_league_system.py](advanced_league_system.py) - Divisions, seasons, tournaments, achievements
+- [advanced_orders.py](advanced_orders.py) - Limit/stop/trailing stop order implementation
+- [options_trading.py](options_trading.py) - Black-Scholes Greeks and options contracts
 
 ## 🚀 Testing & Deployment
 
@@ -347,5 +394,6 @@ python -c "from database.db_manager import DatabaseManager; DatabaseManager()"
 
 ---
 
-**Last Updated:** January 2025  
+**Last Updated:** January 9, 2025 (Tier 2 Architecture Refactoring Complete)  
+**Status**: Blueprints implemented and registered, Application Factory active, all 187 routes verified functional  
 **Contact:** See repository issues for questions on patterns or architecture

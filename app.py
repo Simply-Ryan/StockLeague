@@ -1319,14 +1319,25 @@ try:
     from blueprints.api_bp import api_bp
     from blueprints.auth_bp import auth_bp
     from blueprints.portfolio_bp import portfolio_bp
+    from blueprints.trades_bp import trades_bp
+    from blueprints.leagues_bp import leagues_bp
+    from blueprints.chat_bp import chat_bp, register_chat_events
     from audit_routes import create_audit_blueprint
     from admin_monitoring_routes import create_admin_monitoring_blueprint
     from engagement_routes import register_engagement_routes
     
+    # Register core blueprints
     app.register_blueprint(explore_bp)
     app.register_blueprint(api_bp)
     app.register_blueprint(auth_bp)
     app.register_blueprint(portfolio_bp)
+    app.register_blueprint(trades_bp)
+    app.register_blueprint(leagues_bp)
+    app.register_blueprint(chat_bp)
+    
+    # Register WebSocket events for chat
+    if register_chat_events:
+        register_chat_events(socketio)
     
     # Register audit blueprint
     audit_bp = create_audit_blueprint(db, audit_logger)
@@ -1340,10 +1351,13 @@ try:
     
     # Register engagement routes (Phase 3)
     register_engagement_routes(app)
-except Exception:
-    # If blueprints cannot be imported for any reason, fall back to
-    # the original in-file route implementations (they remain present
-    # for compatibility). The try/except avoids startup failure.
+    
+    app_logger.info("✓ All blueprints registered successfully")
+except ImportError as e:
+    app_logger.warning(f"Could not import all blueprints: {e}. Falling back to in-app routes.")
+    pass
+except Exception as e:
+    app_logger.warning(f"Unexpected error registering blueprints: {e}. Falling back to in-app routes.")
     pass
 
 
