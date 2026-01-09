@@ -28,6 +28,15 @@ from flask import Flask
 from flask_session import Session
 from flask_socketio import SocketIO
 
+# Redis imports
+try:
+    import redis
+    from redis import ConnectionPool, Redis
+    from redis.exceptions import RedisError, ConnectionError as RedisConnectionError
+    REDIS_AVAILABLE = True
+except ImportError:
+    REDIS_AVAILABLE = False
+
 # Local imports
 from helpers import usd
 from database.db_manager import DatabaseManager
@@ -38,6 +47,7 @@ from performance_monitoring import PerformanceMonitor
 from admin_monitoring import SystemMetrics, UserActivityMonitor, AlertManager, HealthChecker
 from portfolio_analytics import ComprehensiveAnalytics
 from audit_logger import AuditLogger
+from query_performance_tracker import QueryPerformanceTracker
 
 
 def get_config(config_name='development'):
@@ -238,6 +248,72 @@ def register_specialized_blueprints(app, logger, db, audit_logger,
         logger.warning(f"Unexpected error with specialized blueprints: {e}")
 
 
+def setup_redis_cache(logger):
+    """
+    Setup Redis cache with connection pooling and error handling.
+    
+    Returns:
+        tuple: (redis_client, cache_manager, cache_invalidator)
+               All will be None if Redis unavailable
+    """
+    if not REDIS_AVAILABLE:
+        logger.warning("⚠ redis-py not installed. Run: pip install redis")
+        return None, None, None
+    
+    try:
+        # Create connection pool
+        redis_url = os.environ.get('REDIS_URL', 'redis://localhost:6379/0')
+        redis_pool = ConnectionPool.from_url(
+            redis_url,
+            decode_responses=True,
+            max_connections=10,
+            socket_connect_timeout=5,
+            socket_keepalive=True,
+            socket_keepalive_options={
+                1: 1,  # TCP_KEEPIDLE
+                2: 3,  # TCP_KEEPINTVL
+                3: 5,  # TCP_KEEPCNT
+            } if hasattr(redis_pool, 'socket_keepalive_options') else None
+        )
+        
+        # Create Redis client
+        redis_client = Redis(connection_pool=redis_pool)
+        
+        # Test connection
+        redis_client.ping()
+        logger.info(f"✓ Redis connected successfully ({redis_url})")
+        
+        # Initialize cache manager
+        from redis_cache_manager import CacheManager, CacheInvalidator, WarmCacheScheduler
+        cache_manager = CacheManager(redis_client)
+        cache_invalidator = CacheInvalidator(cache_manager)
+        
+        logger.info("✓ Cache manager initialized")
+        
+        return redis_client, cache_manager, cache_invalidator
+        
+    except (RedisError, RedisConnectionError, ConnectionError) as e:
+        logger.warning(f"⚠ Redis connection failed: {e}")
+        logger.info("  - Falling back to no-cache mode")
+        logger.info("  - To use Redis, ensure: redis-server is running, or REDIS_URL is correct")
+        
+        # Return None values - app will work without cache
+        from redis_cache_manager import CacheManager, CacheInvalidator
+        
+        # Create dummy cache manager that doesn't cache
+        cache_manager = CacheManager(None)
+        cache_invalidator = CacheInvalidator(cache_manager)
+        
+        return None, cache_manager, cache_invalidator
+        
+    except Exception as e:
+        logger.error(f"✗ Unexpected Redis setup error: {e}")
+        from redis_cache_manager import CacheManager, CacheInvalidator
+        cache_manager = CacheManager(None)
+        cache_invalidator = CacheInvalidator(cache_manager)
+        return None, cache_manager, cache_invalidator
+
+
 def setup_websocket(app, logger):
     """Setup Flask-SocketIO."""
     try:
@@ -349,6 +425,20 @@ def create_app(config_name='development'):
         logger.error(f"Failed to initialize database: {e}")
         raise
     
+    # Setup Redis cache
+    try:
+        redis_client, cache_manager, cache_invalidator = setup_redis_cache(logger)
+        app.redis_client = redis_client
+        app.cache = cache_manager
+        app.cache_invalidator = cache_invalidator
+        logger.info("✓ Cache system initialized")
+    except Exception as e:
+        logger.warning(f"Cache setup error: {e}")
+        # Initialize dummy cache manager for fallback
+        from redis_cache_manager import CacheManager, CacheInvalidator
+        app.cache = CacheManager(None)
+        app.cache_invalidator = CacheInvalidator(app.cache)
+    
     # Setup monitoring and auditing
     system_metrics = None
     user_activity_monitor = None
@@ -356,6 +446,7 @@ def create_app(config_name='development'):
     health_checker = None
     perf_monitor = None
     audit_logger = None
+    query_tracker = None
     
     try:
         system_metrics = SystemMetrics(db)
@@ -364,6 +455,7 @@ def create_app(config_name='development'):
         health_checker = HealthChecker(db)
         perf_monitor = PerformanceMonitor()
         audit_logger = AuditLogger(db)
+        query_tracker = QueryPerformanceTracker(slow_query_threshold_ms=100)  # TIER 7: Query monitoring
         
         logger.info("✓ Monitoring and auditing initialized")
         
@@ -373,6 +465,7 @@ def create_app(config_name='development'):
         app.health_checker = health_checker
         app.perf_monitor = perf_monitor
         app.audit_logger = audit_logger
+        app.query_tracker = query_tracker  # TIER 7: Query performance tracking
     except Exception as e:
         logger.warning(f"Could not initialize monitoring: {e}")
     

@@ -1,7 +1,8 @@
-from flask import Blueprint, request, session, jsonify, flash, redirect, render_template
+from flask import Blueprint, request, session, jsonify, flash, redirect, render_template, current_app
 from database.db_manager import DatabaseManager
 from helpers import lookup, apology
 from datetime import datetime, timedelta
+from redis_cache_manager import CacheKey, CacheConfig
 
 portfolio_bp = Blueprint("portfolio", __name__)
 
@@ -126,22 +127,76 @@ def api_portfolio_value():
     if not user_id:
         return jsonify({"error": "unauthorized"}), 403
 
+    # Get context (personal or league)
+    context = _get_active_context()
+    league_id = context.get("league_id") if context.get("type") == "league" else 0
+    
+    # Try cache first
+    try:
+        cache_key = CacheKey.portfolio(user_id, league_id)
+        cached = current_app.cache.get(cache_key)
+        if cached:
+            cached['from_cache'] = True
+            return jsonify(cached), 200
+    except Exception:
+        # Cache not available, fall through
+        pass
+
     db = DatabaseManager()
-    user = db.get_user(user_id)
-    stocks = db.get_user_stocks(user_id)
+    
+    if context.get("type") == "league":
+        # League portfolio
+        league_portfolio = db.get_league_portfolio(league_id, user_id)
+        if not league_portfolio:
+            return jsonify({"error": "No portfolio in this league"}), 404
+        
+        portfolio_value = league_portfolio.get("cash", 0)
+        holdings_data = league_portfolio.get("stocks_json", {})
+        
+        holdings = []
+        for symbol, shares in holdings_data.items():
+            quote = lookup(symbol)
+            if quote:
+                stock_value = shares * quote["price"]
+                portfolio_value += stock_value
+                holdings.append({
+                    'symbol': symbol,
+                    'shares': shares,
+                    'price': quote["price"],
+                    'value': stock_value,
+                })
+    else:
+        # Personal portfolio
+        user = db.get_user(user_id)
+        stocks = db.get_user_stocks(user_id)
 
-    portfolio_value = user.get("cash", 0)
-    holdings = []
-    for stock in stocks:
-        quote = lookup(stock["symbol"])
-        if quote:
-            stock_value = stock["shares"] * quote["price"]
-            portfolio_value += stock_value
-            holdings.append({
-                'symbol': stock["symbol"],
-                'shares': stock["shares"],
-                'price': quote["price"],
-                'value': stock_value,
-            })
+        portfolio_value = user.get("cash", 0)
+        holdings = []
+        for stock in stocks:
+            quote = lookup(stock["symbol"])
+            if quote:
+                stock_value = stock["shares"] * quote["price"]
+                portfolio_value += stock_value
+                holdings.append({
+                    'symbol': stock["symbol"],
+                    'shares': stock["shares"],
+                    'price': quote["price"],
+                    'value': stock_value,
+                })
 
-    return jsonify({"portfolio_value": portfolio_value, "holdings": holdings})
+    result = {
+        "portfolio_value": portfolio_value,
+        "holdings": holdings,
+        "from_cache": False,
+        "context": context.get("type")
+    }
+    
+    # Cache the result
+    try:
+        cache_key = CacheKey.portfolio(user_id, league_id)
+        current_app.cache.set(cache_key, result, ttl=CacheConfig.PORTFOLIO_TTL)
+    except Exception:
+        # Cache not available
+        pass
+    
+    return jsonify(result), 200

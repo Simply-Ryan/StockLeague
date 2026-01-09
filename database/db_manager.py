@@ -35,6 +35,14 @@ class DatabaseManager:
             self.init_league_moderation_table()
         except Exception as e:
             logging.warning(f"Failed to initialize league moderation table: {e}")
+        
+        # TIER 7: Database Optimization
+        try:
+            self.add_performance_indexes()          # Task 2.1: Create indexes
+            self.create_archive_tables()            # Task 2.3: Create archive tables
+            self.enable_query_analysis()            # Task 2.4: Enable query analysis
+        except Exception as e:
+            logging.warning(f"Database optimization setup: {e}")
 
     def init_chat_table(self):
         """Initialize chat messages table."""
@@ -159,6 +167,11 @@ class DatabaseManager:
         # Enable foreign keys and WAL mode for better concurrency
         conn.execute('PRAGMA foreign_keys = ON')
         conn.execute('PRAGMA journal_mode = WAL')
+        # Performance optimizations for TIER 7
+        conn.execute('PRAGMA synchronous = NORMAL')      # Better write performance
+        conn.execute('PRAGMA cache_size = 10000')        # Larger cache
+        conn.execute('PRAGMA temp_store = MEMORY')       # Temp tables in memory
+        conn.execute('PRAGMA query_only = OFF')
         return conn
 
     def init_db(self):
@@ -702,6 +715,331 @@ class DatabaseManager:
             conn.close()
         except Exception as e:
             logging.warning(f"Soft delete migration failed or column already exists: {e}")
+
+    # ============ COMPONENT 2: DATABASE OPTIMIZATION ============
+    
+    def add_performance_indexes(self):
+        """
+        Create strategic indexes for query performance optimization.
+        Task 2.1: Database indexing for 50%+ query speedup
+        """
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        try:
+            # Foreign key indexes (most important)
+            indexes = [
+                ("idx_transactions_user", "transactions", "user_id"),
+                ("idx_league_transactions_user", "league_transactions", "user_id"),
+                ("idx_league_transactions_league", "league_transactions", "league_id"),
+                ("idx_league_members_user", "league_members", "user_id"),
+                ("idx_league_members_league", "league_members", "league_id"),
+                ("idx_league_holdings_user", "league_holdings", "user_id"),
+                ("idx_league_holdings_league", "league_holdings", "league_id"),
+                ("idx_league_portfolios_user", "league_portfolios", "user_id"),
+                ("idx_league_portfolios_league", "league_portfolios", "league_id"),
+                ("idx_user_stocks_user", "user_stocks", "user_id"),
+                ("idx_user_achievements_user", "user_achievements", "user_id"),
+                ("idx_notifications_user", "notifications", "user_id"),
+                ("idx_friends_user", "friends", "user_id"),
+                ("idx_watchlist_user", "watchlist", "user_id"),
+                ("idx_pending_orders_user", "pending_orders", "user_id"),
+                ("idx_portfolio_snapshots_user", "portfolio_snapshots", "user_id"),
+                ("idx_price_alerts_user", "price_alerts", "user_id"),
+            ]
+            
+            for idx_name, table, column in indexes:
+                try:
+                    cursor.execute(f"CREATE INDEX IF NOT EXISTS {idx_name} ON {table}({column})")
+                except Exception as e:
+                    logging.debug(f"Could not create {idx_name}: {e}")
+            
+            # Time-based indexes (for filtering by date)
+            time_indexes = [
+                ("idx_transactions_timestamp", "transactions", "timestamp"),
+                ("idx_league_transactions_timestamp", "league_transactions", "timestamp"),
+                ("idx_portfolio_snapshots_timestamp", "portfolio_snapshots", "timestamp"),
+                ("idx_news_articles_cached", "news_articles", "cached_at"),
+            ]
+            
+            for idx_name, table, column in time_indexes:
+                try:
+                    cursor.execute(f"CREATE INDEX IF NOT EXISTS {idx_name} ON {table}({column} DESC)")
+                except Exception as e:
+                    logging.debug(f"Could not create {idx_name}: {e}")
+            
+            # Composite indexes (for common multi-column queries)
+            composite_indexes = [
+                ("idx_transactions_user_symbol", "transactions", "user_id, symbol"),
+                ("idx_league_transactions_user_symbol", "league_transactions", "user_id, symbol"),
+                ("idx_league_holdings_user_symbol", "league_holdings", "user_id, symbol"),
+                ("idx_league_members_league_rank", "league_members", "league_id, current_rank"),
+                ("idx_portfolio_snapshots_user_date", "portfolio_snapshots", "user_id, timestamp DESC"),
+            ]
+            
+            for idx_name, table, columns in composite_indexes:
+                try:
+                    cursor.execute(f"CREATE INDEX IF NOT EXISTS {idx_name} ON {table}({columns})")
+                except Exception as e:
+                    logging.debug(f"Could not create {idx_name}: {e}")
+            
+            conn.commit()
+            logging.info("✓ Performance indexes created successfully")
+            return True
+            
+        except Exception as e:
+            logging.error(f"Error creating indexes: {e}")
+            return False
+        finally:
+            conn.close()
+
+    def create_archive_tables(self):
+        """
+        Create archive tables for old data.
+        Task 2.3: Data archiving for better performance
+        """
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        try:
+            # Archive table for old transactions
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS transactions_archive (
+                    id INTEGER PRIMARY KEY,
+                    user_id INTEGER,
+                    symbol TEXT,
+                    shares INTEGER,
+                    price NUMERIC,
+                    type TEXT,
+                    fee NUMERIC,
+                    strategy TEXT,
+                    notes TEXT,
+                    timestamp TIMESTAMP,
+                    FOREIGN KEY(user_id) REFERENCES users(id)
+                )
+            """)
+            
+            # Archive table for old league transactions
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS league_transactions_archive (
+                    id INTEGER PRIMARY KEY,
+                    league_id INTEGER,
+                    user_id INTEGER,
+                    symbol TEXT,
+                    shares INTEGER,
+                    price NUMERIC,
+                    type TEXT,
+                    fee NUMERIC,
+                    timestamp TIMESTAMP,
+                    FOREIGN KEY(league_id) REFERENCES leagues(id),
+                    FOREIGN KEY(user_id) REFERENCES users(id)
+                )
+            """)
+            
+            # Archive table for activity feed
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS league_activity_feed_archive (
+                    id INTEGER PRIMARY KEY,
+                    league_id INTEGER,
+                    user_id INTEGER,
+                    action TEXT,
+                    symbol TEXT,
+                    shares INTEGER,
+                    price NUMERIC,
+                    details TEXT,
+                    created_at TIMESTAMP,
+                    FOREIGN KEY(league_id) REFERENCES leagues(id),
+                    FOREIGN KEY(user_id) REFERENCES users(id)
+                )
+            """)
+            
+            conn.commit()
+            logging.info("✓ Archive tables created")
+            return True
+            
+        except Exception as e:
+            logging.error(f"Error creating archive tables: {e}")
+            return False
+        finally:
+            conn.close()
+
+    def archive_old_transactions(self, days_old=365):
+        """
+        Move transactions older than N days to archive table.
+        This keeps the main transaction table lean and fast.
+        
+        Args:
+            days_old: Number of days - transactions older than this get archived
+            
+        Returns:
+            Number of transactions archived
+        """
+        from datetime import datetime, timedelta
+        
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        try:
+            cutoff_date = (datetime.now() - timedelta(days=days_old)).isoformat()
+            
+            # Move to archive
+            cursor.execute("""
+                INSERT INTO transactions_archive
+                SELECT * FROM transactions
+                WHERE timestamp < ?
+            """, (cutoff_date,))
+            
+            archived_count = cursor.rowcount
+            
+            # Delete from main table
+            if archived_count > 0:
+                cursor.execute("""
+                    DELETE FROM transactions
+                    WHERE timestamp < ?
+                """, (cutoff_date,))
+            
+            # Same for league transactions
+            cursor.execute("""
+                INSERT INTO league_transactions_archive
+                SELECT * FROM league_transactions
+                WHERE timestamp < ?
+            """, (cutoff_date,))
+            
+            league_archived = cursor.rowcount
+            
+            if league_archived > 0:
+                cursor.execute("""
+                    DELETE FROM league_transactions
+                    WHERE timestamp < ?
+                """, (cutoff_date,))
+            
+            conn.commit()
+            
+            total_archived = archived_count + league_archived
+            logging.info(f"✓ Archived {total_archived} old transactions (older than {days_old} days)")
+            
+            return total_archived
+            
+        except Exception as e:
+            logging.error(f"Error archiving transactions: {e}")
+            conn.rollback()
+            return 0
+        finally:
+            conn.close()
+
+    def enable_query_analysis(self):
+        """
+        Enable query plan analysis and ANALYZE for optimization hints.
+        Task 2.4: Query monitoring
+        """
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        try:
+            # Run ANALYZE to gather statistics
+            cursor.execute("ANALYZE")
+            conn.commit()
+            logging.info("✓ Query analysis statistics updated")
+            return True
+        except Exception as e:
+            logging.error(f"Error enabling query analysis: {e}")
+            return False
+        finally:
+            conn.close()
+
+    def get_index_info(self):
+        """Get information about all database indexes."""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        try:
+            cursor.execute("SELECT name, tbl_name, sql FROM sqlite_master WHERE type='index' AND sql IS NOT NULL")
+            indexes = cursor.fetchall()
+            
+            result = []
+            for idx in indexes:
+                result.append({
+                    'name': idx[0],
+                    'table': idx[1],
+                    'sql': idx[2]
+                })
+            
+            return result
+        finally:
+            conn.close()
+
+    def get_slow_query_info(self):
+        """
+        Get potential slow queries by analyzing table sizes and index coverage.
+        Returns tables without proper indexes.
+        """
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        try:
+            # Get all tables
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
+            tables = [row[0] for row in cursor.fetchall()]
+            
+            result = []
+            for table in tables:
+                # Get row count
+                cursor.execute(f"SELECT COUNT(*) FROM {table}")
+                count = cursor.fetchone()[0]
+                
+                # Get indexes on this table
+                cursor.execute(f"SELECT COUNT(*) FROM sqlite_master WHERE type='index' AND tbl_name='{table}'")
+                index_count = cursor.fetchone()[0]
+                
+                # Flag if large table with few indexes
+                if count > 10000 and index_count < 2:
+                    result.append({
+                        'table': table,
+                        'rows': count,
+                        'indexes': index_count,
+                        'status': 'WARNING - Consider adding indexes'
+                    })
+            
+            return result
+        finally:
+            conn.close()
+
+    def get_database_stats(self):
+        """Get database statistics for monitoring."""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        
+        try:
+            stats = {}
+            
+            # Total size
+            cursor.execute("SELECT page_count * page_size as size FROM pragma_page_count(), pragma_page_size()")
+            size_bytes = cursor.fetchone()[0]
+            stats['size_mb'] = round(size_bytes / 1024 / 1024, 2)
+            
+            # Table counts
+            cursor.execute("SELECT COUNT(*) FROM users")
+            stats['users'] = cursor.fetchone()[0]
+            
+            cursor.execute("SELECT COUNT(*) FROM transactions")
+            stats['transactions'] = cursor.fetchone()[0]
+            
+            cursor.execute("SELECT COUNT(*) FROM league_transactions")
+            stats['league_transactions'] = cursor.fetchone()[0]
+            
+            cursor.execute("SELECT COUNT(*) FROM league_members")
+            stats['league_members'] = cursor.fetchone()[0]
+            
+            cursor.execute("SELECT COUNT(*) FROM leagues")
+            stats['leagues'] = cursor.fetchone()[0]
+            
+            # Index count
+            cursor.execute("SELECT COUNT(*) FROM sqlite_master WHERE type='index' AND sql IS NOT NULL")
+            stats['indexes'] = cursor.fetchone()[0]
+            
+            return stats
+        finally:
+            conn.close()
 
     def get_user_badges(self, user_id):
         """Get all badges for a user."""
@@ -1590,6 +1928,7 @@ class DatabaseManager:
     
     def get_league_leaderboard_with_values(self, league_id, price_lookup_func):
         """Get leaderboard for a league with calculated portfolio values.
+        Uses Redis caching for performance optimization.
         
         Args:
             league_id: League ID
@@ -1598,6 +1937,24 @@ class DatabaseManager:
         Returns:
             List of leaderboard entries with total_value and return_pct
         """
+        from redis_cache_manager import CacheKey, CacheConfig
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        # Try Redis cache first
+        try:
+            from flask import current_app
+            if hasattr(current_app, 'cache'):
+                cache_key = CacheKey.leaderboard(league_id)
+                cached = current_app.cache.get(cache_key)
+                if cached:
+                    logger.debug(f"Leaderboard cache hit for league {league_id}")
+                    return cached
+        except (RuntimeError, AttributeError):
+            # Outside of application context
+            pass
+        
+        # Cache miss - calculate leaderboard
         leaderboard = self.get_league_leaderboard(league_id)
         league = self.get_league(league_id)
         starting_cash = league.get('starting_cash', 10000.0) if league else 10000.0
@@ -1620,6 +1977,19 @@ class DatabaseManager:
             entry['starting_cash'] = starting_cash
             
             result.append(entry)
+        
+        # Store in Redis cache (5-minute TTL for leaderboard)
+        try:
+            from flask import current_app
+            if hasattr(current_app, 'cache'):
+                current_app.cache.set(
+                    CacheKey.leaderboard(league_id),
+                    result,
+                    ttl=CacheConfig.LEADERBOARD_TTL
+                )
+        except (RuntimeError, AttributeError):
+            # Outside of application context
+            pass
         
         return result
     
@@ -1661,6 +2031,22 @@ class DatabaseManager:
         
         conn.commit()
         conn.close()
+    
+    def invalidate_leaderboard_cache(self, league_id):
+        """
+        Invalidate leaderboard cache for a league.
+        Call this after any trade or league membership change.
+        
+        Args:
+            league_id: League ID to invalidate cache for
+        """
+        try:
+            from flask import current_app
+            if hasattr(current_app, 'cache_invalidator'):
+                current_app.cache_invalidator.invalidate_league(league_id)
+        except (RuntimeError, AttributeError):
+            # Outside of application context or cache not available
+            pass
     
     def start_league_season(self, league_id, duration_days=30):
         """Start a new season for a league."""

@@ -265,6 +265,14 @@ def buy():
                     # Record successful trade
                     record_trade(user_id, symbol, "buy", shares, price)
                     logger.info(f"BUY | User: {user_id} | Symbol: {symbol} | Shares: {shares}")
+                    
+                    # Invalidate portfolio cache
+                    try:
+                        from flask import current_app
+                        if hasattr(current_app, 'cache_invalidator'):
+                            current_app.cache_invalidator.invalidate_user(user_id)
+                    except Exception as e:
+                        logger.warning(f"Could not invalidate cache: {e}")
                 else:
                     success, error_msg, txn_id = db.execute_league_trade_atomic(
                         context["league_id"], user_id, symbol, "BUY", shares, price
@@ -275,6 +283,16 @@ def buy():
                     
                     record_trade(user_id, symbol, "buy", shares, price)
                     logger.info(f"BUY (LEAGUE) | League: {context['league_id']} | User: {user_id} | Symbol: {symbol}")
+                    
+                    # Invalidate cache for league and user
+                    try:
+                        from flask import current_app
+                        if hasattr(current_app, 'cache_invalidator'):
+                            current_app.cache_invalidator.invalidate_trade_impact(
+                                user_id, context["league_id"], symbol
+                            )
+                    except Exception as e:
+                        logger.warning(f"Could not invalidate cache: {e}")
                     
                     # Log to activity feed
                     try:
@@ -390,6 +408,19 @@ def sell():
                 
                 record_trade(user_id, symbol, "sell", shares, price)
                 logger.info(f"SELL | User: {user_id} | Symbol: {symbol} | Shares: {shares}")
+                
+                # Invalidate portfolio cache
+                try:
+                    from flask import current_app
+                    if hasattr(current_app, 'cache_invalidator'):
+                        if context["type"] == "personal":
+                            current_app.cache_invalidator.invalidate_user(user_id)
+                        else:
+                            current_app.cache_invalidator.invalidate_trade_impact(
+                                user_id, context["league_id"], symbol
+                            )
+                except Exception as e:
+                    logger.warning(f"Could not invalidate cache: {e}")
                 
                 context_str = f" in {context['league_name']}" if context["type"] == "league" else ""
                 flash(f"Sold {shares} shares of {symbol} for {usd(total_proceeds)}{context_str}!")

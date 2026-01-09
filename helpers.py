@@ -69,7 +69,7 @@ def apology(message, code=400):
 def lookup(symbol, force_refresh=False):
     """
     Look up quote for symbol using Yahoo Finance API.
-    Implements 30-second caching to improve performance.
+    Uses Redis caching (if available) + local 30-second cache for performance.
     
     Args:
         symbol: Stock symbol to look up
@@ -78,11 +78,24 @@ def lookup(symbol, force_refresh=False):
     Yahoo Finance is free and requires no API key.
     """
     import yfinance as yf
+    from redis_cache_manager import CacheKey, CacheConfig
     
     symbol_upper = symbol.upper()
     current_time = time.time()
     
-    # Check cache first (unless force refresh requested)
+    # Try Redis cache first (unless force refresh requested)
+    if not force_refresh:
+        try:
+            from flask import current_app
+            if hasattr(current_app, 'cache'):
+                cached = current_app.cache.get(CacheKey.stock_quote(symbol_upper))
+                if cached:
+                    return cached
+        except (RuntimeError, AttributeError):
+            # Outside of application context - fall through to local cache
+            pass
+    
+    # Check local in-memory cache (unless force refresh requested)
     if not force_refresh and symbol_upper in _quote_cache:
         cached_data, cached_time = _quote_cache[symbol_upper]
         if current_time - cached_time < _CACHE_TTL:
@@ -136,8 +149,21 @@ def lookup(symbol, force_refresh=False):
             "previous_close": float(previous_close)
         }
         
-        # Store in cache with timestamp
+        # Store in local cache with timestamp
         _quote_cache[symbol_upper] = (result, current_time)
+        
+        # Store in Redis cache (if available)
+        try:
+            from flask import current_app
+            if hasattr(current_app, 'cache'):
+                current_app.cache.set(
+                    CacheKey.stock_quote(symbol_upper),
+                    result,
+                    ttl=CacheConfig.STOCK_QUOTE_TTL
+                )
+        except (RuntimeError, AttributeError):
+            # Outside of application context - Redis caching skipped
+            pass
         
         return result
     
