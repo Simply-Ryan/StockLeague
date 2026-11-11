@@ -14,7 +14,7 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from app import app, socketio
-from database.db_manager import Database
+from database.db_manager import DatabaseManager
 from leaderboard_updates import (
     calculate_leaderboard_snapshot,
     detect_leaderboard_changes,
@@ -34,7 +34,7 @@ class TestLeaderboardCalculation(unittest.TestCase):
         """Set up test database"""
         self.app = app
         self.app.config['TESTING'] = True
-        self.db = Database(':memory:')
+        self.db = DatabaseManager(':memory:')
         self.client = self.app.test_client()
         
     def test_calculate_leaderboard_snapshot(self):
@@ -268,7 +268,7 @@ class TestLeaderboardIntegration(unittest.TestCase):
         """Set up test database and app"""
         self.app = app
         self.app.config['TESTING'] = True
-        self.db = Database(':memory:')
+        self.db = DatabaseManager(':memory:')
         self.client = self.app.test_client()
     
     def test_leaderboard_update_flow(self):
@@ -316,7 +316,7 @@ class TestPerformance(unittest.TestCase):
     
     def setUp(self):
         """Set up test database"""
-        self.db = Database(':memory:')
+        self.db = DatabaseManager(':memory:')
     
     def test_large_leaderboard_performance(self):
         """Test performance with large number of members"""
@@ -352,7 +352,7 @@ class TestErrorHandling(unittest.TestCase):
     
     def setUp(self):
         """Set up test database"""
-        self.db = Database(':memory:')
+        self.db = DatabaseManager(':memory:')
     
     def test_invalid_league_handling(self):
         """Test handling of invalid league ID"""

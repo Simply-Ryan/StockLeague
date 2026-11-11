@@ -146,9 +146,15 @@ def step_4_business_logic_integration():
     print_step(4, "Business Logic Integration")
     
     try:
-        from business_logic_integration import EngagementHooks, (
-            log_trade, log_achievement, log_ranking, log_member_join,
-            log_milestone, post_announcement, store_metrics
+        from business_logic_integration import (
+            EngagementHooks,
+            log_trade,
+            log_achievement,
+            log_ranking,
+            log_member_join,
+            log_milestone,
+            post_announcement,
+            store_metrics,
         )
         
         hooks = EngagementHooks()

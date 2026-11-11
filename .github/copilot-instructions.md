@@ -16,7 +16,7 @@ AI agents: Use this guide to understand architecture, patterns, and critical wor
 | **Blueprints** | `blueprints/*_bp.py` (7 files) | Modular route organization by domain | Each blueprint isolated; registered by factory |
 | **Core App** | `app.py` (~6700 lines) | Main entrypoint; legacy routes | Routes can move to blueprints over time |
 | **Database** | `database/db_manager.py` (~5082 lines) | SQLite wrapper with 30+ tables | Fresh connection per operation; `migrate_*()` methods for compatibility |
-| **Stock Data** | `helpers.py` (~1587 lines) | yfinance wrapper with caching/sentiment | 30s local cache + optional Redis; 2-tier lookup strategy |
+| **Stock Data** | `helpers.py` (~1587 lines) | yfinance wrapper with caching and RSS fallback | 30s local cache + optional Redis; 2-tier lookup strategy |
 | **Real-time** | `realtime_updates.py`, `chat_bp.py` | WebSocket events for live updates | Room-based broadcasting: `room=f'league_{id}'` or `room=f'user_{id}'` |
 | **Advanced** | `advanced_*.py`, `league_rules.py` | Options, orders, league logic | Pluggable modules; extend core functionality |
 | **Monitoring** | `performance_monitoring.py`, `audit_logger.py` | Production observability | Query profiling, audit trails, system metrics |
@@ -208,9 +208,9 @@ conn.execute('PRAGMA journal_mode = WAL')   # Write-Ahead Logging for concurrenc
 ### Start Development
 
 ```bash
-source venv/bin/activate
-pip install -r requirements.txt  # If needed
-python app.py  # Starts Flask on http://localhost:5000
+python -m venv .venv  # First run only
+.venv/bin/python -m pip install -r requirements.txt
+.venv/bin/python app.py  # Starts Flask on http://127.0.0.1:5000
 ```
 
 ### Debug Database
@@ -439,7 +439,7 @@ StockLeague/
 │   ├── monitoring_bp.py             # Admin monitoring
 │   ├── engagement_bp.py             # Engagement features
 │   └── __init__.py                 # Blueprint exports
-├── helpers.py                       # Stock lookup (yfinance), caching, sentiment
+├── helpers.py                       # Stock lookup (yfinance), caching, and news fallback
 ├── utils.py                         # Validation, sanitization, rate limiting
 ├── error_handlers.py                # Standardized error patterns
 ├── advanced_league_system.py        # Divisions, ratings, achievements
@@ -728,7 +728,7 @@ socket.on('portfolio_updated', function(data) {
 - [blueprints/](blueprints/) - Modular route system (auth, portfolio, trades, leagues, chat, api, audit, monitoring, engagement)
 - [database/db_manager.py](database/db_manager.py) - All DB methods (~4700 lines)
 - [app.py](app.py) - Core Flask app with remaining routes (see imports for feature modules)
-- [helpers.py](helpers.py) - Stock lookup via yfinance, caching logic, sentiment analysis
+- [helpers.py](helpers.py) - Stock lookup via yfinance, caching logic, and news fallback
 - [error_handlers.py](error_handlers.py) - Error patterns and standardized responses
 - [advanced_league_system.py](advanced_league_system.py) - Divisions, seasons, tournaments, achievements
 - [advanced_orders.py](advanced_orders.py) - Limit/stop/trailing stop order implementation

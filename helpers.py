@@ -19,6 +19,10 @@ import difflib
 from typing import List
 from utils import POPULAR_SYMBOLS
 import json
+import html
+import re
+from urllib.parse import quote_plus
+from xml.etree import ElementTree
 
 # Optional Redis support for shared caching. If REDIS_URL is set and the
 # `redis` package is available we will use it for cross-process caching.
@@ -1219,53 +1223,6 @@ def get_option_price_and_greeks(symbol, strike, expiration_date, option_type, cu
     }
 
 
-# ============ NEWS & SENTIMENT ANALYSIS ============
-
-def analyze_sentiment(text):
-    """
-    Analyze sentiment of text using VADER
-    
-    Args:
-        text: Text to analyze (headline or article)
-    
-    Returns:
-        Dictionary with sentiment score and label
-    """
-    try:
-        from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
-        
-        analyzer = SentimentIntensityAnalyzer()
-        scores = analyzer.polarity_scores(text)
-        
-        # Compound score: -1 (most negative) to +1 (most positive)
-        compound = scores['compound']
-        
-        # Classify sentiment
-        if compound >= 0.05:
-            label = 'positive'
-        elif compound <= -0.05:
-            label = 'negative'
-        else:
-            label = 'neutral'
-        
-        return {
-            'score': round(compound, 4),
-            'label': label,
-            'positive': scores['pos'],
-            'neutral': scores['neu'],
-            'negative': scores['neg']
-        }
-    except ImportError:
-        # Fallback if VADER not installed
-        return {
-            'score': 0,
-            'label': 'neutral',
-            'positive': 0,
-            'neutral': 1,
-            'negative': 0
-        }
-
-
 def fetch_news_finnhub(symbol=None, limit=50):
     """
     Fetch news using Yahoo Finance API
@@ -1275,7 +1232,7 @@ def fetch_news_finnhub(symbol=None, limit=50):
         limit: Maximum number of articles
     
     Returns:
-        List of news articles with sentiment
+        List of normalized news articles
     """
     import yfinance as yf
     from datetime import datetime
@@ -1292,20 +1249,16 @@ def fetch_news_finnhub(symbol=None, limit=50):
             articles = ticker.news
         
         if not articles:
-            return []
+            return _fetch_news_from_rss(symbol, limit)
         
-        # Process and add sentiment
+        # Normalize the provider response to the application's article shape.
         processed_articles = []
         for article in articles[:limit]:
             # Extract from content wrapper (new yfinance API structure)
             content = article.get('content', article)
             
-            # Analyze sentiment
             headline = content.get('title', '')
             summary = content.get('summary', '')
-            text_to_analyze = f"{headline}. {summary}"
-            
-            sentiment = analyze_sentiment(text_to_analyze)
             
             # Convert timestamp to readable format
             pubdate = content.get('pubDate') or content.get('displayTime')
@@ -1342,18 +1295,70 @@ def fetch_news_finnhub(symbol=None, limit=50):
                 'url': url,
                 'image_url': image_url,
                 'published_at': published_at,
-                'sentiment_score': sentiment['score'],
-                'sentiment_label': sentiment['label'],
                 'category': 'general'
             })
         
         return processed_articles
     
     except Exception as e:
-        print(f"Error fetching news from Yahoo Finance: {e}")
-        import traceback
-        traceback.print_exc()
+        # Yahoo occasionally returns a temporary outage/rate-limit response.
+        # Keep the news page useful without requiring an API key.
+        print(f"Yahoo Finance news unavailable: {e}")
+        return _fetch_news_from_rss(symbol, limit)
+
+
+def _fetch_news_from_rss(symbol=None, limit=50):
+    """Fetch stock-relevant headlines from Google News RSS.
+
+    This is a lightweight fallback for when Yahoo Finance news is unavailable.
+    RSS headlines are still filtered by the requested symbol/company query and
+    are normalized to the same shape as cached Yahoo articles.
+    """
+    query = f"{symbol} stock" if symbol else "stock market finance"
+    url = (
+        "https://news.google.com/rss/search?q="
+        f"{quote_plus(query)}&hl=en-US&gl=US&ceid=US:en"
+    )
+
+    try:
+        response = requests.get(
+            url,
+            headers={"User-Agent": "StockLeague/1.0 news reader"},
+            timeout=10,
+        )
+        response.raise_for_status()
+        root = ElementTree.fromstring(response.content)
+    except (requests.RequestException, ElementTree.ParseError) as e:
+        print(f"RSS news unavailable: {e}")
         return []
+
+    articles = []
+    for item in root.findall("./channel/item")[:limit]:
+        title = (item.findtext("title") or "").strip()
+        link = (item.findtext("link") or "").strip()
+        description = item.findtext("description") or ""
+        published_at = item.findtext("pubDate") or datetime.now().strftime(
+            "%Y-%m-%d %H:%M:%S"
+        )
+        source = (item.findtext("source") or "Google News").strip()
+
+        if not title or not link:
+            continue
+
+        summary = html.unescape(re.sub(r"<[^>]+>", " ", description))
+        summary = " ".join(summary.split())
+        articles.append({
+            "symbol": symbol.upper() if symbol else None,
+            "headline": html.unescape(title),
+            "summary": summary,
+            "source": source,
+            "url": link,
+            "image_url": "",
+            "published_at": published_at,
+            "category": "general" if not symbol else "company",
+        })
+
+    return articles
 
 
 def get_cached_or_fetch_news(symbol, db, force_refresh=False):
@@ -1391,8 +1396,6 @@ def get_cached_or_fetch_news(symbol, db, force_refresh=False):
             article['url'],
             article['image_url'],
             article['published_at'],
-            article['sentiment_score'],
-            article['sentiment_label'],
             article['category']
         )
     

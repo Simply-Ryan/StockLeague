@@ -31,7 +31,7 @@
 
     <!-- Custom CSS -->
     <link
-      href="{{ url_for('static', filename='css/styles.css') }}?v=11"
+      href="{{ url_for('static', filename='css/styles.css') }}?v=12"
       rel="stylesheet"
     />
 
@@ -48,7 +48,7 @@
   <body>
     <!-- Navigation -->
     <nav
-      class="navbar navbar-expand-lg sticky-top shadow-sm navbar-theme" 
+      class="navbar navbar-expand-lg sticky-top shadow-sm navbar-theme"
       id="mainNavbar"
     >
       <div class="container-fluid px-2 px-sm-3">
@@ -78,7 +78,7 @@
             <li class="nav-item">
               <a class="nav-link" href="/dashboard">
                 <i class="fas fa-pie-chart"></i>
-                <span class="d-lg-none d-inline">Dashboard</span>
+                <span class="navbar-label">Dashboard</span>
               </a>
             </li>
 
@@ -92,7 +92,7 @@
                 data-bs-toggle="dropdown"
                 aria-expanded="false"
               >
-                <i class="fas fa-arrows-left-right"></i> Trade
+                <i class="fas fa-arrows-left-right"></i><span class="navbar-label">Trade</span>
               </a>
               <ul class="dropdown-menu" aria-labelledby="tradingDropdown">
                 <li><h6 class="dropdown-header">Tools</h6></li>
@@ -136,7 +136,7 @@
             <!-- Analytics Link -->
             <li class="nav-item">
               <a class="nav-link" href="/analytics">
-                <i class="fas fa-chart-bar"></i> Analytics
+                <i class="fas fa-chart-bar"></i><span class="navbar-label">Analytics</span>
               </a>
             </li>
 
@@ -150,7 +150,7 @@
                 data-bs-toggle="dropdown"
                 aria-expanded="false"
               >
-                <i class="fas fa-users"></i> Community
+                <i class="fas fa-users"></i><span class="navbar-label">Community</span>
               </a>
               <ul class="dropdown-menu" aria-labelledby="communityDropdown">
                 <li><h6 class="dropdown-header">Competition</h6></li>
@@ -185,9 +185,9 @@
             </li>
 
             <!-- News Link -->
-            <li class="nav-item d-none d-lg-block">
+            <li class="nav-item">
               <a class="nav-link" href="/news">
-                <i class="fas fa-newspaper"></i> News
+                <i class="fas fa-newspaper"></i><span class="navbar-label">News</span>
               </a>
             </li>
           </ul>
@@ -269,7 +269,7 @@
             
             <!-- Quick Action: Edit Portfolio -->
             {% if active_context.type == 'personal' %}
-            <li class="nav-item d-none d-lg-block">
+            <li class="nav-item">
               <a class="btn btn-sm btn-success" href="/edit_portfolio" title="Edit portfolio (demo only)">
                 <i class="fas fa-wallet"></i> Portfolio
               </a>

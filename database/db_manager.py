@@ -592,7 +592,7 @@ class DatabaseManager:
             ON trade_rate_limits(league_id, user_id)
         """)
 
-        # News articles table for caching news with sentiment analysis
+        # News articles table for caching normalized news articles.
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS news_articles (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -603,8 +603,6 @@ class DatabaseManager:
                 url TEXT UNIQUE,
                 image_url TEXT,
                 published_at TIMESTAMP,
-                sentiment_score NUMERIC DEFAULT 0,
-                sentiment_label TEXT DEFAULT 'neutral',
                 category TEXT,
                 cached_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
@@ -1200,11 +1198,9 @@ class DatabaseManager:
             cursor = conn.cursor()
             
             cursor.execute("""
-                SELECT symbol, SUM(shares) as shares
-                FROM transactions
-                WHERE user_id = ?
-                GROUP BY symbol
-                HAVING SUM(shares) > 0
+                SELECT symbol, shares, avg_cost
+                FROM user_stocks
+                WHERE user_id = ? AND shares > 0
             """, (user_id,))
             
             stocks = cursor.fetchall()
@@ -1224,10 +1220,9 @@ class DatabaseManager:
         cursor = conn.cursor()
         
         cursor.execute("""
-            SELECT symbol, SUM(shares) as shares
-            FROM transactions
-            WHERE user_id = ? AND symbol = ?
-            GROUP BY symbol
+            SELECT symbol, shares, avg_cost
+            FROM user_stocks
+            WHERE user_id = ? AND symbol = ? AND shares > 0
         """, (user_id, symbol))
         
         stock = cursor.fetchone()
@@ -4135,17 +4130,17 @@ class DatabaseManager:
     
     # ============ NEWS METHODS ============
     
-    def cache_news_article(self, symbol, headline, summary, source, url, image_url, published_at, sentiment_score, sentiment_label, category):
-        """Cache a news article with sentiment data"""
+    def cache_news_article(self, symbol, headline, summary, source, url, image_url, published_at, category):
+        """Cache a normalized news article."""
         conn = self.get_connection()
         cursor = conn.cursor()
         
         try:
             cursor.execute("""
                 INSERT OR REPLACE INTO news_articles 
-                (symbol, headline, summary, source, url, image_url, published_at, sentiment_score, sentiment_label, category)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (symbol, headline, summary, source, url, image_url, published_at, sentiment_score, sentiment_label, category))
+                (symbol, headline, summary, source, url, image_url, published_at, category)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """, (symbol, headline, summary, source, url, image_url, published_at, category))
             
             conn.commit()
             article_id = cursor.lastrowid
@@ -4182,7 +4177,7 @@ class DatabaseManager:
         
         cursor.execute("""
             SELECT * FROM news_articles
-            WHERE symbol IS NULL OR symbol = ''
+            WHERE (symbol IS NULL OR symbol = '')
               AND datetime(cached_at) >= datetime('now', '-' || ? || ' hours')
             ORDER BY published_at DESC
             LIMIT ?
@@ -4209,58 +4204,6 @@ class DatabaseManager:
         conn.close()
         
         return [dict(row) for row in articles]
-    
-    def get_sentiment_summary(self, symbol=None):
-        """Get sentiment summary for a symbol or overall market"""
-        conn = self.get_connection()
-        cursor = conn.cursor()
-        
-        if symbol:
-            cursor.execute("""
-                SELECT 
-                    sentiment_label,
-                    COUNT(*) as count,
-                    AVG(sentiment_score) as avg_score
-                FROM news_articles
-                WHERE symbol = ?
-                  AND datetime(cached_at) >= datetime('now', '-24 hours')
-                  AND sentiment_label IS NOT NULL
-                GROUP BY sentiment_label
-            """, (symbol,))
-        else:
-            cursor.execute("""
-                SELECT 
-                    sentiment_label,
-                    COUNT(*) as count,
-                    AVG(sentiment_score) as avg_score
-                FROM news_articles
-                WHERE datetime(cached_at) >= datetime('now', '-24 hours')
-                  AND sentiment_label IS NOT NULL
-                GROUP BY sentiment_label
-            """)
-        
-        results = cursor.fetchall()
-        conn.close()
-        
-        summary = {
-            'positive': {'count': 0, 'avg_score': 0},
-            'neutral': {'count': 0, 'avg_score': 0},
-            'negative': {'count': 0, 'avg_score': 0}
-        }
-        
-        for row in results:
-            label = row['sentiment_label']
-            summary[label] = {
-                'count': row['count'],
-                'avg_score': row['avg_score']
-            }
-        
-        total = sum(s['count'] for s in summary.values())
-        if total > 0:
-            for label in summary:
-                summary[label]['percentage'] = (summary[label]['count'] / total) * 100
-        
-        return summary
     
     def cleanup_old_news(self, days=7):
         """Delete news articles older than specified days"""

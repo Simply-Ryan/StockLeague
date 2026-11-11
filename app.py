@@ -32,7 +32,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 from dotenv import load_dotenv
 
 # Local imports
-from helpers import apology, lookup, usd, get_chart_data, get_popular_stocks, get_market_movers, get_stock_news, get_option_price_and_greeks, analyze_sentiment, fetch_news_finnhub, get_cached_or_fetch_news
+from helpers import apology, lookup, usd, get_chart_data, get_popular_stocks, get_market_movers, get_stock_news, get_option_price_and_greeks, fetch_news_finnhub, get_cached_or_fetch_news
 from database.db_manager import DatabaseManager
 from database.league_schema_upgrade import upgrade_leagues_table, create_league_seasons_table, create_league_member_stats_table, create_league_divisions_table, create_tournament_tables, create_team_tables, create_achievement_tables, create_quest_tables, create_analytics_tables, create_fairplay_tables, create_league_activity_feed_table
 from database.advanced_league_features import AdvancedLeagueDB
@@ -1352,7 +1352,7 @@ try:
     # Register engagement routes (Phase 3)
     register_engagement_routes(app)
     
-    app_logger.info("✓ All blueprints registered successfully")
+    app_logger.info("All blueprints registered successfully")
 except ImportError as e:
     app_logger.warning(f"Could not import all blueprints: {e}. Falling back to in-app routes.")
     pass
@@ -5245,34 +5245,13 @@ def news():
         print(f"Error getting general news: {e}")
         news_articles = []
 
-    # Compute sentiment summary
-    sentiment_summary = {
-        'positive': {'count': 0, 'percentage': 0},
-        'neutral': {'count': 0, 'percentage': 0},
-        'negative': {'count': 0, 'percentage': 0}
-    }
-    total = len(news_articles) or 0
-    for a in news_articles:
-        label = a.get('sentiment_label') or a.get('sentiment', {}).get('label') or 'neutral'
-        if label == 'positive':
-            sentiment_summary['positive']['count'] += 1
-        elif label == 'negative':
-            sentiment_summary['negative']['count'] += 1
-        else:
-            sentiment_summary['neutral']['count'] += 1
-
-    if total > 0:
-        sentiment_summary['positive']['percentage'] = (sentiment_summary['positive']['count'] / total) * 100
-        sentiment_summary['neutral']['percentage'] = (sentiment_summary['neutral']['count'] / total) * 100
-        sentiment_summary['negative']['percentage'] = (sentiment_summary['negative']['count'] / total) * 100
-
-    return render_template('news.html', news=news_articles, tracked_symbols=tracked_symbols, sentiment_summary=sentiment_summary)
+    return render_template('news.html', news=news_articles, tracked_symbols=tracked_symbols)
 
 
 @app.route('/news/<symbol>')
 @login_required
 def news_for_symbol(symbol):
-    """Show news and sentiment for a specific stock symbol."""
+    """Show news for a specific stock symbol."""
     user_id = session.get('user_id')
     sym = (symbol or '').upper()
 
@@ -5289,28 +5268,7 @@ def news_for_symbol(symbol):
     except Exception:
         quote = None
 
-    # Aggregate sentiment summary for symbol
-    sentiment_summary = {
-        'positive': {'count': 0, 'percentage': 0},
-        'neutral': {'count': 0, 'percentage': 0},
-        'negative': {'count': 0, 'percentage': 0}
-    }
-    total = len(articles) or 0
-    for a in articles:
-        label = a.get('sentiment_label') or a.get('sentiment', {}).get('label') or 'neutral'
-        if label == 'positive':
-            sentiment_summary['positive']['count'] += 1
-        elif label == 'negative':
-            sentiment_summary['negative']['count'] += 1
-        else:
-            sentiment_summary['neutral']['count'] += 1
-
-    if total > 0:
-        sentiment_summary['positive']['percentage'] = (sentiment_summary['positive']['count'] / total) * 100
-        sentiment_summary['neutral']['percentage'] = (sentiment_summary['neutral']['count'] / total) * 100
-        sentiment_summary['negative']['percentage'] = (sentiment_summary['negative']['count'] / total) * 100
-
-    return render_template('stock_news.html', news=articles, symbol=sym, quote=quote, sentiment_summary=sentiment_summary)
+    return render_template('stock_news.html', news=articles, symbol=sym, quote=quote)
 
 
 @app.route('/news/preferences/add', methods=['POST'])

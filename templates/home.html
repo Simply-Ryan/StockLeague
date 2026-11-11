@@ -1,487 +1,458 @@
 {% extends "layout.html" %}
 
-{% block title %}Home - StockLeague{% endblock %}
+{% block title %}StockLeague - Practice trading with friends{% endblock %}
 
 {% block main %}
 <style>
+    .home-page {
+        max-width: 1180px;
+        margin: 0 auto;
+        padding: 2rem 1rem 4rem;
+    }
+
     .home-hero {
+        display: grid;
+        grid-template-columns: minmax(0, 1.15fr) minmax(280px, 0.85fr);
+        gap: 3rem;
+        align-items: center;
+        padding: 4.5rem clamp(1.5rem, 5vw, 5rem);
+        margin-bottom: 4rem;
+        color: #fff;
         background: var(--gradient-accent);
-        color: white !important;
-        padding: 5rem 2rem;
-        border-radius: 1.2rem;
-        margin-bottom: 3rem;
-        text-align: center;
-        box-shadow: 0 15px 40px var(--shadow);
+        border-radius: 1.5rem;
+        box-shadow: 0 18px 45px var(--shadow);
     }
 
-    /* Ensure excellent contrast for hero text on gradient background */
+    .eyebrow {
+        margin-bottom: 1rem;
+        color: rgba(255, 255, 255, 0.8);
+        font-size: 0.8rem;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+    }
+
     .home-hero h1 {
-        font-size: 3rem;
+        max-width: 650px;
+        margin-bottom: 1.25rem;
+        font-size: clamp(2.4rem, 5vw, 4.5rem);
         font-weight: 800;
-        margin-bottom: 1.5rem;
-        line-height: 1.2;
-        letter-spacing: -0.5px;
-        color: white !important;
-        text-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+        line-height: 1.05;
+        letter-spacing: -0.04em;
+        color: #fff;
     }
 
-    .home-hero p {
-        font-size: 1.25rem;
-        opacity: 1;
+    .home-hero .lead {
+        max-width: 570px;
         margin-bottom: 2rem;
-        max-width: 600px;
-        margin-left: auto;
-        margin-right: auto;
-        line-height: 1.6;
-        color: white !important;
-        text-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
+        color: rgba(255, 255, 255, 0.9);
+        font-size: 1.15rem;
+        line-height: 1.65;
     }
 
     .hero-cta {
         display: flex;
-        gap: 1.5rem;
-        justify-content: center;
         flex-wrap: wrap;
+        gap: 0.8rem;
     }
 
     .hero-cta a {
-        padding: 1rem 2.5rem;
-        font-size: 1.05rem;
-        border-radius: 0.75rem;
+        padding: 0.8rem 1.2rem;
+        border-radius: 0.65rem;
         font-weight: 700;
-        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         text-decoration: none;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.15);
     }
 
     .hero-cta .btn-light {
-        background: white;
-        color: #1976d2;
-        border: 2px solid white;
+        color: #4338ca;
     }
 
-    .hero-cta .btn-light:hover {
-        background: #f0f0f0;
-        transform: translateY(-3px);
-        box-shadow: 0 10px 28px rgba(0,0,0,0.2);
-        border-color: #f0f0f0;
+    .hero-note {
+        align-self: stretch;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        padding: 1.5rem;
+        background: rgba(15, 23, 42, 0.2);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 1rem;
     }
 
-    .hero-cta .btn-outline-light {
-        border: 2px solid white;
-        color: white;
-        background: transparent;
+    .hero-note h2 {
+        margin-bottom: 1.25rem;
+        color: #fff;
+        font-size: 1.2rem;
     }
 
-    .hero-cta .btn-outline-light:hover {
-        background: rgba(255,255,255,0.2);
-        transform: translateY(-3px);
-        box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+    .hero-note ul {
+        margin: 0;
+        padding: 0;
+        list-style: none;
     }
 
-    .feature-section {
+    .hero-note li {
+        display: flex;
+        gap: 0.65rem;
+        align-items: flex-start;
+        margin-bottom: 1rem;
+        color: rgba(255, 255, 255, 0.88);
+        line-height: 1.45;
+    }
+
+    .hero-note li:last-child {
+        margin-bottom: 0;
+    }
+
+    .hero-note i {
+        margin-top: 0.2rem;
+        color: #c4b5fd;
+    }
+
+    .home-section {
         margin-bottom: 4rem;
     }
 
-    .section-title {
-        font-size: 2.3rem;
-        font-weight: 800;
-        color: var(--text-primary);
-        margin-bottom: 0.5rem;
-        text-align: center;
-        letter-spacing: -0.5px;
+    .section-heading {
+        max-width: 650px;
+        margin-bottom: 1.75rem;
     }
 
-    .section-subtitle {
-        text-align: center;
+    .section-heading h2 {
+        margin-bottom: 0.5rem;
+        color: var(--text-primary);
+        font-size: clamp(1.8rem, 3vw, 2.5rem);
+        font-weight: 800;
+        letter-spacing: -0.03em;
+    }
+
+    .section-heading p {
+        margin: 0;
         color: var(--text-secondary);
-        margin-bottom: 3rem;
-        font-size: 1.15rem;
         line-height: 1.6;
     }
 
     .feature-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-        gap: 2.5rem;
-        margin-bottom: 3rem;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 1rem;
+    }
+
+    .feature-card,
+    .step-card,
+    .stats-section,
+    .about-section {
+        background: var(--card-bg);
+        border: 1px solid var(--border-color);
+        border-radius: 1rem;
     }
 
     .feature-card {
-        background: var(--card-bg);
-        border: 2px solid var(--border-color);
-        border-radius: 1.2rem;
-        padding: 2.5rem 2rem;
-        text-align: center;
-        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        display: flex;
-        flex-direction: column;
+        padding: 1.5rem;
     }
 
-    .feature-card:hover {
+    .feature-card:hover,
+    .step-card:hover {
         border-color: var(--primary-color);
-        box-shadow: 0 15px 40px var(--shadow);
-        transform: translateY(-8px);
-        background: var(--card-hover, var(--card-bg));
+        box-shadow: 0 10px 24px var(--shadow);
+        transform: translateY(-3px);
+    }
+
+    .feature-card,
+    .step-card {
+        transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
     }
 
     .feature-icon {
-        font-size: 3.5rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 2.6rem;
+        height: 2.6rem;
+        margin-bottom: 1rem;
+        color: #fff;
         background: var(--gradient-accent);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        background-clip: text;
-        margin-bottom: 1.5rem;
+        border-radius: 0.7rem;
     }
 
-    .feature-card h4 {
-        font-weight: 800;
+    .feature-card h3,
+    .step-card h3 {
+        margin-bottom: 0.5rem;
         color: var(--text-primary);
-        margin-bottom: 0.75rem;
-        font-size: 1.3rem;
+        font-size: 1.1rem;
+        font-weight: 700;
     }
 
-    .feature-card p {
+    .feature-card p,
+    .step-card p {
+        margin: 0;
         color: var(--text-secondary);
-        line-height: 1.7;
-        margin-bottom: 0;
-        font-size: 1rem;
+        line-height: 1.6;
     }
 
     .stats-section {
-        background: var(--card-bg);
-        border: 2px solid var(--border-color);
-        border-radius: 1.2rem;
-        padding: 3.5rem 2rem;
-        margin-bottom: 3rem;
-    }
-
-    .stats-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-        gap: 3rem;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 1rem;
+        padding: 1.5rem;
+        margin-bottom: 4rem;
+    }
+
+    .stat-item {
+        padding: 1rem;
         text-align: center;
     }
 
-    .stat-item h3 {
-        font-size: 2.8rem;
-        font-weight: 800;
-        background: var(--gradient-accent);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        background-clip: text;
-        margin-bottom: 0.5rem;
+    .stat-item strong {
+        display: block;
+        margin-bottom: 0.35rem;
+        color: var(--text-primary);
+        font-size: 2rem;
     }
 
-    .stat-item p {
+    .stat-item span {
         color: var(--text-secondary);
-        font-size: 1.05rem;
-        font-weight: 600;
-    }
-
-    .cta-section {
-        background: var(--gradient-accent);
-        color: white !important;
-        padding: 4rem 2rem;
-        border-radius: 1.2rem;
-        text-align: center;
-        margin-bottom: 3rem;
-        box-shadow: 0 15px 40px var(--shadow);
-    }
-
-    .cta-section h2 {
-        font-size: 2.3rem;
-        font-weight: 800;
-        margin-bottom: 1rem;
-        letter-spacing: -0.5px;
-        color: white !important;
-        text-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-    }
-
-    .cta-section p {
-        font-size: 1.2rem;
-        opacity: 1;
-        margin-bottom: 2rem;
-        line-height: 1.6;
-        color: white !important;
-        text-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
-    }
-
-    .how-it-works {
-        margin-bottom: 3rem;
+        font-size: 0.9rem;
     }
 
     .steps-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-        gap: 2.5rem;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 1rem;
     }
 
     .step-card {
-        text-align: center;
-        position: relative;
         padding: 1.5rem;
-        background: var(--card-bg);
-        border: 1px solid var(--border-color);
-        border-radius: 1rem;
-        transition: all 0.3s ease;
-    }
-
-    .step-card:hover {
-        border-color: var(--primary-color);
-        box-shadow: 0 8px 20px var(--shadow);
-        transform: translateY(-4px);
     }
 
     .step-number {
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        width: 60px;
-        height: 60px;
+        width: 2.2rem;
+        height: 2.2rem;
+        margin-bottom: 1.25rem;
+        color: #fff;
         background: var(--gradient-accent);
-        color: white;
         border-radius: 50%;
-        font-weight: 700;
+        font-weight: 800;
+    }
+
+    .home-cta {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 2rem;
+        padding: 2.5rem;
+        margin-bottom: 4rem;
+        color: #fff;
+        background: var(--gradient-accent);
+        border-radius: 1rem;
+    }
+
+    .home-cta h2 {
+        margin-bottom: 0.4rem;
+        color: #fff;
         font-size: 1.8rem;
-        margin-bottom: 1.5rem;
-        box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3);
     }
 
-    .step-card h4 {
-        color: var(--text-primary);
-        font-weight: 700;
-        margin-bottom: 0.75rem;
-    }
-
-    .step-card p {
-        color: var(--text-secondary);
-        line-height: 1.6;
+    .home-cta p {
+        margin: 0;
+        color: rgba(255, 255, 255, 0.85);
     }
 
     .about-section {
-        background: var(--card-bg);
-        border: 2px solid var(--border-color);
-        border-radius: 1.2rem;
-        padding: 2rem;
-        line-height: 1.8;
-        color: var(--text-secondary);
+        padding: 1.5rem;
     }
 
     .about-section p {
-        color: var(--text-secondary) !important;
-        margin-bottom: 1.5rem;
+        margin-bottom: 1rem;
+        color: var(--text-secondary);
+        line-height: 1.7;
     }
 
     .about-section p:last-child {
         margin-bottom: 0;
     }
 
-    @media (max-width: 768px) {
+    @media (max-width: 900px) {
         .home-hero {
-            padding: 2.5rem 1rem;
-        }
-
-        .home-hero h1 {
-            font-size: 2rem;
-        }
-
-        .home-hero p {
-            font-size: 1rem;
-        }
-
-        .hero-cta {
-            flex-direction: column;
-            gap: 1rem;
-        }
-
-        .hero-cta a {
-            width: 100%;
+            grid-template-columns: 1fr;
+            gap: 2rem;
+            padding: 3rem 1.5rem;
         }
 
         .feature-grid {
-            gap: 1.5rem;
+            grid-template-columns: repeat(2, 1fr);
         }
 
-        .section-title {
-            font-size: 1.5rem;
+        .steps-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+    }
+
+    @media (max-width: 600px) {
+        .home-page {
+            padding: 1rem 0.75rem 3rem;
         }
 
-        .stats-grid {
-            gap: 1.5rem;
+        .home-hero {
+            margin-bottom: 3rem;
+            border-radius: 1rem;
         }
 
-        .stat-item h3 {
-            font-size: 2rem;
+        .feature-grid,
+        .stats-section,
+        .steps-grid {
+            grid-template-columns: 1fr;
+        }
+
+        .home-cta {
+            align-items: flex-start;
+            flex-direction: column;
+            padding: 1.5rem;
         }
     }
 </style>
 
-<div class="container-fluid">
-    <!-- Hero Section -->
-    <div class="home-hero">
-        <h1>Welcome to StockLeague</h1>
-        <p>Learn to trade, compete with friends, and master the stock market—all in a risk-free paper trading environment</p>
-        
-        <div class="hero-cta">
-            {% if session.get('user_id') %}
-            <a href="/dashboard" class="btn btn-light">
-                <i class="fas fa-arrow-right"></i> Go to Dashboard
-            </a>
-            <a href="/explore" class="btn btn-outline-light">
-                <i class="fas fa-compass"></i> Explore Stocks
-            </a>
-            {% else %}
-            <a href="/register" class="btn btn-light">
-                <i class="fas fa-rocket"></i> Get Started Free
-            </a>
-            <a href="/login" class="btn btn-outline-light">
-                <i class="fas fa-right-to-bracket"></i> Sign In
-            </a>
-            {% endif %}
+<div class="home-page">
+    <section class="home-hero">
+        <div>
+            <p class="eyebrow">Paper trading, without the pressure</p>
+            <h1>Learn the market by actually using it.</h1>
+            <p class="lead">
+                StockLeague gives you a virtual portfolio, real market prices, and a place to compete with friends. Try ideas, make mistakes, and see what happens before putting real money on the line.
+            </p>
+            <div class="hero-cta">
+                {% if session.get('user_id') %}
+                <a href="/dashboard" class="btn btn-light">Open my dashboard</a>
+                <a href="/explore" class="btn btn-outline-light">Browse stocks</a>
+                {% else %}
+                <a href="/register" class="btn btn-light">Create a free account</a>
+                <a href="/login" class="btn btn-outline-light">Sign in</a>
+                {% endif %}
+            </div>
         </div>
-    </div>
+        <aside class="hero-note">
+            <h2>Start with $10,000 in virtual cash</h2>
+            <ul>
+                <li><i class="fas fa-check"></i><span>Trade stocks at current market prices.</span></li>
+                <li><i class="fas fa-check"></i><span>Keep an eye on your portfolio and trade history.</span></li>
+                <li><i class="fas fa-check"></i><span>Join a league when you want some competition.</span></li>
+            </ul>
+        </aside>
+    </section>
 
-    <!-- Features Section -->
-    <section class="feature-section">
-        <h2 class="section-title">What You Can Do</h2>
-        <p class="section-subtitle">Master stock trading with real market data, no real money at stake</p>
-
+    <section class="home-section">
+        <div class="section-heading">
+            <h2>Everything you need to practice</h2>
+            <p>No complicated setup. Pick a stock, place a trade, and use the results to improve your next decision.</p>
+        </div>
         <div class="feature-grid">
-            <div class="feature-card">
+            <article class="feature-card">
                 <div class="feature-icon"><i class="fas fa-chart-line"></i></div>
-                <h4>Paper Trading</h4>
-                <p>Trade real stocks with virtual money. Practice strategies, test theories, and build confidence without financial risk.</p>
-            </div>
-
-            <div class="feature-card">
+                <h3>Trade with play money</h3>
+                <p>Buy and sell stocks using a virtual balance, so learning never has to be expensive.</p>
+            </article>
+            <article class="feature-card">
                 <div class="feature-icon"><i class="fas fa-trophy"></i></div>
-                <h4>Compete in Leagues</h4>
-                <p>Create or join trading leagues with custom competition modes. Track rankings, earn badges, and compete with friends.</p>
-            </div>
-
-            <div class="feature-card">
-                <div class="feature-icon"><i class="fas fa-bell"></i></div>
-                <h4>Price Alerts</h4>
-                <p>Set custom price alerts for your watched stocks. Get notified when prices reach your targets or hit support/resistance levels.</p>
-            </div>
-
-            <div class="feature-card">
-                <div class="feature-icon"><i class="fas fa-star"></i></div>
-                <h4>Watchlists</h4>
-                <p>Build custom watchlists to track potential investments. Monitor market opportunities and organize stocks by strategy.</p>
-            </div>
-
-            <div class="feature-card">
-                <div class="feature-icon"><i class="fas fa-chart-bar"></i></div>
-                <h4>Real-Time Charts</h4>
-                <p>Access live stock quotes, interactive charts, and technical analysis tools to make informed trading decisions.</p>
-            </div>
-
-            <div class="feature-card">
-                <div class="feature-icon"><i class="fas fa-users"></i></div>
-                <h4>League Chat</h4>
-                <p>Communicate with fellow traders in league chats. Share insights, discuss strategy, and watch trades happen in real-time.</p>
-            </div>
+                <h3>Make it a competition</h3>
+                <p>Create a league with friends, compare results, and see who can build the strongest portfolio.</p>
+            </article>
+            <article class="feature-card">
+                <div class="feature-icon"><i class="fas fa-magnifying-glass-chart"></i></div>
+                <h3>Follow the market</h3>
+                <p>Check quotes, charts, watchlists, news, and alerts in one place.</p>
+            </article>
+            <article class="feature-card">
+                <div class="feature-icon"><i class="fas fa-clock-rotate-left"></i></div>
+                <h3>Review your decisions</h3>
+                <p>Use your transaction history and portfolio data to spot what worked and what did not.</p>
+            </article>
+            <article class="feature-card">
+                <div class="feature-icon"><i class="fas fa-comments"></i></div>
+                <h3>Talk strategy</h3>
+                <p>Share ideas and discuss trades with the people in your league.</p>
+            </article>
+            <article class="feature-card">
+                <div class="feature-icon"><i class="fas fa-shield-halved"></i></div>
+                <h3>Keep the risk out</h3>
+                <p>It is a learning tool, not a brokerage account. Your real money stays out of the game.</p>
+            </article>
         </div>
     </section>
 
-    <!-- Stats Section -->
-    <section class="stats-section">
-        <h2 class="section-title mb-3">By The Numbers</h2>
-        <div class="stats-grid">
-            <div class="stat-item">
-                <h3>{{ stats.total_traders }}</h3>
-                <p>Traders</p>
-            </div>
-            <div class="stat-item">
-                <h3>{{ stats.total_leagues }}</h3>
-                <p>Trading Leagues</p>
-            </div>
-            <div class="stat-item">
-                <h3>{{ "{:,.0f}".format(stats.total_trades) }}</h3>
-                <p>Trades Executed</p>
-            </div>
-            <div class="stat-item">
-                <h3>${{ "{:,.0f}".format(stats.total_portfolio_value / 1000000) }}M</h3>
-                <p>Total Portfolio Value</p>
-            </div>
+    <section class="stats-section" aria-label="StockLeague activity">
+        <div class="stat-item">
+            <strong>{{ stats.total_traders }}</strong>
+            <span>registered traders</span>
+        </div>
+        <div class="stat-item">
+            <strong>{{ stats.total_leagues }}</strong>
+            <span>leagues created</span>
+        </div>
+        <div class="stat-item">
+            <strong>{{ "{:,.0f}".format(stats.total_trades) }}</strong>
+            <span>trades recorded</span>
+        </div>
+        <div class="stat-item">
+            <strong>${{ "{:,.0f}".format(stats.total_portfolio_value / 1000000) }}M</strong>
+            <span>virtual cash in leagues</span>
         </div>
     </section>
 
-    <!-- How It Works Section -->
-    <section class="how-it-works">
-        <h2 class="section-title">How It Works</h2>
-        <p class="section-subtitle">Get started trading in just a few minutes</p>
-
+    <section class="home-section">
+        <div class="section-heading">
+            <h2>Getting started is straightforward</h2>
+            <p>You can be looking at your first portfolio in a few minutes.</p>
+        </div>
         <div class="steps-grid">
-            <div class="step-card">
+            <article class="step-card">
                 <div class="step-number">1</div>
-                <h4>Create Account</h4>
-                <p>Sign up for free with your email and password. Your account starts with $10,000 in virtual cash.</p>
-            </div>
-
-            <div class="step-card">
+                <h3>Make an account</h3>
+                <p>Sign up and get your virtual starting balance.</p>
+            </article>
+            <article class="step-card">
                 <div class="step-number">2</div>
-                <h4>Explore Markets</h4>
-                <p>Browse stocks, check real-time prices, view charts, and research companies to find your opportunities.</p>
-            </div>
-
-            <div class="step-card">
+                <h3>Find a stock</h3>
+                <p>Search the market and add companies to your watchlist.</p>
+            </article>
+            <article class="step-card">
                 <div class="step-number">3</div>
-                <h4>Start Trading</h4>
-                <p>Buy and sell stocks using real market prices. Track your performance and learn from your trades.</p>
-            </div>
-
-            <div class="step-card">
+                <h3>Place a trade</h3>
+                <p>Buy or sell, then watch how your portfolio changes.</p>
+            </article>
+            <article class="step-card">
                 <div class="step-number">4</div>
-                <h4>Join Leagues</h4>
-                <p>Create or join a league with friends to compete, track rankings, and earn achievements and badges.</p>
-            </div>
+                <h3>Join a league</h3>
+                <p>Invite friends and turn practice into a friendly contest.</p>
+            </article>
         </div>
     </section>
 
-    <!-- CTA Section -->
-    <div class="cta-section">
-        <h2>Ready to Start Trading?</h2>
-        <p>Join thousands of traders improving their skills with StockLeague</p>
-        
-        {% if not session.get('user_id') %}
-        <div class="hero-cta">
-            <a href="/register" class="btn btn-light">
-                <i class="fas fa-rocket"></i> Sign Up for Free
-            </a>
-            <a href="/login" class="btn btn-outline-light">
-                <i class="fas fa-right-to-bracket"></i> Already have an account?
-            </a>
+    <section class="home-cta">
+        <div>
+            <h2>Curious what your strategy looks like?</h2>
+            <p>Try it with virtual cash and find out.</p>
         </div>
+        {% if not session.get('user_id') %}
+        <a href="/register" class="btn btn-light">Get started</a>
         {% else %}
-        <a href="/dashboard" class="btn btn-light btn-lg">
-            <i class="fas fa-arrow-right"></i> Go to Your Dashboard
-        </a>
+        <a href="/dashboard" class="btn btn-light">Go to dashboard</a>
         {% endif %}
-    </div>
+    </section>
 
-    <!-- About Section -->
-    <section class="mb-5">
-        <h2 class="section-title">About StockLeague</h2>
-        <p class="section-subtitle">Learn investing with zero risk</p>
-
+    <section>
+        <div class="section-heading">
+            <h2>A calmer way to learn</h2>
+        </div>
         <div class="about-section">
             <p>
-                <strong>StockLeague</strong> is a free platform designed to teach people the fundamentals of stock trading and investing. 
-                Our mission is to empower traders with the knowledge and experience they need to make informed investment decisions.
+                StockLeague is built for people who want to understand investing by doing, not just reading. You get a safe place to test a plan, follow the market, and learn from your own decisions.
             </p>
             <p>
-                By providing real market data in a risk-free environment, we allow traders to practice strategies, 
-                test their skills, and learn from mistakes without putting real money at stake.
-            </p>
-            <p style="margin-bottom: 0;">
-                Whether you're a complete beginner or an experienced trader, StockLeague offers the tools and community 
-                you need to grow your skills and connect with other traders.
+                Whether you are brand new to stocks or already have a strategy, the goal is simple: make practice useful, keep the competition fun, and leave the real-world risk at the door.
             </p>
         </div>
     </section>
 </div>
-
 {% endblock %}

@@ -241,7 +241,7 @@ def background_price_updater():
 ### Advanced Features
 1. **Level 2 Data**: Market depth and order flow
 2. **Options Chain**: Real-time options pricing
-3. **News Feed**: Live financial news with sentiment analysis
+3. **News Feed**: Live financial news with source, date, summary, and article links
 4. **Backtesting**: Test strategies with historical data streaming
 5. **Paper Trading Mode**: Practice with simulated real-time data
 

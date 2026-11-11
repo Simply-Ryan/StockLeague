@@ -1,166 +1,61 @@
 {% extends "layout.html" %}
 
-{% block title %}
-    News - {{ symbol }}
-{% endblock %}
+{% block title %}{{ symbol }} News - StockLeague{% endblock %}
 
 {% block main %}
-    <div class="container-fluid mt-4">
-        <!-- Header -->
-        <div class="row mb-4">
-            <div class="col-md-12">
-                <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                        <h2><i class="bi bi-newspaper me-2"></i>News & Sentiment</h2>
-                        <h3 class="text-primary">{{ symbol }}</h3>
-                    </div>
-                    <div class="text-end">
-                        <h5>Current Price</h5>
-                        <h3 class="mb-0 {% if quote.change >= 0 %}text-success{% else %}text-danger{% endif %}">
-                            ${{ "%.2f"|format(quote.price) }}
-                        </h3>
-                        <small class="{% if quote.change >= 0 %}text-success{% else %}text-danger{% endif %}">
-                            {{ "%.2f"|format(quote.change) }} ({{ "%.2f"|format(quote.change_percent) }}%)
-                        </small>
-                    </div>
-                </div>
-            </div>
-        </div>
+<style>
+    .symbol-news { max-width: 1080px; margin: 0 auto; padding: 2rem 1rem 4rem; }
+    .symbol-header { display: flex; justify-content: space-between; align-items: flex-end; gap: 1rem; margin-bottom: 2rem; }
+    .symbol-header h1 { color: var(--text-primary); font-size: clamp(2rem, 5vw, 3rem); font-weight: 800; }
+    .symbol-header p, .article-source, .article-date { color: var(--text-secondary); }
+    .symbol-price { text-align: right; }
+    .symbol-price strong { display: block; color: var(--text-primary); font-size: 1.8rem; }
+    .article-card { display: grid; grid-template-columns: 220px 1fr; gap: 1.25rem; padding: 1rem; margin-bottom: 1rem; background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 0.9rem; }
+    .article-card img { width: 100%; height: 150px; object-fit: cover; border-radius: 0.6rem; }
+    .article-card h2 { margin: 0.35rem 0 0.6rem; color: var(--text-primary); font-size: 1.25rem; line-height: 1.35; }
+    .article-card p { color: var(--text-secondary); line-height: 1.6; }
+    .article-footer { display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
+    @media (max-width: 650px) { .symbol-header { align-items: flex-start; flex-direction: column; } .symbol-price { text-align: left; } .article-card { display: block; } .article-card img { height: 180px; margin-bottom: 1rem; } }
+</style>
 
-        <!-- Sentiment Analysis for Stock -->
-        <div class="row mb-4">
-            <div class="col-md-12">
-                <div class="card">
-                    <div class="card-header bg-primary text-white">
-                        <h5 class="mb-0"><i class="bi bi-bar-chart me-2"></i>{{ symbol }} Sentiment Analysis (24h)</h5>
-                    </div>
-                    <div class="card-body">
-                        <div class="row text-center">
-                            <div class="col-md-4">
-                                <div class="p-4 bg-success bg-opacity-10 rounded">
-                                    <i class="bi bi-emoji-smile text-success" style="font-size: 3rem;"></i>
-                                    <h2 class="text-success mt-3">{{ sentiment_summary.positive.count }}</h2>
-                                    <h5>Positive</h5>
-                                    <div class="progress" style="height: 8px;">
-                                        <div class="progress-bar bg-success" role="progressbar" 
-                                             style="width: {{ sentiment_summary.positive.get('percentage', 0) }}%"></div>
-                                    </div>
-                                    <small class="text-muted">{{ "%.1f"|format(sentiment_summary.positive.get('percentage', 0)) }}% of articles</small>
-                                </div>
-                            </div>
-                            <div class="col-md-4">
-                                <div class="p-4 bg-secondary bg-opacity-10 rounded">
-                                    <i class="bi bi-emoji-neutral text-secondary" style="font-size: 3rem;"></i>
-                                    <h2 class="text-secondary mt-3">{{ sentiment_summary.neutral.count }}</h2>
-                                    <h5>Neutral</h5>
-                                    <div class="progress" style="height: 8px;">
-                                        <div class="progress-bar bg-secondary" role="progressbar" 
-                                             style="width: {{ sentiment_summary.neutral.get('percentage', 0) }}%"></div>
-                                    </div>
-                                    <small class="text-muted">{{ "%.1f"|format(sentiment_summary.neutral.get('percentage', 0)) }}% of articles</small>
-                                </div>
-                            </div>
-                            <div class="col-md-4">
-                                <div class="p-4 bg-danger bg-opacity-10 rounded">
-                                    <i class="bi bi-emoji-frown text-danger" style="font-size: 3rem;"></i>
-                                    <h2 class="text-danger mt-3">{{ sentiment_summary.negative.count }}</h2>
-                                    <h5>Negative</h5>
-                                    <div class="progress" style="height: 8px;">
-                                        <div class="progress-bar bg-danger" role="progressbar" 
-                                             style="width: {{ sentiment_summary.negative.get('percentage', 0) }}%"></div>
-                                    </div>
-                                    <small class="text-muted">{{ "%.1f"|format(sentiment_summary.negative.get('percentage', 0)) }}% of articles</small>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
+<div class="symbol-news">
+    <div class="symbol-header">
+        <div>
+            <a href="/news" class="btn btn-sm btn-outline-secondary mb-3"><i class="bi bi-arrow-left"></i> All news</a>
+            <h1>{{ symbol }}</h1>
+            <p>Recent headlines and company coverage.</p>
         </div>
-
-        <!-- Action Buttons -->
-        <div class="row mb-3">
-            <div class="col-md-12">
-                <a href="/news" class="btn btn-secondary">
-                    <i class="bi bi-arrow-left me-2"></i>Back to News Feed
-                </a>
-                <a href="/trade?symbol={{ symbol }}" class="btn btn-primary">
-                    <i class="bi bi-search me-2"></i>View Quote
-                </a>
-                <a href="/buy?symbol={{ symbol }}" class="btn btn-success">
-                    <i class="bi bi-cart-plus me-2"></i>Buy Stock
-                </a>
-            </div>
+        {% if quote %}
+        <div class="symbol-price">
+            <span class="article-date">Current price</span>
+            <strong>${{ "%.2f"|format(quote.price) }}</strong>
+            <span class="{% if quote.change >= 0 %}text-success{% else %}text-danger{% endif %}">{{ "%.2f"|format(quote.change) }} ({{ "%.2f"|format(quote.change_percent) }}%)</span>
         </div>
-
-        <!-- News Articles -->
-        <div class="row">
-            <div class="col-md-12">
-                <h4 class="mb-3">Recent Articles</h4>
-                
-                {% if news %}
-                    {% for article in news %}
-                        <div class="card mb-3 {% if article.sentiment_label == 'positive' %}border-success{% elif article.sentiment_label == 'negative' %}border-danger{% endif %}">
-                            <div class="card-body">
-                                <div class="row">
-                                    {% if article.image_url %}
-                                        <div class="col-md-3">
-                                            <img src="{{ article.image_url }}" class="img-fluid rounded" alt="Article image" style="max-height: 150px; object-fit: cover; width: 100%;">
-                                        </div>
-                                        <div class="col-md-9">
-                                    {% else %}
-                                        <div class="col-md-12">
-                                    {% endif %}
-                                        <!-- Sentiment Badge -->
-                                        <div class="mb-2">
-                                            {% if article.sentiment_label == 'positive' %}
-                                                <span class="badge bg-success">
-                                                    <i class="bi bi-arrow-up"></i> Positive ({{ "%.2f"|format(article.sentiment_score) }})
-                                                </span>
-                                            {% elif article.sentiment_label == 'negative' %}
-                                                <span class="badge bg-danger">
-                                                    <i class="bi bi-arrow-down"></i> Negative ({{ "%.2f"|format(article.sentiment_score) }})
-                                                </span>
-                                            {% else %}
-                                                <span class="badge bg-secondary">
-                                                    <i class="bi bi-dash"></i> Neutral ({{ "%.2f"|format(article.sentiment_score) }})
-                                                </span>
-                                            {% endif %}
-                                            
-                                            <span class="badge bg-light text-dark">
-                                                <i class="bi bi-clock"></i> {{ article.published_at }}
-                                            </span>
-                                        </div>
-                                        
-                                        <h5 class="card-title">{{ article.headline }}</h5>
-                                        
-                                        {% if article.summary %}
-                                            <p class="card-text">{{ article.summary }}</p>
-                                        {% endif %}
-                                        
-                                        <div class="d-flex justify-content-between align-items-center">
-                                            <small class="text-muted">
-                                                <i class="bi bi-building"></i> {{ article.source }}
-                                            </small>
-                                            <a href="{{ article.url }}" target="_blank" class="btn btn-sm btn-primary">
-                                                Read Full Article <i class="bi bi-box-arrow-up-right"></i>
-                                            </a>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    {% endfor %}
-                {% else %}
-                    <div class="card">
-                        <div class="card-body text-center py-5">
-                            <i class="bi bi-newspaper" style="font-size: 3rem; color: #ccc;"></i>
-                            <p class="mt-3 text-muted">No news articles found for {{ symbol }}</p>
-                            <p class="text-muted">Check back later for updates</p>
-                        </div>
-                    </div>
-                {% endif %}
-            </div>
-        </div>
+        {% endif %}
     </div>
+
+    <div class="mb-4">
+        <a href="/trade?symbol={{ symbol }}" class="btn btn-primary">View quote</a>
+        <a href="/buy?symbol={{ symbol }}" class="btn btn-success">Buy {{ symbol }}</a>
+    </div>
+
+    {% if news %}
+        {% for article in news %}
+        <article class="article-card">
+            {% if article.image_url %}<img src="{{ article.image_url }}" alt="" loading="lazy">{% endif %}
+            <div>
+                <div class="article-source"><strong>{{ article.source or 'News' }}</strong> · <span class="article-date">{{ article.published_at }}</span></div>
+                <h2>{{ article.headline }}</h2>
+                {% if article.summary %}<p>{{ article.summary }}</p>{% endif %}
+                <div class="article-footer">
+                    <span class="badge bg-primary">{{ symbol }}</span>
+                    <a href="{{ article.url }}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-primary">Read full story <i class="bi bi-arrow-up-right"></i></a>
+                </div>
+            </div>
+        </article>
+        {% endfor %}
+    {% else %}
+        <div class="article-card"><div><h2>No stories found for {{ symbol }}</h2><p>Try again later or check that the symbol is correct.</p></div></div>
+    {% endif %}
+</div>
 {% endblock %}

@@ -1,234 +1,107 @@
-# 🚀 Development Environment Setup Guide
+# StockLeague development setup
 
-This guide walks you through setting up your local development environment for StockLeague.
+This guide describes the current local development workflow. Commands assume PowerShell on Windows. Use the equivalent `.venv/bin/python` path on Linux or macOS.
 
-## Prerequisites
+## First run
 
-- **Python 3.8+** installed on your system
-- Git (to clone the repo - already done ✓)
+From the StockLeague directory:
 
-## Quick Start (Linux/Mac)
-
-### 1. Create and activate a virtual environment
-
-```bash
-cd /workspaces/codespaces-blank/StockLeague
-
-# Create virtual environment
-python3 -m venv venv
-
-# Activate it
-source venv/bin/activate  # Linux/Mac
-# OR
-venv\Scripts\activate  # Windows
+```powershell
+python --version
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install --upgrade pip
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+Copy-Item .env.example .env
+.\.venv\Scripts\python.exe app.py
 ```
 
-### 2. Upgrade pip and install dependencies
+The app is available at http://127.0.0.1:5000. The database is SQLite and is created or upgraded at startup.
 
-```bash
-pip install --upgrade pip setuptools wheel
-pip install -r requirements.txt
-pip install -r dev-requirements.txt
+For the simplest repeatable Windows workflow, run:
+
+```powershell
+.\run_stockleague.bat
 ```
 
-This will install:
-- **Flask & Flask-SocketIO** - Web framework and real-time features
-- **yfinance** - Stock market data
-- **pytest** - Testing framework
-- **playwright** - E2E testing browser automation
-- **redis** - (optional) For caching enhancements
-- All other dependencies from `requirements.txt`
+This command always uses the project-local `.venv`, which prevents the common `ModuleNotFoundError` caused by installing packages into a different Python installation.
 
-### 3. Initialize the database
+## Configuration
 
-The database will be created automatically when you first run the app, or you can initialize it manually:
+The application loads `.env` when present. Keep credentials and local settings there. The repository includes `.env.example` as a reference. Never commit `.env`, API keys, session files, or SQLite databases.
 
-```bash
-python3 initialize_database.py
+Market data uses the configured providers in `helpers.py`. News uses Yahoo Finance first and Google News RSS as a fallback. Some pages can still render without live market data, but quote and news content requires internet access.
+
+## Tests and checks
+
+Run the syntax check:
+
+```powershell
+.\.venv\Scripts\python.exe -m compileall -q .
 ```
 
-This creates `database/stocks.db` with all necessary tables.
+Run the full test suite:
 
-### 4. Create a `.env` file (optional but recommended)
-
-```bash
-cp .env.example .env
+```powershell
+.\.venv\Scripts\python.exe -m pytest -q
 ```
 
-You can edit `.env` to customize settings. Default values work fine for local development.
+Run focused tests:
 
-### 5. Run the application
-
-```bash
-python3 app.py
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests\unit\test_trading.py tests\integration\test_concurrent_trades.py -q
 ```
 
-You should see output like:
-```
- * Serving Flask app 'app'
- * Running on http://127.0.0.1:5000
-```
+Install Playwright browsers only when running browser tests:
 
-Open your browser and navigate to: **http://localhost:5000**
-
-## What's Running
-
-When you start the app, you get:
-- ✅ Flask web server on port 5000
-- ✅ SQLite database in `database/stocks.db`
-- ✅ Real-time Socket.IO connections
-- ✅ Static files served from `static/`
-- ✅ Jinja2 template rendering
-
-## Common Development Tasks
-
-### Run tests
-
-```bash
-# Run all tests
-pytest -v
-
-# Run specific test file
-pytest tests/test_explore.py -v
-
-# Run with coverage
-pytest --cov=. --cov-report=html
+```powershell
+.\.venv\Scripts\python.exe -m playwright install
 ```
 
-### Run a specific test
-```bash
-pytest tests/test_explore.py::test_explore_page_renders -v
+## Database notes
+
+The local database is ignored by Git. Back it up before testing migrations. Do not delete it unless you intentionally want to reset local accounts, trades, leagues, and settings.
+
+Useful read-only checks include:
+
+```powershell
+.\.venv\Scripts\python.exe check_schema.py
+.\.venv\Scripts\python.exe check_db.py
 ```
 
-### Install Playwright browsers (for E2E tests)
+## Common problems
 
-```bash
-playwright install
+### APScheduler or another package is missing
+
+Use the project interpreter rather than the system interpreter:
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe app.py
 ```
 
-### Check the database schema
+### Port 5000 is already in use
 
-```bash
-python3 check_schema.py
+Find the process:
+
+```powershell
+Get-NetTCPConnection -LocalPort 5000 -State Listen
 ```
 
-### View database contents
+Stop only the specific process after confirming its PID:
 
-```bash
-python3 check_db.py
+```powershell
+Stop-Process -Id <PID>
 ```
 
-### Reset the database
+### A page appears stale
 
-```bash
-rm database/stocks.db
-python3 initialize_database.py
+Restart Flask and hard refresh the browser with `Ctrl+Shift+R`. Static assets include a cache version in the shared layout.
+
+### Dependency installation fails
+
+Confirm that the project is using a supported Python version, then upgrade packaging tools:
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install --upgrade pip setuptools wheel
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
 ```
-
-## Project Structure
-
-```
-StockLeague/
-├── app.py                    # Main Flask app
-├── helpers.py               # Market data helpers (lookup, get_chart_data, etc.)
-├── league_modes.py          # League game mode logic
-├── league_rules.py          # League rules engine
-├── utils.py                 # Utility functions
-│
-├── database/
-│   ├── db_manager.py        # Database connection & CRUD operations
-│   └── stocks.db            # SQLite database (created on first run)
-│
-├── blueprints/              # Flask blueprints (optional modularization)
-│   ├── api_bp.py
-│   ├── auth_bp.py
-│   ├── portfolio_bp.py
-│   └── explore_bp.py
-│
-├── templates/               # Jinja2 HTML templates
-│   ├── layout.html          # Main layout
-│   ├── index.html
-│   ├── explore.html
-│   ├── league_detail.html
-│   └── ... more templates
-│
-├── static/                  # CSS, JavaScript, images
-│   ├── css/
-│   │   └── styles.css
-│   ├── js/
-│   │   ├── app.js
-│   │   ├── realtime.js
-│   │   └── leaderboards.js
-│   └── avatars/
-│
-├── tests/                   # Pytest test files
-│   ├── test_explore.py
-│   ├── test_leaderboard.py
-│   └── test_league_admin.py
-│
-└── requirements.txt         # Python dependencies
-```
-
-## Environment Variables
-
-Key variables in `.env`:
-
-| Variable | Default | Purpose |
-|----------|---------|---------|
-| `SECRET_KEY` | `fallback-secret-key` | Session encryption (⚠️ change in production) |
-| `REDIS_URL` | `redis://localhost:6379/0` | Redis cache (optional) |
-| `FLASK_ENV` | `development` | Flask environment |
-| `FLASK_DEBUG` | `True` | Enable debug mode |
-
-## Troubleshooting
-
-### "ModuleNotFoundError: No module named 'flask'"
-You probably forgot to activate your virtual environment.
-```bash
-source venv/bin/activate  # Linux/Mac
-# OR
-venv\Scripts\activate  # Windows
-```
-
-### Database locked errors
-This happens when multiple processes access the SQLite database. Kill any other running instances:
-```bash
-pkill -f "python3 app.py"
-```
-
-### Port 5000 already in use
-Find what's using it:
-```bash
-lsof -i :5000  # Linux/Mac
-netstat -ano | findstr :5000  # Windows
-```
-
-Then stop it or use a different port:
-```bash
-python3 app.py --port 5001
-```
-
-### Playwright browsers not installed
-Install them:
-```bash
-playwright install
-```
-
-## Next Steps
-
-After setup is complete, check the [TODO list](../PROJECT_REVIEW.md#4-future-features--prioritized) for what features to work on next!
-
-Key priorities:
-1. 🔴 **High**: Cache `/api/chart/<symbol>` server-side (5-30 min)
-2. 🔴 **High**: Redis caching & session store
-3. 🟡 **Medium**: Admin portfolio_resets UI with CSV export
-4. 🟡 **Medium**: Playwright E2E tests
-
-## Getting Help
-
-- Check `PROJECT_REVIEW.md` for architectural overview and known issues
-- Check `SETUP_GUIDE.md` for user-facing setup instructions
-- Run tests to verify your setup: `pytest -v`
-- Check individual files for inline documentation
-
-Happy coding! 🎉
